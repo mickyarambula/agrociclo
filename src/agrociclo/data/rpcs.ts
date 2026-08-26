@@ -45,6 +45,7 @@ function upsertDisposicion(opts: {
   linea_id: string;
   monto: number;
   fecha: string;
+  ciclo_id: string;
 }): string {
   const existing =
     (opts.id && getById("disposicion", opts.id)) ||
@@ -53,7 +54,7 @@ function upsertDisposicion(opts: {
   upsert("disposicion", {
     id,
     organizacion_id: ORG_ID,
-    ciclo_id: CICLO_ID,
+    ciclo_id: opts.ciclo_id,
     linea_credito_id: opts.linea_id,
     origen_tipo: opts.origen_tipo,
     origen_id: opts.origen_id,
@@ -202,6 +203,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_credito_id),
         monto: montoRenta,
         fecha: String(p.p_fecha_renta || hoyMochis()),
+        ciclo_id: cicloDe(p),
       });
     } else if (rentaDisp) {
       softDelete("disposicion", rentaDisp);
@@ -262,6 +264,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_id),
         monto,
         fecha: String(p.p_fecha),
+        ciclo_id: cicloDe(p),
       });
     } else if (dispId) {
       softDelete("disposicion", dispId);
@@ -355,6 +358,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_id),
         monto: Number(p.p_monto) || 0,
         fecha: String(p.p_fecha),
+        ciclo_id: cicloDe(p),
       });
     } else if (dispId) {
       softDelete("disposicion", dispId);
@@ -403,6 +407,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_id),
         monto: Number(p.p_monto) || 0,
         fecha: String(p.p_fecha),
+        ciclo_id: cicloDe(p),
       });
     } else if (dispId) {
       softDelete("disposicion", dispId);
@@ -445,6 +450,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_id),
         monto: Number(p.p_monto) || 0,
         fecha: String(p.p_fecha),
+        ciclo_id: cicloDe(p),
       });
     } else if (dispId) {
       softDelete("disposicion", dispId);
@@ -647,6 +653,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(sol.linea_credito_id),
         monto,
         fecha: String(p.p_fecha || hoyMochis()),
+        ciclo_id: cicloDe(p, sol.parcela_id ? String(sol.parcela_id) : null),
       });
     }
     let insumoId = (sol.insumo_id as string) || null;
@@ -711,6 +718,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         linea_id: String(p.p_linea_id),
         monto: Number(p.p_monto) || 0,
         fecha: String(p.p_fecha),
+        ciclo_id: cicloDe(p),
       });
     } else if (dispId) {
       softDelete("disposicion", dispId);
@@ -840,6 +848,63 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       fecha_fin: p.p_fecha_fin ? String(p.p_fecha_fin) : null,
     });
     return ok({ id, clave, nombre });
+  },
+
+  fn_editar_ciclo(p) {
+    const id = String(p.p_id ?? "");
+    const c = getById("ciclo", id);
+    if (!c) return err("No encontré ese ciclo.");
+    const clave = String(p.p_clave ?? c.clave ?? "").trim().toLowerCase();
+    const nombre = String(p.p_nombre ?? c.nombre ?? "").trim();
+    if (!clave || !nombre) return err("Faltan clave y nombre del ciclo.");
+    const dup = live("ciclo").find((x) => x.id !== id && String(x.clave).toLowerCase() === clave);
+    if (dup) return err(`Ya existe el ciclo ${clave}.`);
+    patchWhere("ciclo", (r) => r.id === id, {
+      clave,
+      nombre,
+      fecha_inicio: p.p_fecha_inicio != null && p.p_fecha_inicio !== "" ? String(p.p_fecha_inicio) : c.fecha_inicio,
+      fecha_fin: p.p_fecha_fin != null && p.p_fecha_fin !== "" ? String(p.p_fecha_fin) : c.fecha_fin,
+    });
+    return ok({ id, clave, nombre });
+  },
+
+  fn_eliminar_ciclo(p) {
+    const id = String(p.p_id ?? "");
+    const c = getById("ciclo", id);
+    if (!c) return err("No encontré ese ciclo.");
+    if (live("ciclo").length <= 1) return err("No puedes dejar el rancho sin ciclo. Abre otro primero.");
+    const nParc = live("parcela").filter((r) => String(r.ciclo_id) === id).length;
+    const nLab = live("labor").filter((r) => String(r.ciclo_id) === id).length;
+    const nLin = live("linea_credito").filter((r) => String(r.ciclo_id) === id).length;
+    const nMov = live("inventario_movimiento").filter((r) => String(r.ciclo_id) === id).length;
+    const tiene = nParc + nLab + nLin + nMov;
+    if (tiene > 0 && !p.p_forzar) {
+      return err(
+        `Este ciclo tiene ${nParc} parcela(s), ${nLab} labor(es) y ${nLin} línea(s). Confirma para vaciarlo y eliminarlo.`,
+      );
+    }
+    if (p.p_forzar) {
+      const tablas: TableName[] = [
+        "parcela",
+        "labor",
+        "jornal",
+        "boleta",
+        "gasto",
+        "compra",
+        "dispersion",
+        "prestamo",
+        "solicitud_compra",
+        "caja_movimiento",
+        "linea_credito",
+        "disposicion",
+        "inventario_movimiento",
+      ];
+      for (const k of tablas) {
+        for (const r of live(k).filter((x) => String(x.ciclo_id) === id)) softDelete(k, r.id);
+      }
+    }
+    softDelete("ciclo", id);
+    return ok({ id });
   },
 
   fn_disposicion_interes(p) {

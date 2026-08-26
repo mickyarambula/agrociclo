@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
-const { allowRpc, allowTable, veFinanzasOf } = await jiti.import("../src/agrociclo/server/roles.ts");
+const { allowRpc, allowTable, veFinanzasOf, presetPermisos } = await jiti.import("../src/agrociclo/server/roles.ts");
 const { rolDeEntrada, debePromoverADueño, etiquetaDueño } = await jiti.import("../src/agrociclo/server/dueno.ts");
 
 describe("Etapa 2 · gates de rol", () => {
@@ -19,7 +19,10 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(allowRpc("Encargado de campo", "fn_guardar_boleta"), null);
     assert.equal(allowRpc("Encargado de campo", "fn_liquidar_disposicion"), "Esta operación es de oficina.");
     assert.equal(allowRpc("Encargado de campo", "fn_autorizar_solicitud"), "Esta operación es de oficina.");
-    assert.equal(allowRpc("Encargado de campo", "fn_abrir_ciclo"), "Esta operación es de oficina.");
+    assert.equal(allowRpc("Encargado de campo", "fn_abrir_ciclo"), "Solo el Dueño administra los ciclos.");
+    assert.equal(allowRpc("Oficina", "fn_abrir_ciclo"), "Solo el Dueño administra los ciclos.");
+    assert.equal(allowRpc("Dueño", "fn_editar_ciclo"), null);
+    assert.equal(allowRpc("Dueño", "fn_eliminar_ciclo"), null);
     assert.equal(allowTable("Encargado de campo", "jornal"), null);
     assert.equal(allowTable("Encargado de campo", "productor"), "Esta tabla es de oficina.");
   });
@@ -31,6 +34,13 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(allowRpc("Dueño", "fn_liquidar_disposicion"), null);
     assert.equal(allowRpc("Oficina", "fn_guardar_linea_credito"), null);
     assert.equal(allowRpc("Dueño", "fn_abrir_ciclo"), null);
+  });
+  it("palomeo de ver/editar pisa el preset del rol", () => {
+    assert.equal(allowRpc("Oficina", "fn_guardar_gasto", { puedeEditar: false }), "No tienes permiso de escritura.");
+    assert.equal(allowRpc("Encargado de campo", "fn_guardar_boleta", { puedeEditar: false }), "No tienes permiso de escritura.");
+    assert.equal(presetPermisos("Encargado de campo").veFinanzas, false);
+    assert.equal(presetPermisos("Encargado de campo").puedeEditar, true);
+    assert.equal(presetPermisos("Consulta").puedeEditar, false);
   });
 });
 
@@ -112,5 +122,52 @@ describe("Etapa 4a · ciclo vacío", () => {
       (c) => String(c.productor_id) === IDS.p3567 && String(c.ciclo_id) === CICLO_ID,
     );
     assert.ok(Math.abs(Number(c3567?.saldo) - CANARIO_SALDO_3567) < 0.05);
+  });
+});
+
+describe("Rancho de producción · sin demo", () => {
+  it("el rancho vacío no trae OI 25/26 ni FIRA ni productores de prueba", async () => {
+    const { ranchoVacioLedger, IDS, esLedgerDemo, ledgerListoParaProduccion, demoLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const vacio = ranchoVacioLedger();
+    assert.equal(vacio.ciclo.length, 1);
+    assert.equal(String(vacio.ciclo[0].id), IDS.cicloOi2627);
+    assert.equal(vacio.linea_credito.length, 0);
+    assert.equal(vacio.productor.length, 0);
+    assert.equal(vacio.parcela.length, 0);
+    assert.equal(vacio.inventario_movimiento.length, 0);
+    assert.equal(esLedgerDemo(vacio), false);
+    assert.equal(esLedgerDemo(demoLedger()), true);
+    const listo = ledgerListoParaProduccion(demoLedger());
+    assert.equal(String(listo.ciclo[0].id), IDS.cicloOi2627);
+    assert.equal(listo.linea_credito.length, 0);
+    assert.equal(listo.productor.length, 0);
+  });
+
+  it("se edita y se elimina un ciclo vacío, no el último", async () => {
+    const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const base = ranchoVacioLedger();
+    const abierto = await applyRpcToLedger(base, "fn_abrir_ciclo", {
+      p_clave: "pv27",
+      p_nombre: "Primavera–Verano 2027",
+      p_fecha_inicio: "2027-03-01",
+      p_fecha_fin: "2027-09-30",
+    });
+    assert.equal(abierto.result.error, null);
+    const id = abierto.result.data.id;
+    const editado = await applyRpcToLedger(abierto.ledger, "fn_editar_ciclo", {
+      p_id: id,
+      p_clave: "pv27",
+      p_nombre: "PV 2027 Valle",
+    });
+    assert.equal(editado.result.error, null);
+    const row = editado.ledger.ciclo.find((c) => c.id === id);
+    assert.equal(row.nombre, "PV 2027 Valle");
+    const ultimo = ranchoVacioLedger();
+    const no = await applyRpcToLedger(ultimo, "fn_eliminar_ciclo", { p_id: ultimo.ciclo[0].id });
+    assert.ok(no.result.error);
+    const okDel = await applyRpcToLedger(editado.ledger, "fn_eliminar_ciclo", { p_id: id });
+    assert.equal(okDel.result.error, null);
+    assert.equal(okDel.ledger.ciclo.filter((c) => !c.eliminado_en).length, 1);
   });
 });

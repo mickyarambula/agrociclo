@@ -1,16 +1,16 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { demoLedger } from "../data/seed";
+import { demoLedger, IDS, ledgerListoParaProduccion, ranchoVacioLedger, esLedgerDemo } from "../data/seed";
 import type { Ledger, TableName } from "../data/types";
-import { CICLO_ID, ORG_ID } from "../lib/org";
+import { ORG_ID } from "../lib/org";
 import { serialize } from "../lib/serialize.mjs";
 import { applyRpcToLedger, applyTableToLedger } from "./apply";
 import { debePromoverADueño, etiquetaDueño, rolDeEntrada } from "./dueno";
 import {
   allowRpc,
   allowTable,
-  veFinanzasOf,
+  presetPermisos,
 } from "./roles";
 import type { Rol } from "./roles";
 
@@ -34,8 +34,9 @@ export type AgroProfile = {
   veFinanzas: boolean;
   puedeEditar: boolean;
   cicloId: string;
-  ciclos: { id: string; clave: string; nombre: string }[];
+  ciclos: { id: string; clave: string; nombre: string; fechaInicio: string | null; fechaFin: string | null }[];
   dueñoEtiqueta: string | null;
+  encargadoVePrecios: boolean;
 };
 
 export type Member = {
@@ -43,6 +44,8 @@ export type Member = {
   email: string | null;
   displayName: string | null;
   rol: Rol;
+  veFinanzas: boolean;
+  puedeEditar: boolean;
 };
 
 const REDACT: (keyof Ledger)[] = [
@@ -68,8 +71,8 @@ function parseLedger(raw: unknown): Ledger | null {
   return null;
 }
 
-function redact(ledger: Ledger, rol: Rol): Ledger {
-  if (veFinanzasOf(rol)) return ledger;
+function redact(ledger: Ledger, veFinanzas: boolean): Ledger {
+  if (veFinanzas) return ledger;
   const next = structuredClone(ledger);
   for (const k of REDACT) next[k] = [];
   return next;
@@ -80,7 +83,29 @@ function ciclosOf(ledger: Ledger) {
     id: String(c.id),
     clave: String(c.clave ?? ""),
     nombre: String(c.nombre ?? c.clave ?? ""),
+    fechaInicio: c.fecha_inicio ? String(c.fecha_inicio) : null,
+    fechaFin: c.fecha_fin ? String(c.fecha_fin) : null,
   }));
+}
+
+function asBool(v: unknown, fallback: boolean): boolean {
+  if (v === true || v === "t" || v === "true") return true;
+  if (v === false || v === "f" || v === "false") return false;
+  return fallback;
+}
+
+function parseConfig(raw: unknown): { encargadoVePrecios: boolean } {
+  let obj: Record<string, unknown> = {};
+  if (typeof raw === "string") {
+    try {
+      obj = JSON.parse(raw) as Record<string, unknown>;
+    } catch {
+      obj = {};
+    }
+  } else if (raw && typeof raw === "object") {
+    obj = raw as Record<string, unknown>;
+  }
+  return { encargadoVePrecios: asBool(obj.encargadoVePrecios, false) };
 }
 
 async function loadOrg(userId: string) {
@@ -89,11 +114,13 @@ async function loadOrg(userId: string) {
     organizacion_id: string;
     rol: string;
     ve_finanzas: boolean | string;
+    puede_editar: boolean | string | null;
     email: string | null;
     display_name: string | null;
     nombre: string;
+    config: unknown;
   }>`
-    select r.organizacion_id, r.rol, r.ve_finanzas, r.email, r.display_name, o.nombre
+    select r.organizacion_id, r.rol, r.ve_finanzas, r.puede_editar, r.email, r.display_name, o.nombre, o.config
     from usuario_rol r
     join agrociclo_org o on o.id = r.organizacion_id
     where r.user_id = ${userId}
@@ -134,7 +161,7 @@ async function loadLedger(orgId: string): Promise<Ledger> {
   const rows = await sql<{ payload: unknown }>`
     select payload from agrociclo_ledger where organizacion_id = ${orgId} limit 1
   `;
-  return parseLedger(rows[0]?.payload) ?? demoLedger();
+  return parseLedger(rows[0]?.payload) ?? ranchoVacioLedger();
 }
 
 async function saveLedger(orgId: string, ledger: Ledger) {
@@ -159,10 +186,10 @@ async function asegurarOrgYLedger(userId: string) {
     `select 1::int as n from agrociclo_ledger where organizacion_id = $1 limit 1`,
     [ORG_ID],
   );
-  if (!led[0]) await saveLedger(ORG_ID, demoLedger());
+  if (!led[0]) await saveLedger(ORG_ID, ranchoVacioLedger());
   await sql.query(`insert into user_ciclo (user_id, ciclo_id) values ($1, $2) on conflict (user_id) do nothing`, [
     userId,
-    CICLO_ID,
+    IDS.cicloOi2627,
   ]);
 }
 
@@ -170,7 +197,7 @@ async function asegurarOrgYLedger(userId: string) {
 async function limpiarDueñosHuérfanos() {
   const sql = await getSql();
   await sql.query(
-    `update usuario_rol set rol = 'pendiente', ve_finanzas = false
+    `update usuario_rol set rol = 'pendiente', ve_finanzas = false, puede_editar = false
       where rol = 'Dueño'
         and not exists (select 1 from "user" u where u.id = usuario_rol.user_id)`,
   );
@@ -181,14 +208,15 @@ async function promoverADueño(userId: string, email: string | null, displayName
   await limpiarDueñosHuérfanos();
   await asegurarOrgYLedger(userId);
   await sql.query(
-    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, email, display_name)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
+     values ($1, $2, $3, $4, $5, $6, $7)
      on conflict (user_id) do update set
        rol = excluded.rol,
        ve_finanzas = excluded.ve_finanzas,
+       puede_editar = excluded.puede_editar,
        email = coalesce(excluded.email, usuario_rol.email),
        display_name = coalesce(excluded.display_name, usuario_rol.display_name)`,
-    [userId, ORG_ID, "Dueño", true, email, displayName],
+    [userId, ORG_ID, "Dueño", true, true, email, displayName],
   );
 }
 
@@ -200,10 +228,10 @@ async function bootstrap(userId: string, email: string | null, displayName: stri
     return;
   }
   await sql.query(
-    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, email, display_name)
-     values ($1, $2, $3, $4, $5, $6)
+    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
+     values ($1, $2, $3, $4, $5, $6, $7)
      on conflict (user_id) do nothing`,
-    [userId, ORG_ID, rolDeEntrada(1), false, email, displayName],
+    [userId, ORG_ID, rolDeEntrada(1), false, false, email, displayName],
   );
 }
 
@@ -213,15 +241,21 @@ function toProfile(
     organizacion_id: string;
     rol: string;
     ve_finanzas: boolean | string;
+    puede_editar?: boolean | string | null;
     email: string | null;
     display_name: string | null;
     nombre: string;
+    config?: unknown;
   },
   cicloId: string,
   ciclos: AgroProfile["ciclos"],
   dueñoEtiqueta: string | null,
 ): AgroProfile {
   const rol = row.rol as Rol;
+  const preset = presetPermisos(rol);
+  const veFinanzas = rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas);
+  const puedeEditar = rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar);
+  const cfg = parseConfig(row.config);
   return {
     userId,
     email: row.email,
@@ -229,11 +263,12 @@ function toProfile(
     orgId: row.organizacion_id,
     orgNombre: row.nombre,
     rol,
-    veFinanzas: veFinanzasOf(rol),
-    puedeEditar: rol !== "Consulta" && rol !== "pendiente",
+    veFinanzas,
+    puedeEditar,
     cicloId,
     ciclos,
     dueñoEtiqueta,
+    encargadoVePrecios: cfg.encargadoVePrecios,
   };
 }
 
@@ -264,11 +299,15 @@ export const getAgroSession = createServerFn({ method: "POST" })
       const dueñoEtiqueta = rol === "pendiente" ? await loadDueñoEtiqueta() : null;
       if (rol === "pendiente") {
         return {
-          profile: toProfile(context.userId, row, CICLO_ID, [], dueñoEtiqueta),
+          profile: toProfile(context.userId, row, IDS.cicloOi2627, [], dueñoEtiqueta),
           ledger: null as Json | null,
         };
       }
-      const ledger = await loadLedger(row.organizacion_id);
+      let ledger = await loadLedger(row.organizacion_id);
+      if (esLedgerDemo(ledger)) {
+        ledger = ledgerListoParaProduccion(ledger);
+        await saveLedger(row.organizacion_id, ledger);
+      }
       const ciclos = ciclosOf(ledger);
       const pref = await sql<{ ciclo_id: string }>`
         select ciclo_id from user_ciclo where user_id = ${context.userId} limit 1
@@ -276,10 +315,11 @@ export const getAgroSession = createServerFn({ method: "POST" })
       const cicloId =
         pref[0]?.ciclo_id && ciclos.some((c) => c.id === pref[0].ciclo_id)
           ? pref[0].ciclo_id
-          : (ciclos[0]?.id ?? CICLO_ID);
+          : (ciclos[0]?.id ?? IDS.cicloOi2627);
+      const profile = toProfile(context.userId, row, cicloId, ciclos, null);
       return {
-        profile: toProfile(context.userId, row, cicloId, ciclos, null),
-        ledger: asJson(redact(ledger, rol)),
+        profile,
+        ledger: asJson(redact(ledger, profile.veFinanzas)),
       };
     });
   });
@@ -291,7 +331,12 @@ export const runAgroRpc = createServerFn({ method: "POST" })
     const row = await loadOrg(context.userId);
     if (!row) return { error: { message: "Sin membresía" }, data: null as Json | null, ledger: null as Json | null };
     const rol = row.rol as Rol;
-    const denied = allowRpc(rol, data.name);
+    const preset = presetPermisos(rol);
+    const flags = {
+      veFinanzas: rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas),
+      puedeEditar: rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar),
+    };
+    const denied = allowRpc(rol, data.name, flags);
     if (denied) return { error: { message: denied }, data: null as Json | null, ledger: null as Json | null };
     const current = await loadLedger(row.organizacion_id);
     const params = { ...data.params, p_org: row.organizacion_id, p_organizacion_id: row.organizacion_id };
@@ -300,7 +345,7 @@ export const runAgroRpc = createServerFn({ method: "POST" })
     return {
       error: result.error,
       data: result.data == null ? null : asJson(result.data),
-      ledger: result.error ? null : asJson(redact(ledger, rol)),
+      ledger: result.error ? null : asJson(redact(ledger, flags.veFinanzas)),
     };
   });
 
@@ -318,7 +363,12 @@ export const runAgroTable = createServerFn({ method: "POST" })
     const row = await loadOrg(context.userId);
     if (!row) return { error: { message: "Sin membresía" }, data: null as boolean | null, ledger: null as Json | null };
     const rol = row.rol as Rol;
-    const denied = allowTable(rol, data.table);
+    const preset = presetPermisos(rol);
+    const flags = {
+      veFinanzas: rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas),
+      puedeEditar: rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar),
+    };
+    const denied = allowTable(rol, data.table, flags);
     if (denied) return { error: { message: denied }, data: null as boolean | null, ledger: null as Json | null };
     const current = await loadLedger(row.organizacion_id);
     const filters = data.filters.map((f) =>
@@ -326,7 +376,7 @@ export const runAgroTable = createServerFn({ method: "POST" })
     );
     const { ledger } = await applyTableToLedger(current, data.table, data.op, data.payload, filters);
     await saveLedger(row.organizacion_id, ledger);
-    return { data: true, error: null as { message: string } | null, ledger: asJson(redact(ledger, rol)) };
+    return { data: true, error: null as { message: string } | null, ledger: asJson(redact(ledger, flags.veFinanzas)) };
   });
 
 export const setAgroCiclo = createServerFn({ method: "POST" })
@@ -355,36 +405,47 @@ export const listEquipo = createServerFn({ method: "GET" })
       email: string | null;
       display_name: string | null;
       rol: string;
+      ve_finanzas: boolean | string;
+      puede_editar: boolean | string | null;
     }>`
-      select user_id, email, display_name, rol
+      select user_id, email, display_name, rol, ve_finanzas, puede_editar
       from usuario_rol
       where organizacion_id = ${row.organizacion_id}
       order by creado_en
     `;
-    return members.map((m) => ({
-      userId: m.user_id,
-      email: m.email,
-      displayName: m.display_name,
-      rol: m.rol as Rol,
-    }));
+    return members.map((m) => {
+      const rol = m.rol as Rol;
+      const preset = presetPermisos(rol);
+      return {
+        userId: m.user_id,
+        email: m.email,
+        displayName: m.display_name,
+        rol,
+        veFinanzas: rol === "Dueño" ? true : asBool(m.ve_finanzas, preset.veFinanzas),
+        puedeEditar: rol === "Dueño" ? true : asBool(m.puede_editar, preset.puedeEditar),
+      };
+    });
   });
 
 export const asignarRol = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { userId: string; rol: Rol }) => p)
+  .validator((p: { userId: string; rol: Rol; veFinanzas?: boolean; puedeEditar?: boolean }) => p)
   .handler(async ({ context, data }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño asigna roles.");
     if (data.userId === context.userId) throw new Error("No puedes cambiar tu propio rol.");
     const allowed: Rol[] = ["Oficina", "Encargado de campo", "Consulta", "pendiente"];
     if (!allowed.includes(data.rol)) throw new Error("Rol no permitido.");
+    const preset = presetPermisos(data.rol);
+    const veFinanzas = data.rol === "pendiente" ? false : (data.veFinanzas ?? preset.veFinanzas);
+    const puedeEditar = data.rol === "pendiente" ? false : (data.puedeEditar ?? preset.puedeEditar);
     const sql = await getSql();
     await sql.query(
-      `update usuario_rol set rol = $1, ve_finanzas = $2
-       where user_id = $3 and organizacion_id = $4`,
-      [data.rol, veFinanzasOf(data.rol), data.userId, row.organizacion_id],
+      `update usuario_rol set rol = $1, ve_finanzas = $2, puede_editar = $3
+       where user_id = $4 and organizacion_id = $5`,
+      [data.rol, veFinanzas, puedeEditar, data.userId, row.organizacion_id],
     );
-    return { ok: true };
+    return { ok: true, veFinanzas, puedeEditar };
   });
 
 export const resetAgroDemo = createServerFn({ method: "POST" })
@@ -395,4 +456,42 @@ export const resetAgroDemo = createServerFn({ method: "POST" })
     const ledger = demoLedger();
     await saveLedger(row.organizacion_id, ledger);
     return { ledger: asJson(ledger) };
+  });
+
+export const vaciarRancho = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const row = await loadOrg(context.userId);
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño vacía el rancho.");
+    const ledger = ranchoVacioLedger();
+    await saveLedger(row.organizacion_id, ledger);
+    const sql = await getSql();
+    await sql.query(
+      `insert into user_ciclo (user_id, ciclo_id) values ($1, $2)
+       on conflict (user_id) do update set ciclo_id = excluded.ciclo_id`,
+      [context.userId, IDS.cicloOi2627],
+    );
+    return { ledger: asJson(ledger), cicloId: IDS.cicloOi2627 };
+  });
+
+export const setOrgConfig = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { encargadoVePrecios?: boolean; nombre?: string }) => p)
+  .handler(async ({ context, data }) => {
+    const row = await loadOrg(context.userId);
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño cambia los ajustes del rancho.");
+    const sql = await getSql();
+    const cfg = { ...parseConfig(row.config) };
+    if (typeof data.encargadoVePrecios === "boolean") cfg.encargadoVePrecios = data.encargadoVePrecios;
+    await sql.query(`update agrociclo_org set config = $1::jsonb where id = $2`, [
+      JSON.stringify(cfg),
+      row.organizacion_id,
+    ]);
+    if (typeof data.nombre === "string" && data.nombre.trim()) {
+      await sql.query(`update agrociclo_org set nombre = $1 where id = $2`, [
+        data.nombre.trim(),
+        row.organizacion_id,
+      ]);
+    }
+    return { ok: true, config: cfg, nombre: data.nombre?.trim() || row.nombre };
   });

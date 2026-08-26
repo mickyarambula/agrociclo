@@ -10,10 +10,13 @@ import {
   listEquipo,
   resetAgroDemo,
   setAgroCiclo,
+  setOrgConfig,
+  vaciarRancho,
   type AgroProfile,
   type Member,
   type Rol,
 } from "./server/fns";
+import { presetPermisos } from "./server/roles";
 
 const C = {
   bosque: "#1E4429",
@@ -30,6 +33,8 @@ type Ctx = {
   reload: () => Promise<void>;
   setCiclo: (cicloId: string) => Promise<void>;
   restaurarDemo: () => Promise<void>;
+  vaciar: () => Promise<string>;
+  guardarAjustes: (p: { encargadoVePrecios?: boolean; nombre?: string }) => Promise<void>;
 };
 
 const AgroCtx = createContext<Ctx | null>(null);
@@ -220,6 +225,24 @@ export function AgroGate({ children }: { children: ReactNode }) {
         const res = await resetAgroDemo();
         if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
       },
+      async vaciar() {
+        const res = await vaciarRancho();
+        if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
+        setProfile((p) => (p ? { ...p, cicloId: res.cicloId } : p));
+        return res.cicloId;
+      },
+      async guardarAjustes(p) {
+        const res = await setOrgConfig({ data: p });
+        setProfile((prev) =>
+          prev
+            ? {
+                ...prev,
+                encargadoVePrecios: res.config.encargadoVePrecios,
+                orgNombre: res.nombre || prev.orgNombre,
+              }
+            : prev,
+        );
+      },
     };
   }, [profile, reload]);
 
@@ -294,6 +317,7 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
   const { profile } = useAgroSession();
   const [members, setMembers] = useState<Member[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
 
   useEffect(() => {
     void listEquipo().then(setMembers);
@@ -301,19 +325,47 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
 
   if (profile.rol !== "Dueño") return null;
 
+  const aplicar = (userId: string, patch: { rol?: Rol; veFinanzas?: boolean; puedeEditar?: boolean }) => {
+    const actual = members.find((m) => m.userId === userId);
+    if (!actual) return;
+    const rol = patch.rol ?? actual.rol;
+    const preset = patch.rol ? presetPermisos(rol) : { veFinanzas: actual.veFinanzas, puedeEditar: actual.puedeEditar };
+    const veFinanzas = patch.veFinanzas ?? preset.veFinanzas;
+    const puedeEditar = patch.puedeEditar ?? preset.puedeEditar;
+    setBusy(userId);
+    setErr(null);
+    void asignarRol({ data: { userId, rol, veFinanzas, puedeEditar } })
+      .then((res) => {
+        setMembers((xs) =>
+          xs.map((x) =>
+            x.userId === userId
+              ? { ...x, rol, veFinanzas: res.veFinanzas, puedeEditar: res.puedeEditar }
+              : x,
+          ),
+        );
+      })
+      .catch((e: Error) => setErr(e.message))
+      .finally(() => setBusy(null));
+  };
+
   const lista = (
     <>
-      <p className="mb-2 text-xs" style={{ color: C.gris }}>
-        Quien entre por primera vez y no sea Dueño queda en espera hasta que le asignes rol (Oficina, Encargado de
-        campo o Consulta).
+      <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
+        Quien entra por primera vez queda en espera. Tú le das rol y palomeas qué puede ver y qué puede editar.
       </p>
+      <div className="mb-3 grid gap-2 text-xs" style={{ color: C.gris }}>
+        <div><strong style={{ color: C.tinta }}>Oficina</strong> — parcelas, compras, crédito, caja. Ve montos.</div>
+        <div><strong style={{ color: C.tinta }}>Encargado de campo</strong> — labores, raya, boletas, solicitudes. Sin crédito.</div>
+        <div><strong style={{ color: C.tinta }}>Consulta</strong> — ve el rancho, no escribe.</div>
+      </div>
+      {err ? <p className="mb-2 text-xs font-semibold" style={{ color: "#B5482E" }}>{err}</p> : null}
       {members.length === 0 ? (
         <p className="text-sm" style={{ color: C.gris }}>
-          Todavía no hay más cuentas. Cuando alguien cree la suya, aparece aquí.
+          Todavía no hay más cuentas. Cuando alguien cree la suya, aparece aquí para otorgarle rol.
         </p>
       ) : null}
       {members.map((m) => (
-        <div key={m.userId} className="flex items-center justify-between gap-2 border-t py-2" style={{ borderColor: C.linea }}>
+        <div key={m.userId} className="flex flex-col gap-2 border-t py-3" style={{ borderColor: C.linea }}>
           <div className="min-w-0">
             <div className="truncate text-sm font-semibold">{m.displayName || m.email || m.userId.slice(0, 8)}</div>
             <div className="truncate text-xs" style={{ color: C.gris }}>
@@ -321,26 +373,55 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
             </div>
           </div>
           {m.userId === profile.userId ? (
-            <span className="text-xs font-semibold">{m.rol}</span>
+            <span className="text-xs font-semibold">Dueño · ve y edita todo</span>
           ) : (
-            <select
-              disabled={busy === m.userId}
-              value={m.rol}
-              onChange={(e) => {
-                const rol = e.target.value as Rol;
-                setBusy(m.userId);
-                void asignarRol({ data: { userId: m.userId, rol } })
-                  .then(() => setMembers((xs) => xs.map((x) => (x.userId === m.userId ? { ...x, rol } : x))))
-                  .finally(() => setBusy(null));
-              }}
-              className="rounded-md border px-1 py-1 text-xs"
-              style={{ borderColor: C.linea, minHeight: 36 }}
-            >
-              <option value="pendiente">En espera</option>
-              <option value="Oficina">Oficina</option>
-              <option value="Encargado de campo">Encargado de campo</option>
-              <option value="Consulta">Consulta</option>
-            </select>
+            <>
+              <select
+                disabled={busy === m.userId}
+                value={m.rol}
+                onChange={(e) => aplicar(m.userId, { rol: e.target.value as Rol })}
+                aria-label={`Rol de ${m.displayName || m.email || "cuenta"}`}
+                className="rounded-md border px-2 py-2 text-sm"
+                style={{ borderColor: C.linea, minHeight: 44, background: C.blanco, color: C.tinta }}
+              >
+                <option value="pendiente">En espera</option>
+                <option value="Oficina">Oficina</option>
+                <option value="Encargado de campo">Encargado de campo</option>
+                <option value="Consulta">Consulta</option>
+              </select>
+              {m.rol !== "pendiente" ? (
+                <div className="flex flex-col gap-2">
+                  <label className="flex items-center gap-3 text-sm" style={{ minHeight: 44, cursor: busy === m.userId ? "wait" : "pointer" }}>
+                    <input
+                      type="checkbox"
+                      disabled={busy === m.userId}
+                      checked={m.veFinanzas}
+                      onChange={(e) => aplicar(m.userId, { veFinanzas: e.target.checked })}
+                      style={{ width: 18, height: 18, accentColor: C.bosque }}
+                    />
+                    <span>
+                      Ve montos y finanzas
+                      <span className="block text-xs" style={{ color: C.gris }}>Crédito, costos, saldos. Si no, solo ve el lote.</span>
+                    </span>
+                  </label>
+                  <label className="flex items-center gap-3 text-sm" style={{ minHeight: 44, cursor: busy === m.userId ? "wait" : "pointer" }}>
+                    <input
+                      type="checkbox"
+                      disabled={busy === m.userId}
+                      checked={m.puedeEditar}
+                      onChange={(e) => aplicar(m.userId, { puedeEditar: e.target.checked })}
+                      style={{ width: 18, height: 18, accentColor: C.bosque }}
+                    />
+                    <span>
+                      Puede capturar y editar
+                      <span className="block text-xs" style={{ color: C.gris }}>Si no, queda en consulta: ve, no guarda.</span>
+                    </span>
+                  </label>
+                </div>
+              ) : (
+                <p className="text-xs" style={{ color: C.gris }}>Asigna un rol para palomear permisos.</p>
+              )}
+            </>
           )}
         </div>
       ))}
@@ -351,7 +432,7 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
 
   return (
     <div
-      className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] max-w-[80vw] rounded-xl p-3"
+      className="absolute right-0 top-[calc(100%+8px)] z-50 w-[360px] max-w-[80vw] rounded-xl p-3"
       style={{
         background: C.blanco,
         color: C.tinta,
@@ -378,4 +459,5 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
     </div>
   );
 }
+
 

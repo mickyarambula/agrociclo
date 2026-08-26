@@ -1,5 +1,5 @@
 import { CICLO_ID, ORG_ID } from "../lib/org";
-import type { Ledger } from "./types";
+import type { Ledger, Row } from "./types";
 
 const ORG = ORG_ID;
 const CICLO = CICLO_ID;
@@ -1057,20 +1057,103 @@ export function demoLedger(): Ledger {
 }
 
 export function emptyLedger(): Ledger {
-  const demo = demoLedger();
-  const blank: Ledger = { ...demo };
-  for (const key of Object.keys(blank) as (keyof Ledger)[]) {
-    if (key === "organizacion" || key === "ciclo") continue;
-    if (key === "linea_credito") {
-      blank[key] = demo.linea_credito.map((l) => ({
-        ...l,
-        monto_autorizado: 0,
-        fecha_inicio: "2026-08-01",
-        fecha_vencimiento: "2027-04-30",
-      }));
-      continue;
-    }
-    blank[key] = [];
-  }
-  return blank;
+  return ranchoVacioLedger();
 }
+
+/** Rancho listo para la siembra: un ciclo vacío, sin números de prueba. */
+export function ranchoVacioLedger(): Ledger {
+  const I = IDS;
+  return {
+    organizacion: [row(ORG, { nombre: "Agroempresa Valle del Fuerte" })],
+    ciclo: [
+      row(I.cicloOi2627, {
+        clave: "oi2627",
+        nombre: "Otoño–Invierno 2026/27",
+        fecha_inicio: "2026-10-01",
+        fecha_fin: "2027-09-30",
+      }),
+    ],
+    productor: [],
+    parcela: [],
+    insumo: [
+      row(I.diesel, { nombre: "Diésel", unidad: "L", categoria: "Diésel", costo_unitario_ref: 0, activo: true }),
+      row(I.glifosato, { nombre: "Herbicida glifosato", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
+      row(I.insecticida, { nombre: "Insecticida", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
+      row(I.map, { nombre: "MAP 11-52-00", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
+      row(I.semilla, { nombre: "Semilla", unidad: "bolsa", categoria: "Semilla", costo_unitario_ref: 0, activo: true }),
+      row(I.urea, { nombre: "Urea", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
+    ],
+    inventario_movimiento: [],
+    labor: [],
+    labor_insumo: [],
+    jornal: [],
+    boleta: [],
+    almacenadora: [],
+    gasto: [],
+    compra: [],
+    proveedor: [],
+    dispersion: [],
+    prestamo: [],
+    prestamo_aplicacion: [],
+    solicitud_compra: [],
+    solicitud_cotizacion: [],
+    caja_movimiento: [],
+    linea_credito: [],
+    disposicion: [],
+    pago_disposicion: [],
+  };
+}
+
+export function esLedgerDemo(ledger: Ledger): boolean {
+  return (ledger.ciclo ?? []).some((c) => String(c.id) === IDS.ciclo)
+    && (ledger.linea_credito ?? []).some((l) => String(l.id) === IDS.fira);
+}
+
+const TABLAS_CICLO: (keyof Ledger)[] = [
+  "parcela",
+  "inventario_movimiento",
+  "labor",
+  "jornal",
+  "boleta",
+  "gasto",
+  "compra",
+  "dispersion",
+  "prestamo",
+  "solicitud_compra",
+  "caja_movimiento",
+  "linea_credito",
+  "disposicion",
+];
+
+/** Quita OI 2025/26 (demo) y los productores de prueba. Conserva lo que ya esté en otros ciclos. */
+export function stripDemoCiclo(ledger: Ledger): Ledger {
+  const next = structuredClone(ledger);
+  const demoCiclo = IDS.ciclo;
+  const demoProducers = new Set([IDS.p3566, IDS.p3567, IDS.p3572, IDS.p3576]);
+  next.ciclo = next.ciclo.filter((c) => String(c.id) !== demoCiclo);
+  for (const k of TABLAS_CICLO) {
+    next[k] = (next[k] as Row[]).filter((r) => String(r.ciclo_id ?? "") !== demoCiclo);
+  }
+  next.productor = next.productor.filter((p) => !demoProducers.has(String(p.id)));
+  const laborIds = new Set(next.labor.map((l) => l.id));
+  next.labor_insumo = next.labor_insumo.filter((li) => laborIds.has(String(li.labor_id)));
+  const prestamoIds = new Set(next.prestamo.map((p) => p.id));
+  next.prestamo_aplicacion = next.prestamo_aplicacion.filter((a) => prestamoIds.has(String(a.prestamo_id)));
+  const solIds = new Set(next.solicitud_compra.map((s) => s.id));
+  next.solicitud_cotizacion = next.solicitud_cotizacion.filter((c) => solIds.has(String(c.solicitud_id)));
+  const dispIds = new Set(next.disposicion.map((d) => d.id));
+  next.pago_disposicion = next.pago_disposicion.filter((p) => dispIds.has(String(p.disposicion_id)));
+  if (next.ciclo.length === 0) next.ciclo = ranchoVacioLedger().ciclo;
+  if (next.insumo.length === 0) next.insumo = ranchoVacioLedger().insumo;
+  return next;
+}
+
+/** Si el ledger es la demo sin siembra real, se reemplaza por el rancho vacío. */
+export function ledgerListoParaProduccion(ledger: Ledger): Ledger {
+  const tieneDemo = (ledger.ciclo ?? []).some((c) => String(c.id) === IDS.ciclo);
+  if (!tieneDemo) return ledger;
+  const hayReal = (ledger.parcela ?? []).some((p) => String(p.ciclo_id) === IDS.cicloOi2627);
+  if (!hayReal) return ranchoVacioLedger();
+  return stripDemoCiclo(ledger);
+}
+

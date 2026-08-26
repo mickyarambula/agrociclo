@@ -295,17 +295,16 @@ class ErrorBoundary extends Component {
 
 /* ---------- App ---------- */
 function AgroCicloApp() {
-  const { profile, setCiclo, restaurarDemo, reload } = useAgroSession();
+  const { profile, setCiclo, restaurarDemo, reload, vaciar, guardarAjustes } = useAgroSession();
   const user = useCurrentUser();
   const rol = profile.rol;
   const ORG_ID = profile.orgId;
   const CICLO_ID = profile.cicloId;
   const ciclos = profile.ciclos.length
     ? profile.ciclos
-    : [{ id: CICLO_ID, clave: "oi2526", nombre: "Otoño–Invierno 2025/26" }];
-  const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2526";
+    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30" }];
+  const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2627";
   const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
-  const [config, setConfig] = useState({ encargadoVePrecios: false });
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
     || TEMPORADAS.find((t) => t.id === temporadaId)?.nombre
     || temporadaId;
@@ -344,10 +343,9 @@ function AgroCicloApp() {
 
   /* --- roles de sesión (servidor) --- */
 
-  const veFinanzas = rol === "Dueño" || rol === "Oficina" || rol === "Consulta";
-  const puedeEditar = rol !== "Consulta";
-  /* política configurable por el Dueño: ¿el encargado de campo ve montos de cotizaciones? */
-  const vePrecios = veFinanzas || config.encargadoVePrecios;
+  const veFinanzas = profile.veFinanzas;
+  const puedeEditar = profile.puedeEditar;
+  const vePrecios = veFinanzas || profile.encargadoVePrecios;
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
   // B2a: `id` ES EL UUID real (se eliminó el id sintético i+1 y el puente por fuente).
@@ -1461,6 +1459,37 @@ function AgroCicloApp() {
     altaProductorMut.mutate({ reg, original }, { onSuccess: cerrar });
   };
   const eliminarProductor = (pr) => bajaProductorMut.mutate(pr);
+  const guardarInsumoMut = useOrgWrite({
+    mutationFn: async ({ reg, original }) => {
+      if (original) {
+        const { error } = await supabase.from("insumo").update(reg).eq("id", original.id).eq("organizacion_id", ORG_ID);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("insumo").insert({ ...reg, organizacion_id: ORG_ID, activo: true });
+        if (error) throw new Error(error.message);
+      }
+    },
+    invalidate: [["insumos"]],
+    successMsg: "Insumo guardado",
+  });
+  const bajaInsumoMut = useOrgWrite({
+    mutationFn: async (ins) => {
+      const { error } = await supabase.from("insumo").update({ activo: false }).eq("id", ins.id).eq("organizacion_id", ORG_ID);
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["insumos"]],
+    successMsg: "Insumo dado de baja",
+  });
+  const guardarInsumo = (f, original) => {
+    const reg = {
+      nombre: (f.nombre || "").trim(),
+      unidad: (f.unidad || "").trim() || "L",
+      categoria: f.categoria || "Agroquímico",
+      costo_unitario_ref: Number(f.costoUnitario) || 0,
+    };
+    guardarInsumoMut.mutate({ reg, original }, { onSuccess: () => setForm(null) });
+  };
+  const eliminarInsumo = (ins) => bajaInsumoMut.mutate(ins);
   const guardarDispersionMut = useOrgWrite({
     mutationFn: async ({ f, original }) => {
       let lineaUuid = null;
@@ -3122,94 +3151,100 @@ function AgroCicloApp() {
               <div>
                 <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Ajustes del rancho</h1>
                 <p style={{ margin: "6px 0 0", fontSize: 14, color: C.gris }}>
-                  Equipo, ciclos y datos de demostración. Aquí viven las cosas de oficina, no las del lote.
+                  Equipo, permisos, ciclos y catálogo. Lo que vive el lote se captura en las otras secciones.
                 </p>
               </div>
 
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Rancho</div>
-                <p style={{ margin: "8px 0 0", fontSize: 14, fontWeight: 600 }}>{profile.orgNombre}</p>
-                <p style={{ margin: "4px 0 0", fontSize: 12, color: C.gris }}>
+                <p style={{ margin: "8px 0 12px", fontSize: 12, color: C.gris }}>
                   Tú eres Dueño · {user?.primaryEmail || user?.displayName || "cuenta"}
                 </p>
-              </Tarjeta>
-
-              <Tarjeta style={{ padding: 18 }}>
-                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Ciclos</div>
-                <p style={{ margin: "6px 0 10px", fontSize: 13, color: C.gris }}>
-                  OI 2025/26 es la demostración con números de prueba (corte 15 jun 2026). OI 2026/27 es el ciclo vacío para la siembra real: sin parcelas, sin almacén, sin compras.
-                </p>
-                <div className="flex flex-col gap-2">
-                  {ciclos.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => { void setCiclo(c.id); setVista("panel"); }}
-                      className="flex items-center justify-between text-left"
-                      style={{
-                        padding: "10px 12px", borderRadius: 10, border: `1px solid ${c.id === CICLO_ID ? C.bosque : C.linea}`,
-                        background: c.id === CICLO_ID ? "#EEF4EB" : C.blanco, cursor: "pointer", minHeight: 44,
-                        fontFamily: fuente.cuerpo, color: C.tinta,
-                      }}
-                    >
-                      <span style={{ fontWeight: 600, fontSize: 14 }}>{c.nombre}</span>
-                      <span style={{ fontSize: 11, color: C.gris }}>{String(c.clave || "").toUpperCase()}{c.id === CICLO_ID ? " · viendo" : ""}</span>
-                    </button>
-                  ))}
-                </div>
-                <div className="mt-3">
-                  <AbrirCicloPanel
-                    embeber
-                    onClose={() => {}}
-                    onCreado={async (id) => {
-                      await reload();
-                      await setCiclo(id);
-                      setVista("parcelas");
+                <Campo label="Nombre del rancho">
+                  <input
+                    defaultValue={profile.orgNombre}
+                    style={estiloInput}
+                    onBlur={(e) => {
+                      const nombre = e.target.value.trim();
+                      if (nombre && nombre !== profile.orgNombre) void guardarAjustes({ nombre });
                     }}
                   />
-                </div>
+                </Campo>
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>
-                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Equipo y roles</div>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Ciclos de siembra</div>
+                <p style={{ margin: "6px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                  El ciclo que ves arriba a la derecha es el que se está trabajando. Edita fechas y nombre, o elimínalo si no tiene movimientos.
+                </p>
+                <CiclosAdmin
+                  ciclos={ciclos}
+                  actualId={CICLO_ID}
+                  onUsar={async (id) => { await setCiclo(id); setVista("panel"); }}
+                  onCambio={async (id) => { await reload(); if (id) await setCiclo(id); }}
+                  onEliminado={async (id) => {
+                    const otro = ciclos.find((c) => c.id !== id);
+                    await reload();
+                    if (otro) await setCiclo(otro.id);
+                  }}
+                />
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Equipo y permisos</div>
                 <EquipoPanel variante="pagina" />
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Campo</div>
-                <label className="mt-3 flex items-start gap-3" style={{ fontSize: 14, cursor: "pointer" }}>
+                <label className="mt-3 flex items-start gap-3" style={{ fontSize: 14, cursor: "pointer", minHeight: 44 }}>
                   <input
                     type="checkbox"
-                    checked={config.encargadoVePrecios}
-                    onChange={(e) => setConfig((c) => ({ ...c, encargadoVePrecios: e.target.checked }))}
-                    style={{ marginTop: 3, accentColor: C.bosque }}
+                    checked={profile.encargadoVePrecios}
+                    onChange={(e) => void guardarAjustes({ encargadoVePrecios: e.target.checked })}
+                    style={{ marginTop: 3, accentColor: C.bosque, width: 18, height: 18 }}
                   />
                   <span>
-                    El Encargado de campo ve precios de cotizaciones
+                    Todos los Encargados ven precios de cotizaciones
                     <span style={{ display: "block", fontSize: 12, color: C.gris, marginTop: 2 }}>
-                      Por defecto no ve montos. Actívalo si quieres que compare cotizaciones en el lote.
+                      Además puedes palomear “Ve montos y finanzas” por persona en Equipo.
                     </span>
                   </span>
                 </label>
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>
-                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de demostración</div>
-                <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
-                  Los canarios (97,977.53 · stock 2,150 L) son del ciclo de prueba OI 2025/26. No son datos del rancho.
-                  Restaurar demo vuelve a ese corte y no toca quién es Dueño.
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Catálogo de insumos</div>
+                <p style={{ margin: "6px 0 12px", fontSize: 13, color: C.gris }}>
+                  Nombres y unidades del rancho. El stock nace cuando registras una compra. Aquí no hay existencias inventadas.
                 </p>
-                <CanarioBadge />
-                <div className="mt-3">
+                <CatalogoInsumos insumos={insumos} onGuardar={guardarInsumo} onEliminar={eliminarInsumo} />
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de prueba</div>
+                <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                  Este rancho debe quedar en ceros para la siembra que empieza. La demo OI 2025/26 (2,150 L, FIRA, productor 3567) no es información real.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Boton
+                    onClick={() => {
+                      if (window.confirm("Vaciar el rancho: queda OI 2026/27 sin parcelas, sin almacén y sin crédito. Se pierde lo capturado.")) {
+                        void vaciar().then(() => window.location.reload());
+                      }
+                    }}
+                  >
+                    Dejar rancho en ceros
+                  </Boton>
                   <Boton
                     secundario
                     onClick={() => {
-                      if (window.confirm("Esto restaura el ciclo de demostración oi2526 (datos de junio 2026). Se pierden los cambios de esta sesión.")) {
+                      if (window.confirm("Esto carga números de PRUEBA (OI 2025/26). No son del rancho. ¿Seguro?")) {
                         void restaurarDemo().then(() => window.location.reload());
                       }
                     }}
                   >
-                    Restaurar demo
+                    Cargar demo de prueba
                   </Boton>
                 </div>
               </Tarjeta>
@@ -3282,69 +3317,200 @@ function CanarioBadge() {
   );
 }
 
-function AbrirCicloPanel({ onClose, onCreado, embeber = false }) {
-  const [clave, setClave] = useState("pv27");
-  const [nombre, setNombre] = useState("Primavera–Verano 2027");
-  const [inicio, setInicio] = useState("2027-03-01");
-  const [fin, setFin] = useState("2027-09-30");
+function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
+  const [clave, setClave] = useState(inicial?.clave || "");
+  const [nombre, setNombre] = useState(inicial?.nombre || "");
+  const [inicio, setInicio] = useState(inicial?.fechaInicio || inicial?.fecha_inicio || "");
+  const [fin, setFin] = useState(inicial?.fechaFin || inicial?.fecha_fin || "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  const cuerpo = (
-      <>
-      {!embeber && (
-      <div className="mb-2 flex items-center justify-between">
-        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 14 }}>Abrir ciclo vacío</span>
-        <button type="button" onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}>Cerrar</button>
-      </div>
-      )}
-      <p style={{ fontSize: 12, color: C.gris, margin: "0 0 8px" }}>
-        {embeber ? "Abrir otro ciclo vacío (PV, un año más)." : "Para la siembra que sigue. Queda sin parcelas; el demo oi2526 no se toca."}
-      </p>
-      <div className="flex flex-col gap-2">
-        <Campo label="Clave"><input style={estiloInput} value={clave} onChange={(e) => setClave(e.target.value)} /></Campo>
-        <Campo label="Nombre"><input style={estiloInput} value={nombre} onChange={(e) => setNombre(e.target.value)} /></Campo>
-        <Campo label="Inicio"><input type="date" style={estiloInput} value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
-        <Campo label="Fin"><input type="date" style={estiloInput} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
-        {error && <p style={{ fontSize: 12, color: C.rojo, fontWeight: 600, margin: 0 }}>{error}</p>}
-        <Boton
-          deshabilitado={busy || !clave.trim() || !nombre.trim()}
-          onClick={() => {
-            setBusy(true);
-            setError(null);
-            void supabase.rpc("fn_abrir_ciclo", {
-              p_clave: clave.trim(),
-              p_nombre: nombre.trim(),
-              p_fecha_inicio: inicio,
-              p_fecha_fin: fin,
-            }).then((res) => {
-              if (res.error) throw new Error(res.error.message);
-              const id = res.data && typeof res.data === "object" ? res.data.id : null;
-              if (!id) throw new Error("No se obtuvo el ciclo.");
-              return onCreado(String(id));
-            }).catch((e) => {
+  return (
+    <div className="flex flex-col gap-2">
+      <Campo label="Clave">
+        <input style={estiloInput} placeholder="ej. oi2627" value={clave} onChange={(e) => setClave(e.target.value)} />
+      </Campo>
+      <Campo label="Nombre">
+        <input style={estiloInput} placeholder="ej. Otoño–Invierno 2026/27" value={nombre} onChange={(e) => setNombre(e.target.value)} />
+      </Campo>
+      <Campo label="Inicio"><input type="date" style={estiloInput} value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
+      <Campo label="Fin"><input type="date" style={estiloInput} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
+      {error && <p style={{ fontSize: 12, color: C.rojo, fontWeight: 600, margin: 0 }}>{error}</p>}
+      <Boton
+        deshabilitado={busy || !clave.trim() || !nombre.trim()}
+        onClick={() => {
+          setBusy(true);
+          setError(null);
+          void onListo({ clave: clave.trim(), nombre: nombre.trim(), inicio, fin })
+            .catch((e) => {
               setError(e instanceof Error ? e.message : String(e));
               setBusy(false);
             });
-          }}
-        >
-          {busy ? "Abriendo…" : "Abrir ciclo"}
-        </Boton>
-      </div>
-      </>
-  );
-  if (embeber) return <div>{cuerpo}</div>;
-  return (
-    <div
-      style={{
-        position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 50, width: 320, maxWidth: "80vw",
-        background: C.blanco, color: C.tinta, border: `1px solid ${C.linea}`, borderRadius: 12,
-        boxShadow: "0 12px 32px rgba(28,36,25,0.18)", padding: 12, fontFamily: fuente.cuerpo,
-      }}
-    >
-      {cuerpo}
+        }}
+      >
+        {busy ? "Guardando…" : (etiquetaSubmit || "Guardar")}
+      </Boton>
     </div>
   );
 }
+
+function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado }) {
+  const [editId, setEditId] = useState(null);
+  const [nuevo, setNuevo] = useState(false);
+  return (
+    <div className="flex flex-col gap-3">
+      {ciclos.map((c) => (
+        <div
+          key={c.id}
+          style={{
+            padding: 12, borderRadius: 10, border: `1px solid ${c.id === actualId ? C.bosque : C.linea}`,
+            background: c.id === actualId ? "#EEF4EB" : C.blanco,
+          }}
+        >
+          <div className="flex items-start justify-between gap-2 flex-wrap">
+            <div>
+              <div style={{ fontWeight: 700, fontSize: 14 }}>{c.nombre}</div>
+              <div style={{ fontSize: 12, color: C.gris }}>
+                {String(c.clave || "").toUpperCase()}
+                {c.fechaInicio ? ` · ${c.fechaInicio}` : ""}{c.fechaFin ? ` → ${c.fechaFin}` : ""}
+                {c.id === actualId ? " · trabajando" : ""}
+              </div>
+            </div>
+            <div className="flex gap-1 flex-wrap">
+              {c.id !== actualId && (
+                <Boton chico secundario onClick={() => void onUsar(c.id)}>Usar</Boton>
+              )}
+              <Boton chico secundario onClick={() => { setNuevo(false); setEditId(editId === c.id ? null : c.id); }}>Editar</Boton>
+              <Boton chico secundario onClick={() => {
+                if (ciclos.length <= 1) {
+                  window.alert("Abre otro ciclo antes de eliminar este.");
+                  return;
+                }
+                const forzar = window.confirm(`¿Eliminar ${c.nombre}? Si tiene parcelas o crédito, se vacían también.`);
+                if (!forzar) return;
+                void supabase.rpc("fn_eliminar_ciclo", { p_id: c.id, p_forzar: true }).then((res) => {
+                  if (res.error) throw new Error(res.error.message);
+                  return onEliminado(c.id);
+                }).catch((e) => window.alert(e instanceof Error ? e.message : String(e)));
+              }}>Eliminar</Boton>
+            </div>
+          </div>
+          {editId === c.id && (
+            <div className="mt-3">
+              <FormCiclo
+                inicial={c}
+                etiquetaSubmit="Guardar ciclo"
+                onListo={async ({ clave, nombre, inicio, fin }) => {
+                  const res = await supabase.rpc("fn_editar_ciclo", {
+                    p_id: c.id,
+                    p_clave: clave,
+                    p_nombre: nombre,
+                    p_fecha_inicio: inicio || null,
+                    p_fecha_fin: fin || null,
+                  });
+                  if (res.error) throw new Error(res.error.message);
+                  setEditId(null);
+                  await onCambio(c.id);
+                }}
+              />
+            </div>
+          )}
+        </div>
+      ))}
+      {nuevo ? (
+        <div style={{ padding: 12, borderRadius: 10, border: `1px dashed ${C.linea}` }}>
+          <div className="mb-2 flex items-center justify-between">
+            <span style={{ fontWeight: 700, fontSize: 13 }}>Nuevo ciclo</span>
+            <button type="button" onClick={() => setNuevo(false)} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}>Cerrar</button>
+          </div>
+          <FormCiclo
+            etiquetaSubmit="Abrir ciclo"
+            onListo={async ({ clave, nombre, inicio, fin }) => {
+              const res = await supabase.rpc("fn_abrir_ciclo", {
+                p_clave: clave,
+                p_nombre: nombre,
+                p_fecha_inicio: inicio || null,
+                p_fecha_fin: fin || null,
+              });
+              if (res.error) throw new Error(res.error.message);
+              const id = res.data && typeof res.data === "object" ? res.data.id : null;
+              if (!id) throw new Error("No se obtuvo el ciclo.");
+              setNuevo(false);
+              await onCambio(String(id));
+            }}
+          />
+        </div>
+      ) : (
+        <Boton secundario onClick={() => { setEditId(null); setNuevo(true); }}>Abrir ciclo vacío</Boton>
+      )}
+    </div>
+  );
+}
+
+function CatalogoInsumos({ insumos, onGuardar, onEliminar }) {
+  const [edit, setEdit] = useState(null);
+  const [alta, setAlta] = useState(false);
+  return (
+    <div className="flex flex-col gap-2">
+      {insumos.length === 0 && <Vacio texto="Sin insumos. Agrega diésel, fertilizante o lo que uses en el lote." />}
+      {insumos.map((ins) => (
+        <div key={ins.id} className="flex items-center justify-between gap-2 py-2 border-t" style={{ borderColor: C.linea }}>
+          <div className="min-w-0">
+            <div style={{ fontWeight: 600, fontSize: 14 }}>{ins.nombre}</div>
+            <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {ins.unidad}{ins.costoUnitario ? ` · ref. ${money(ins.costoUnitario)}` : ""}</div>
+          </div>
+          <div className="flex gap-1">
+            <button type="button" aria-label="Editar" onClick={() => { setAlta(false); setEdit(ins); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.bosque }}><Pencil size={15} /></button>
+            <button type="button" aria-label="Eliminar" onClick={() => { if (window.confirm(`¿Dar de baja ${ins.nombre}?`)) onEliminar(ins); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.rojo }}><Trash2 size={15} /></button>
+          </div>
+        </div>
+      ))}
+      {(alta || edit) && (
+        <FormInsumo
+          inicial={edit}
+          onCancel={() => { setAlta(false); setEdit(null); }}
+          onGuardar={(f) => {
+            onGuardar(f, edit);
+            setAlta(false);
+            setEdit(null);
+          }}
+        />
+      )}
+      {!alta && !edit && <Boton secundario onClick={() => { setEdit(null); setAlta(true); }}>Agregar insumo</Boton>}
+    </div>
+  );
+}
+
+function FormInsumo({ inicial, onGuardar, onCancel }) {
+  const [f, set] = useForm({
+    nombre: inicial?.nombre || "",
+    unidad: inicial?.unidad || "L",
+    categoria: inicial?.categoria || "Fertilizante",
+    costoUnitario: inicial?.costoUnitario || inicial?.costo_unitario_ref || "",
+  });
+  return (
+    <div className="grid md:grid-cols-2 gap-2 mt-2">
+      <Campo label="Nombre"><input style={estiloInput} placeholder="ej. Diésel" value={f.nombre} onChange={set("nombre")} /></Campo>
+      <Campo label="Unidad"><input style={estiloInput} placeholder="L, kg, ton, bolsa" value={f.unidad} onChange={set("unidad")} /></Campo>
+      <Campo label="Categoría">
+        <select style={estiloInput} value={f.categoria} onChange={set("categoria")}>
+          <option>Diésel</option>
+          <option>Fertilizante</option>
+          <option>Agroquímico</option>
+          <option>Semilla</option>
+          <option>Empaque</option>
+          <option>Otro</option>
+        </select>
+      </Campo>
+      <Campo label="Costo de referencia (opcional)"><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
+      <div className="flex gap-2 items-end">
+        <Boton deshabilitado={!f.nombre.trim()} onClick={() => f.nombre.trim() && onGuardar(f)}>Guardar</Boton>
+        {onCancel && <Boton secundario onClick={onCancel}>Cancelar</Boton>}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Simulador de escenarios — por cultivo, unidades reales ---------- */
 
 /* ---------- Simulador de escenarios — por cultivo, unidades reales ---------- */
 function Simulador({ parcelasT, costosParcela, inversionTotal, ingresoTotal }) {
@@ -4246,9 +4412,9 @@ function FormCajaFondeo({ inicial, creditos, onGuardar }) {
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Monto que entra a la caja (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 20000" value={f.monto} onChange={set("monto")} /></Campo>
       <Campo label="¿De dónde sale el efectivo?">
-        <select style={estiloInput} value={f.origen} onChange={set("origen")}>
+        <select style={estiloInput} value={sinLineas && f.origen === "linea" ? "propio" : f.origen} onChange={set("origen")}>
           <option value="propio">Recurso propio</option>
-          <option value="linea">De una línea de crédito</option>
+          {!sinLineas ? <option value="linea">De una línea de crédito</option> : null}
         </select>
       </Campo>
       {f.origen === "linea" && (
@@ -4527,29 +4693,28 @@ function CampoProductor({ value, onChange, productores }) {
    labelExterno cambia según contexto (compra/gasto = "Crédito de proveedor"; renta = "Financiamiento aparte"). */
 function CampoFinanciamiento({ origen, creditoId, tasa, onOrigen, onCredito, onTasa, creditos, labelExterno = "Crédito de proveedor", placeholderTasa = "Ej. 22" }) {
   const sinLineas = !creditos || creditos.length === 0;
+  const mostrarLinea = !sinLineas || origen === "linea";
   return (
     <>
       <Campo label="Forma de pago / origen del recurso">
-        <select style={estiloInput} value={origen || "propio"} onChange={onOrigen}>
+        <select
+          style={estiloInput}
+          value={sinLineas && origen === "linea" ? "propio" : (origen || "propio")}
+          onChange={onOrigen}
+        >
           <option value="propio">Recurso propio</option>
-          <option value="linea">Línea de crédito registrada</option>
+          {mostrarLinea && !sinLineas ? <option value="linea">Línea de crédito registrada</option> : null}
           <option value="externo">{labelExterno}</option>
         </select>
       </Campo>
-      {origen === "linea" && (
+      {origen === "linea" && !sinLineas && (
         <Campo label="¿Cuál línea? · hereda su tasa">
-          {sinLineas ? (
-            <div style={{ fontSize: 12, color: C.barrial, padding: "8px 0" }}>
-              No hay líneas registradas. Captúralas en el módulo Crédito.
-            </div>
-          ) : (
-            <select style={estiloInput} value={creditoId || ""} onChange={onCredito}>
-              <option value="">— Elige línea —</option>
-              {creditos.map(c => (
-                <option key={c.id} value={c.id}>{c.tipoCredito} · {c.fuente} · {num(tasaCredito(c), 1)}%</option>
-              ))}
-            </select>
-          )}
+          <select style={estiloInput} value={creditoId || ""} onChange={onCredito}>
+            <option value="">— Elige línea —</option>
+            {creditos.map(c => (
+              <option key={c.id} value={c.id}>{c.tipoCredito} · {c.fuente} · {num(tasaCredito(c), 1)}%</option>
+            ))}
+          </select>
         </Campo>
       )}
       {origen === "externo" && (
@@ -4725,9 +4890,9 @@ function FormDispersion({ inicial, productores, creditos, onGuardar }) {
       </Campo>
       <Campo label="Monto (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 93000" value={f.monto} onChange={set("monto")} /></Campo>
       <Campo label="¿De dónde sale el dinero?">
-        <select style={estiloInput} value={f.origen} onChange={set("origen")}>
+        <select style={estiloInput} value={sinLineas && f.origen === "linea" ? "propio" : f.origen} onChange={set("origen")}>
           <option value="propio">Recurso propio</option>
-          <option value="linea">De una línea de crédito (avío)</option>
+          {!sinLineas ? <option value="linea">De una línea de crédito (avío)</option> : null}
         </select>
       </Campo>
       {f.origen === "linea" ? (
@@ -4760,7 +4925,7 @@ function FormPrestamo({ inicial, productores, creditos, onGuardar }) {
     productorId: inicial?.productorId || (productores[0] ? productores[0].id : ""),
     fecha: inicial?.fecha || hoyStr,
     monto: inicial?.monto ?? "",
-    origen: inicial?.origen || "linea",
+    origen: inicial?.origen || "propio",
     creditoId: inicial?.creditoId || "",
     nota: inicial?.nota || "",
   });
@@ -4776,9 +4941,9 @@ function FormPrestamo({ inicial, productores, creditos, onGuardar }) {
       <Campo label="Fecha del préstamo"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Monto prestado (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 120000" value={f.monto} onChange={set("monto")} /></Campo>
       <Campo label="¿De dónde sale el dinero?">
-        <select style={estiloInput} value={f.origen} onChange={set("origen")}>
-          <option value="linea">De una línea de crédito (devenga interés)</option>
+        <select style={estiloInput} value={sinLineas && f.origen === "linea" ? "propio" : f.origen} onChange={set("origen")}>
           <option value="propio">Recurso propio</option>
+          {!sinLineas ? <option value="linea">De una línea de crédito (devenga interés)</option> : null}
         </select>
       </Campo>
       {f.origen === "linea" && (

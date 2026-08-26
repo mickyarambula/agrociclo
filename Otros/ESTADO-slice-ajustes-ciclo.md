@@ -1,19 +1,25 @@
-# ESTADO-slice · Ajustes + aislamiento por ciclo
+# ESTADO-slice · Ajustes serio, roles con palomeo, rancho en ceros
 
 **Fecha:** 2026-08-26
-**Alcance:** el ciclo vacío no debe heredar números de demostración; Equipo/roles vive en Ajustes.
+**Motivo:** el Dueño encontró Ajustes incompleto (sin permisos, ciclos no editables, defaults inventados, líneas de crédito fantasma y OI 2025/26 con números de prueba).
 
 ## Qué se hizo
-- Almacén (`v_inventario_stock`) y cuentas de productor van por `ciclo_id`. OI 2026/27 vacío no muestra 2,150 L ni el saldo −28,233.69.
-- Avisos de “stock bajo” solo salen si ese ciclo ya tuvo movimientos de almacén (si no, el catálogo a stock 0 gritaba en cuanto hubiera una parcela).
-- Ajustes (Dueño): rancho, ciclos, equipo y roles, precios del Encargado, canarios y restaurar demo. El engranaje del header abre esa página; ya no hay Equipo suelto ni el toggle duplicado en Solicitudes.
-- Si no hay sesión, no nos quedamos en “Abriendo el ciclo…”: a los 8 s vamos al login.
+- Equipo: rol + palomeo **Ve montos y finanzas** / **Puede capturar y editar**. El preset del rol se puede ajustar por persona. Dueño queda bloqueado en ve+edita todo.
+- Ciclos: usar / editar nombre-fechas / eliminar. Formulario de ciclo **vacío** (sin pv27 inventado). No se borra el último ciclo.
+- Origen “línea de crédito” **solo aparece si hay líneas en este ciclo**. Préstamo ya no nace en “línea”.
+- OI 2025/26 (demo FIRA, 2,150 L, 3567) se quita al abrir sesión. El rancho queda en **OI 2026/27 vacío**. Catálogo de insumos sin existencias ni precios inventados.
+- Ajustes: nombre del rancho, catálogo de insumos (alta/edita/baja), palomeo de precios de cotización persistido, “Dejar rancho en ceros”.
+- Las disposiciones nuevas sellan el ciclo de la operación, no el id del demo.
 
 ## Decisiones
-- Catálogo de insumos y de productores sigue a nivel rancho (sirve para la primera compra / alta). El stock y el saldo son del ciclo.
-- Arrastre físico de bodega entre ciclos: no. Se diseña al cerrar oi2526.
-- Publicar (Vercel) sí persiste Dueño y ledger; el preview se borra al reiniciar.
+- Encargado con “ve finanzas” ve montos; el crédito sigue siendo de oficina.
+- La demo se puede recargar a propósito (no es el default).
+- `puede_editar` y `config` del rancho viven en SQL (migración 0003).
 
 ## Verificación
-- Canarios de oi2526 intactos. Stock y cuenta 3567 en oi2627 = 0.
-- Login: Salir cierra sesión; crear cuenta pide confirmar contraseña.
+- Canarios siguen pasando sobre `demoLedger()`.
+- Rancho vacío: 1 ciclo oi2627, 0 líneas, 0 productores, 0 stock.
+- Editar/eliminar ciclo: no deja el rancho en cero ciclos.
+
+## Siguiente
+Datos reales de siembra (parcelas OI 2026/27). PDF/Excel FIRA y arrastre de bodega cuando el Dueño los pida.
