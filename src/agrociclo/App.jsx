@@ -305,8 +305,7 @@ function AgroCicloApp() {
     : [{ id: CICLO_ID, clave: "oi2526", nombre: "Otoño–Invierno 2025/26" }];
   const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2526";
   const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
-  const [equipoOpen, setEquipoOpen] = useState(false);
-  const [cicloNuevoOpen, setCicloNuevoOpen] = useState(false);
+  const [config, setConfig] = useState({ encargadoVePrecios: false });
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
     || TEMPORADAS.find((t) => t.id === temporadaId)?.nombre
     || temporadaId;
@@ -327,7 +326,6 @@ function AgroCicloApp() {
     () => (productoresQ.data ?? []).map((r) => ({ ...r, tipo: TIPO_LABEL[r.tipo] ?? r.tipo })),
     [productoresQ.data]
   );
-  const [config, setConfig] = useState({ encargadoVePrecios: false });
   const [fechaObjetivo, setFechaObjetivo] = useState(hoyStr);
   const [pagoSupuesto, setPagoSupuesto] = useState({});
   // Pagos parciales: monto del abono por renglón (clave de dispsDeLinea). El input de fecha
@@ -514,7 +512,9 @@ function AgroCicloApp() {
      (localeCompare "es") — antes ordenaba por id numérico, que con uuid ya no aplica.
      `insumos` es alias de insumosT. */
   const insumosCatQ = useOrgRead(["insumos"], "insumo", { build: (q) => q.eq("activo", true) });
-  const stockQ = useOrgRead(["inventario-stock"], "v_inventario_stock");
+  const stockQ = useOrgRead(["inventario-stock", CICLO_ID], "v_inventario_stock", {
+    build: (q) => q.eq("ciclo_id", CICLO_ID),
+  });
   const insumosT = useMemo(() => {
     const stockPorUuid = Object.fromEntries((stockQ.data ?? []).map(s => [s.insumo_id, Number(s.stock) || 0]));
     return (insumosCatQ.data ?? [])
@@ -531,6 +531,10 @@ function AgroCicloApp() {
       .sort((a, b) => a.nombre.localeCompare(b.nombre, "es")); // orden alfabético en el almacén
   }, [insumosCatQ.data, stockQ.data]);
   const insumos = insumosT; // alias: todo consumidor del array seed sigue funcionando
+  const insumosAlmacen = useMemo(() => {
+    const ids = new Set((stockQ.data ?? []).map((s) => s.insumo_id));
+    return insumosT.filter((ins) => ids.has(ins.id));
+  }, [insumosT, stockQ.data]);
 
   /* LABORES (base de datos). labor + labor_insumo (con su insumo para detectar el diésel).
      parcela e insumo por uuid directo (slice INSUMOS: puente eliminado); la
@@ -1784,11 +1788,16 @@ function AgroCicloApp() {
     { id: "credito", nombre: "Crédito", icono: Landmark, soloFinanzas: true },
     { id: "costofin", nombre: "Costo financiero", icono: TrendingUp, soloFinanzas: true },
     { id: "reportes", nombre: "Reportes", icono: BarChart3, soloFinanzas: true },
+    { id: "ajustes", nombre: "Ajustes", icono: SlidersHorizontal, soloDueno: true },
   ];
-  const NAV = NAV_TODOS.filter((n) => (veFinanzas || !n.soloFinanzas) && (rol === "Encargado de campo" || !n.soloCampo));
+  const NAV = NAV_TODOS.filter((n) =>
+    (veFinanzas || !n.soloFinanzas)
+    && (rol === "Encargado de campo" || !n.soloCampo)
+    && (rol === "Dueño" || !n.soloDueno)
+  );
   const NAV_MOVIL = rol === "Encargado de campo"
     ? NAV.filter((n) => ["captura", "labores", "cuadrillas", "cosecha"].includes(n.id))
-    : NAV;
+    : NAV.filter((n) => n.id !== "ajustes");
 
   const accionRapida = (vistaDestino, tipoForm) => {
     setVista(vistaDestino);
@@ -1819,7 +1828,6 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {veFinanzas && <span className="hidden md:inline-flex"><CanarioBadge /></span>}
           <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); }}
             title="Ciclo de siembra"
             aria-label="Ciclo de siembra"
@@ -1827,53 +1835,14 @@ function AgroCicloApp() {
             {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, rol === "Encargado de campo")}</option>)}
           </select>
           {rol === "Dueño" && (
-            <div style={{ position: "relative" }}>
-              <button
-                type="button"
-                onClick={() => { setCicloNuevoOpen((v) => !v); setEquipoOpen(false); }}
-                title="Abrir un ciclo vacío para capturar la siembra nueva"
-                style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
-              >
-                + Ciclo
-              </button>
-              {cicloNuevoOpen && (
-                <AbrirCicloPanel
-                  onClose={() => setCicloNuevoOpen(false)}
-                  onCreado={async (id) => {
-                    setCicloNuevoOpen(false);
-                    await reload();
-                    await setCiclo(id);
-                    setVista("parcelas");
-                  }}
-                />
-              )}
-            </div>
-          )}
-          {rol === "Dueño" && (
-            <div style={{ position: "relative" }}>
-              <button
-                type="button"
-                onClick={() => setEquipoOpen((v) => !v)}
-                title="Equipo del rancho"
-                style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
-              >
-                Equipo
-              </button>
-              {equipoOpen && <EquipoPanel onClose={() => setEquipoOpen(false)} />}
-            </div>
-          )}
-          {rol === "Dueño" && (
             <button
               type="button"
-              onClick={() => {
-                if (window.confirm("Esto restaura el ciclo de demostración oi2526 (datos de junio 2026). Se pierden los cambios de esta sesión.")) {
-                  void restaurarDemo().then(() => window.location.reload());
-                }
-              }}
-              title="Volver a los datos de demostración verificados"
-              style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
+              onClick={() => { setVista("ajustes"); cerrar(); }}
+              title="Ajustes del rancho"
+              aria-label="Ajustes"
+              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: vista === "ajustes" ? C.grano : "rgba(255,255,255,0.08)", color: vista === "ajustes" ? C.bosque : C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
-              Restaurar demo
+              <SlidersHorizontal size={15} /> <span className="hidden md:inline">Ajustes</span>
             </button>
           )}
           <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
@@ -2282,8 +2251,11 @@ function AgroCicloApp() {
               editando={!!form?.item}
               form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
+              {(stockQ.data ?? []).length === 0 ? (
+                <Vacio texto="Este ciclo no tiene movimientos de almacén. El catálogo (diésel, fertilizante…) se usa al registrar la primera compra o el inventario inicial. Los números de demostración viven en OI 2025/26." />
+              ) : (
               <div className="grid md:grid-cols-2 gap-3">
-                {insumos.map(ins => (
+                {insumosAlmacen.map(ins => (
                   <Tarjeta key={ins.id} style={{ padding: 16, borderLeft: ins.categoria === "Diésel" ? `3px solid ${C.barrial}` : undefined }}>
                     <div className="flex justify-between gap-2">
                       <div>
@@ -2305,6 +2277,7 @@ function AgroCicloApp() {
                   </Tarjeta>
                 ))}
               </div>
+              )}
 
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginTop: 8 }}>Historial de compras</div>
               {comprasT.length === 0 && <Vacio texto="Sin compras registradas." />}
@@ -3160,6 +3133,105 @@ function AgroCicloApp() {
                 rentaTotal={rentaTotal} haTotal={haTotal} dieselUsado={dieselUsado} dieselCosto={dieselCosto} costosParcela={costosParcela} />
             </div>
           )}
+
+          {vista === "ajustes" && rol === "Dueño" && (
+            <div className="flex flex-col gap-5">
+              <div>
+                <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Ajustes del rancho</h1>
+                <p style={{ margin: "6px 0 0", fontSize: 14, color: C.gris }}>
+                  Equipo, ciclos y datos de demostración. Aquí viven las cosas de oficina, no las del lote.
+                </p>
+              </div>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Rancho</div>
+                <p style={{ margin: "8px 0 0", fontSize: 14, fontWeight: 600 }}>{profile.orgNombre}</p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: C.gris }}>
+                  Tú eres Dueño · {user?.primaryEmail || user?.displayName || "cuenta"}
+                </p>
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Ciclos</div>
+                <p style={{ margin: "6px 0 10px", fontSize: 13, color: C.gris }}>
+                  OI 2025/26 es la demostración con números de prueba (corte 15 jun 2026). OI 2026/27 es el ciclo vacío para la siembra real: sin parcelas, sin almacén, sin compras.
+                </p>
+                <div className="flex flex-col gap-2">
+                  {ciclos.map((c) => (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => { void setCiclo(c.id); setVista("panel"); }}
+                      className="flex items-center justify-between text-left"
+                      style={{
+                        padding: "10px 12px", borderRadius: 10, border: `1px solid ${c.id === CICLO_ID ? C.bosque : C.linea}`,
+                        background: c.id === CICLO_ID ? "#EEF4EB" : C.blanco, cursor: "pointer", minHeight: 44,
+                        fontFamily: fuente.cuerpo, color: C.tinta,
+                      }}
+                    >
+                      <span style={{ fontWeight: 600, fontSize: 14 }}>{c.nombre}</span>
+                      <span style={{ fontSize: 11, color: C.gris }}>{String(c.clave || "").toUpperCase()}{c.id === CICLO_ID ? " · viendo" : ""}</span>
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <AbrirCicloPanel
+                    embeber
+                    onClose={() => {}}
+                    onCreado={async (id) => {
+                      await reload();
+                      await setCiclo(id);
+                      setVista("parcelas");
+                    }}
+                  />
+                </div>
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Equipo y roles</div>
+                <EquipoPanel variante="pagina" />
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Campo</div>
+                <label className="mt-3 flex items-start gap-3" style={{ fontSize: 14, cursor: "pointer" }}>
+                  <input
+                    type="checkbox"
+                    checked={config.encargadoVePrecios}
+                    onChange={(e) => setConfig((c) => ({ ...c, encargadoVePrecios: e.target.checked }))}
+                    style={{ marginTop: 3, accentColor: C.bosque }}
+                  />
+                  <span>
+                    El Encargado de campo ve precios de cotizaciones
+                    <span style={{ display: "block", fontSize: 12, color: C.gris, marginTop: 2 }}>
+                      Por defecto no ve montos. Actívalo si quieres que compare cotizaciones en el lote.
+                    </span>
+                  </span>
+                </label>
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de demostración</div>
+                <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                  Los canarios (97,977.53 · stock 2,150 L) son del ciclo de prueba OI 2025/26. No son datos del rancho.
+                  Restaurar demo vuelve a ese corte y no toca quién es Dueño.
+                </p>
+                <CanarioBadge />
+                <div className="mt-3">
+                  <Boton
+                    secundario
+                    onClick={() => {
+                      if (window.confirm("Esto restaura el ciclo de demostración oi2526 (datos de junio 2026). Se pierden los cambios de esta sesión.")) {
+                        void restaurarDemo().then(() => window.location.reload());
+                      }
+                    }}
+                  >
+                    Restaurar demo
+                  </Boton>
+                </div>
+              </Tarjeta>
+            </div>
+          )}
         </main>
       </div>
 
@@ -3227,27 +3299,23 @@ function CanarioBadge() {
   );
 }
 
-function AbrirCicloPanel({ onClose, onCreado }) {
-  const [clave, setClave] = useState("oi2627");
-  const [nombre, setNombre] = useState("Otoño–Invierno 2026/27");
-  const [inicio, setInicio] = useState("2026-10-01");
+function AbrirCicloPanel({ onClose, onCreado, embeber = false }) {
+  const [clave, setClave] = useState("pv27");
+  const [nombre, setNombre] = useState("Primavera–Verano 2027");
+  const [inicio, setInicio] = useState("2027-03-01");
   const [fin, setFin] = useState("2027-09-30");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
-  return (
-    <div
-      style={{
-        position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 50, width: 320, maxWidth: "80vw",
-        background: C.blanco, color: C.tinta, border: `1px solid ${C.linea}`, borderRadius: 12,
-        boxShadow: "0 12px 32px rgba(28,36,25,0.18)", padding: 12, fontFamily: fuente.cuerpo,
-      }}
-    >
+  const cuerpo = (
+      <>
+      {!embeber && (
       <div className="mb-2 flex items-center justify-between">
         <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 14 }}>Abrir ciclo vacío</span>
         <button type="button" onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}>Cerrar</button>
       </div>
+      )}
       <p style={{ fontSize: 12, color: C.gris, margin: "0 0 8px" }}>
-        Para la siembra que sigue. Queda sin parcelas; el demo oi2526 no se toca.
+        {embeber ? "Abrir otro ciclo vacío (PV, un año más)." : "Para la siembra que sigue. Queda sin parcelas; el demo oi2526 no se toca."}
       </p>
       <div className="flex flex-col gap-2">
         <Campo label="Clave"><input style={estiloInput} value={clave} onChange={(e) => setClave(e.target.value)} /></Campo>
@@ -3279,6 +3347,18 @@ function AbrirCicloPanel({ onClose, onCreado }) {
           {busy ? "Abriendo…" : "Abrir ciclo"}
         </Boton>
       </div>
+      </>
+  );
+  if (embeber) return <div>{cuerpo}</div>;
+  return (
+    <div
+      style={{
+        position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 50, width: 320, maxWidth: "80vw",
+        background: C.blanco, color: C.tinta, border: `1px solid ${C.linea}`, borderRadius: 12,
+        boxShadow: "0 12px 32px rgba(28,36,25,0.18)", padding: 12, fontFamily: fuente.cuerpo,
+      }}
+    >
+      {cuerpo}
     </div>
   );
 }

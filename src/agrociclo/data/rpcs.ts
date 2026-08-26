@@ -65,10 +65,19 @@ function upsertDisposicion(opts: {
   return id;
 }
 
-function stockOf(insumoId: string): number {
+function cicloDe(p: Record<string, unknown>, parcelaId?: string | null): string {
+  if (parcelaId) {
+    const parc = getById("parcela", parcelaId);
+    if (parc?.ciclo_id) return String(parc.ciclo_id);
+  }
+  return String(p.p_ciclo_id ?? CICLO_ID);
+}
+
+function stockOf(insumoId: string, cicloId?: string): number {
   let s = 0;
   for (const m of live("inventario_movimiento")) {
     if (m.insumo_id !== insumoId) continue;
+    if (cicloId && String(m.ciclo_id) !== cicloId) continue;
     const q = Number(m.cantidad) || 0;
     s += m.tipo === "salida" ? -q : q;
   }
@@ -100,6 +109,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }[];
     const laborId = String(p.p_labor_id ?? "") || uid();
     const isEdit = !!p.p_labor_id;
+    const cicloLabor = cicloDe(p, parcela);
 
     // Return stock of previous labor before validating
     const prev = isEdit ? live("labor_insumo").filter((li) => li.labor_id === laborId) : [];
@@ -109,7 +119,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       const prevQty = prev
         .filter((x) => x.insumo_id === li.insumo_id)
         .reduce((s, x) => s + (Number(x.cantidad) || 0), 0);
-      const disponible = stockOf(li.insumo_id) + prevQty;
+      const disponible = stockOf(li.insumo_id, cicloLabor) + prevQty;
       if (used > disponible + 1e-9) {
         const ins = getById("insumo", li.insumo_id);
         return err(`Stock insuficiente de ${ins?.nombre ?? "insumo"}: hay ${disponible}, pides ${used}.`);
@@ -119,7 +129,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     upsert("labor", {
       id: laborId,
       organizacion_id: ORG_ID,
-      ciclo_id: CICLO_ID,
+      ciclo_id: cicloLabor,
       parcela_id: parcela,
       fecha: p.p_fecha,
       tipo: p.p_tipo,
@@ -150,7 +160,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       inv.push({
         id: uid(),
         organizacion_id: ORG_ID,
-        ciclo_id: CICLO_ID,
+        ciclo_id: cicloLabor,
         insumo_id: li.insumo_id,
         tipo: "salida",
         cantidad: cant,
@@ -283,7 +293,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         {
           id: uid(),
           organizacion_id: ORG_ID,
-          ciclo_id: CICLO_ID,
+          ciclo_id: p.p_ciclo_id ?? CICLO_ID,
           insumo_id: insumoId,
           tipo: "entrada",
           cantidad: Number(p.p_cantidad) || 0,
@@ -312,7 +322,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     upsert("boleta", {
       id,
       organizacion_id: ORG_ID,
-      ciclo_id: CICLO_ID,
+      ciclo_id: cicloDe(p, String(p.p_parcela_id ?? "")),
       parcela_id: p.p_parcela_id,
       fecha: p.p_fecha,
       folio: p.p_folio,
@@ -671,7 +681,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       insertRow("inventario_movimiento", {
         id: uid(),
         organizacion_id: ORG_ID,
-        ciclo_id: CICLO_ID,
+        ciclo_id: p.p_ciclo_id ?? CICLO_ID,
         insumo_id: insumoId,
         tipo: "entrada",
         cantidad: Number(sol.cantidad) || 0,

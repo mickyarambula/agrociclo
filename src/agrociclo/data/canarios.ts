@@ -34,12 +34,16 @@ export function runCanarios(): { checks: CanarioCheck[]; allOk: boolean } {
   const cuenta = vCuentaProductor().find((c) => c.productor_id === IDS.p3567);
   const saldo3567 = round2(Number(cuenta?.saldo) || 0);
 
-  const stockById = new Map(vInventarioStock().map((r) => [String(r.insumo_id), Number(r.stock) || 0]));
+  const stockById = new Map(
+    vInventarioStock()
+      .filter((r) => String(r.ciclo_id) === CICLO_ID)
+      .map((r) => [String(r.insumo_id), Number(r.stock) || 0]),
+  );
   const stockOrder = [IDS.diesel, IDS.glifosato, IDS.insecticida, IDS.map, IDS.semilla, IDS.urea];
   const stock = stockOrder.map((id) => stockById.get(id) ?? 0);
 
-  const nLineas = live("linea_credito").length;
-  const nDisp = live("disposicion").length;
+  const nLineas = live("linea_credito").filter((l) => String(l.ciclo_id) === CICLO_ID).length;
+  const nDisp = live("disposicion").filter((d) => String(d.ciclo_id) === CICLO_ID).length;
 
   const checks: CanarioCheck[] = [
     {

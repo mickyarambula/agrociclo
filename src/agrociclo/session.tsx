@@ -64,10 +64,10 @@ export async function salirAgro(): Promise<void> {
   }
 }
 
-function Splash({ texto }: { texto: string }) {
+function Splash({ texto, extra }: { texto: string; extra?: ReactNode }) {
   return (
     <div
-      className="flex min-h-dvh flex-col items-center justify-center gap-3"
+      className="flex min-h-dvh flex-col items-center justify-center gap-3 px-6 text-center"
       style={{ background: C.papel, color: C.tinta, fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}
     >
       <div className="grid size-12 place-items-center rounded-[12px]" style={{ background: C.grano }} aria-hidden>
@@ -84,6 +84,7 @@ function Splash({ texto }: { texto: string }) {
       <p className="text-sm" style={{ color: C.gris }}>
         {texto}
       </p>
+      {extra}
     </div>
   );
 }
@@ -154,6 +155,7 @@ export function AgroGate({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<AgroProfile | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [stale, setStale] = useState(false);
 
   const reload = useCallback(async () => {
     if (!user) return;
@@ -172,6 +174,9 @@ export function AgroGate({ children }: { children: ReactNode }) {
     }
     let cancelled = false;
     setLoading(true);
+    const timer = window.setTimeout(() => {
+      if (!cancelled) setErr("Tardó demasiado abrir el ciclo.");
+    }, 12000);
     getAgroSession({ data: { email: user.primaryEmail, displayName: user.displayName } })
       .then((res) => {
         if (cancelled) return;
@@ -183,12 +188,24 @@ export function AgroGate({ children }: { children: ReactNode }) {
         if (!cancelled) setErr(e.message === "Unauthorized" ? "Unauthorized" : e.message);
       })
       .finally(() => {
+        window.clearTimeout(timer);
         if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [isPending, user?.id]);
+
+  useEffect(() => {
+    const waiting = isPending || Boolean(user && loading);
+    if (!waiting) {
+      setStale(false);
+      return;
+    }
+    const t = window.setTimeout(() => setStale(true), 8000);
+    return () => window.clearTimeout(t);
+  }, [isPending, user, loading]);
 
   const value = useMemo<Ctx | null>(() => {
     if (!profile) return null;
@@ -206,22 +223,70 @@ export function AgroGate({ children }: { children: ReactNode }) {
     };
   }, [profile, reload]);
 
-  if (isPending || (user && loading)) {
-    return <Splash texto="Abriendo el ciclo…" />;
+  const splashExtra = stale ? (
+    <div className="mt-4 flex flex-col items-center gap-2">
+      <p className="max-w-sm text-xs" style={{ color: C.gris }}>
+        Si te quedas aquí, sal y vuelve a entrar. Publicar el rancho evita que se pierda la sesión al recargar.
+      </p>
+      <button
+        type="button"
+        onClick={() => window.location.reload()}
+        className="rounded-xl px-4 text-sm font-semibold"
+        style={{ background: C.bosque, color: C.blanco, border: "none", minHeight: 44, minWidth: 140, cursor: "pointer" }}
+      >
+        Reintentar
+      </button>
+      <button
+        type="button"
+        onClick={() => void salirAgro()}
+        className="rounded-xl px-4 text-sm font-semibold"
+        style={{ background: "transparent", color: C.bosque, border: `1px solid ${C.linea}`, minHeight: 44, minWidth: 140, cursor: "pointer" }}
+      >
+        Salir
+      </button>
+    </div>
+  ) : null;
+
+  if (isPending || (user && loading && err !== "Tardó demasiado abrir el ciclo.")) {
+    return <Splash texto="Abriendo el ciclo…" extra={splashExtra} />;
   }
   if (!user || err === "Unauthorized") return <RedirectToSignIn />;
   if (err) {
-    return <Splash texto={err} />;
+    return (
+      <Splash
+        texto={err === "Tardó demasiado abrir el ciclo." ? "No se pudo abrir el ciclo." : err}
+        extra={
+          <div className="mt-4 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => window.location.reload()}
+              className="rounded-xl px-4 text-sm font-semibold"
+              style={{ background: C.bosque, color: C.blanco, border: "none", minHeight: 44, minWidth: 140, cursor: "pointer" }}
+            >
+              Reintentar
+            </button>
+            <button
+              type="button"
+              onClick={() => void salirAgro()}
+              className="rounded-xl px-4 text-sm font-semibold"
+              style={{ background: "transparent", color: C.bosque, border: `1px solid ${C.linea}`, minHeight: 44, minWidth: 140, cursor: "pointer" }}
+            >
+              Salir
+            </button>
+          </div>
+        }
+      />
+    );
   }
-  if (!profile) return <Splash texto="Abriendo el ciclo…" />;
+  if (!profile) return <Splash texto="Abriendo el ciclo…" extra={splashExtra} />;
   if (profile.rol === "pendiente") {
     return <EsperandoDueño orgNombre={profile.orgNombre} dueñoEtiqueta={profile.dueñoEtiqueta} />;
   }
-  if (!value) return <Splash texto="Abriendo el ciclo…" />;
+  if (!value) return <Splash texto="Abriendo el ciclo…" extra={splashExtra} />;
   return <AgroCtx.Provider value={value}>{children}</AgroCtx.Provider>;
 }
 
-export function EquipoPanel({ onClose }: { onClose: () => void }) {
+export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () => void; variante?: "popover" | "pagina" }) {
   const { profile } = useAgroSession();
   const [members, setMembers] = useState<Member[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
@@ -232,32 +297,17 @@ export function EquipoPanel({ onClose }: { onClose: () => void }) {
 
   if (profile.rol !== "Dueño") return null;
 
-  return (
-    <div
-      className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] max-w-[80vw] rounded-xl p-3"
-      style={{
-        background: C.blanco,
-        color: C.tinta,
-        border: `1px solid ${C.linea}`,
-        boxShadow: "0 12px 32px rgba(28,36,25,0.18)",
-        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
-      }}
-    >
-      <div className="mb-2 flex items-center justify-between">
-        <span style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 700, fontSize: 14 }}>
-          Equipo
-        </span>
-        <button
-          type="button"
-          onClick={onClose}
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}
-        >
-          Cerrar
-        </button>
-      </div>
+  const lista = (
+    <>
       <p className="mb-2 text-xs" style={{ color: C.gris }}>
-        Quien entre por primera vez y no sea Dueño queda en espera hasta que le asignes rol.
+        Quien entre por primera vez y no sea Dueño queda en espera hasta que le asignes rol (Oficina, Encargado de
+        campo o Consulta).
       </p>
+      {members.length === 0 ? (
+        <p className="text-sm" style={{ color: C.gris }}>
+          Todavía no hay más cuentas. Cuando alguien cree la suya, aparece aquí.
+        </p>
+      ) : null}
       {members.map((m) => (
         <div key={m.userId} className="flex items-center justify-between gap-2 border-t py-2" style={{ borderColor: C.linea }}>
           <div className="min-w-0">
@@ -280,7 +330,7 @@ export function EquipoPanel({ onClose }: { onClose: () => void }) {
                   .finally(() => setBusy(null));
               }}
               className="rounded-md border px-1 py-1 text-xs"
-              style={{ borderColor: C.linea }}
+              style={{ borderColor: C.linea, minHeight: 36 }}
             >
               <option value="pendiente">En espera</option>
               <option value="Oficina">Oficina</option>
@@ -290,6 +340,38 @@ export function EquipoPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
       ))}
+    </>
+  );
+
+  if (variante === "pagina") return <div>{lista}</div>;
+
+  return (
+    <div
+      className="absolute right-0 top-[calc(100%+8px)] z-50 w-[340px] max-w-[80vw] rounded-xl p-3"
+      style={{
+        background: C.blanco,
+        color: C.tinta,
+        border: `1px solid ${C.linea}`,
+        boxShadow: "0 12px 32px rgba(28,36,25,0.18)",
+        fontFamily: "'IBM Plex Sans', system-ui, sans-serif",
+      }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 700, fontSize: 14 }}>
+          Equipo
+        </span>
+        {onClose ? (
+          <button
+            type="button"
+            onClick={onClose}
+            style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}
+          >
+            Cerrar
+          </button>
+        ) : null}
+      </div>
+      {lista}
     </div>
   );
 }
+

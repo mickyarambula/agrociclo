@@ -112,14 +112,18 @@ function tasaDiaria(linea: Row): number {
 }
 
 export function vInventarioStock(): Row[] {
-  const map = new Map<string, number>();
+  const map = new Map<string, { id: string; ciclo_id: string; insumo_id: string; stock: number }>();
   for (const m of live("inventario_movimiento")) {
-    const id = String(m.insumo_id);
+    const ciclo = String(m.ciclo_id ?? "");
+    const insumo_id = String(m.insumo_id);
+    const key = `${ciclo}:${insumo_id}`;
     const q = Number(m.cantidad) || 0;
     const sign = m.tipo === "salida" ? -1 : 1;
-    map.set(id, (map.get(id) ?? 0) + sign * q);
+    const cur = map.get(key) ?? { id: key, ciclo_id: ciclo, insumo_id, stock: 0 };
+    cur.stock += sign * q;
+    map.set(key, cur);
   }
-  return [...map.entries()].map(([insumo_id, stock]) => ({ id: insumo_id, insumo_id, stock }));
+  return [...map.values()];
 }
 
 export function vDisposicionInteres(corte = hoyMochis()): Row[] {

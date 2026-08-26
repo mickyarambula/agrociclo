@@ -77,4 +77,22 @@ describe("Etapa 4a · ciclo vacío", () => {
     replaceLedger(ledger);
     assert.equal(runCanarios().allOk, true);
   });
+
+  it("el almacén de oi2627 no hereda el stock de demostración", async () => {
+    const { demoLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { replaceLedger, vInventarioStock } = await jiti.import("../src/agrociclo/data/db.ts");
+    const { runCanarios, CANARIO_STOCK } = await jiti.import("../src/agrociclo/data/canarios.ts");
+    const { CICLO_ID } = await jiti.import("../src/agrociclo/lib/org.ts");
+
+    replaceLedger(demoLedger());
+    assert.equal(runCanarios().allOk, true);
+
+    const stockNuevo = vInventarioStock().filter((r) => String(r.ciclo_id) === IDS.cicloOi2627);
+    assert.equal(stockNuevo.length, 0, "OI 2026/27 no debe mostrar tanque ni bodega de la demo");
+
+    const dieselDemo = vInventarioStock().find(
+      (r) => String(r.ciclo_id) === CICLO_ID && String(r.insumo_id) === IDS.diesel,
+    );
+    assert.equal(Number(dieselDemo?.stock), CANARIO_STOCK[0]);
+  });
 });
