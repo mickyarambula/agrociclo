@@ -1,4 +1,4 @@
-export type Rol = "Dueño" | "Oficina" | "Encargado de campo" | "Consulta" | "pendiente";
+export type Rol = string;
 
 export const FINANCIAL_RPC = new Set([
   "fn_guardar_linea_credito",
@@ -161,6 +161,50 @@ export function parseMatriz(raw: unknown, rol: Rol): Matriz {
     if (v === "oculto" || v === "ver" || v === "editar") next[m.id] = v;
   }
   return next;
+}
+
+export type DefRol = {
+  id: string;
+  nombre: string;
+  matriz: Matriz;
+};
+
+export function rolesIniciales(): DefRol[] {
+  return [
+    { id: "oficina", nombre: "Oficina", matriz: presetMatriz("Oficina") },
+    { id: "encargado", nombre: "Encargado de campo", matriz: presetMatriz("Encargado de campo") },
+    { id: "consulta", nombre: "Consulta", matriz: presetMatriz("Consulta") },
+  ];
+}
+
+export function nombreRolReservado(nombre: string): boolean {
+  const n = nombre.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  return n === "dueno" || n === "pendiente" || n === "owner";
+}
+
+export function parseCatalogoRoles(raw: unknown): DefRol[] {
+  if (!Array.isArray(raw) || raw.length === 0) return rolesIniciales();
+  const out: DefRol[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const o = item as Record<string, unknown>;
+    const nombre = typeof o.nombre === "string" ? o.nombre.trim() : "";
+    if (!nombre || nombreRolReservado(nombre)) continue;
+    const id = typeof o.id === "string" && o.id.trim() ? o.id.trim() : nombre.toLowerCase().replace(/\s+/g, "-");
+    if (seen.has(id) || seen.has(nombre.toLowerCase())) continue;
+    seen.add(id);
+    seen.add(nombre.toLowerCase());
+    out.push({ id, nombre, matriz: parseMatriz(o.matriz, nombre) });
+  }
+  return out.length ? out : rolesIniciales();
+}
+
+export function matrizDeCatalogo(nombre: string, catalogo: DefRol[]): Matriz {
+  if (nombre === "Dueño") return presetMatriz("Dueño");
+  const hit = catalogo.find((r) => r.nombre === nombre || r.id === nombre);
+  if (hit) return hit.matriz;
+  return presetMatriz(nombre);
 }
 
 export function veFinanzasDeMatriz(matriz: Matriz): boolean {

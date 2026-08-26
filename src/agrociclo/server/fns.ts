@@ -12,14 +12,18 @@ import {
   allowRpc,
   allowTable,
   parseMatriz,
+  parseCatalogoRoles,
+  matrizDeCatalogo,
+  nombreRolReservado,
   presetPermisos,
   puedeEditarDeMatriz,
   veFinanzasDeMatriz,
+  type DefRol,
   type Matriz,
 } from "./roles";
 import type { Rol } from "./roles";
 
-export type { Rol } from "./roles";
+export type { Rol, DefRol } from "./roles";
 
 /** JSON-safe payload for createServerFn (Ledger/Row usan `unknown`). */
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
@@ -46,6 +50,7 @@ export type AgroProfile = {
   codigoInvitacion: string | null;
   onboardingHecho: boolean;
   permisos: Matriz;
+  roles: DefRol[];
 };
 
 export type Member = {
@@ -104,7 +109,7 @@ function asBool(v: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-function parseConfig(raw: unknown): { encargadoVePrecios: boolean } {
+function parseConfig(raw: unknown): { encargadoVePrecios: boolean; roles: DefRol[] } {
   let obj: Record<string, unknown> = {};
   if (typeof raw === "string") {
     try {
@@ -115,7 +120,10 @@ function parseConfig(raw: unknown): { encargadoVePrecios: boolean } {
   } else if (raw && typeof raw === "object") {
     obj = raw as Record<string, unknown>;
   }
-  return { encargadoVePrecios: asBool(obj.encargadoVePrecios, false) };
+  return {
+    encargadoVePrecios: asBool(obj.encargadoVePrecios, false),
+    roles: parseCatalogoRoles(obj.roles),
+  };
 }
 
 async function asegurarEsquemaRoles() {
@@ -419,6 +427,7 @@ function toProfile(
     codigoInvitacion: extra.codigoInvitacion,
     onboardingHecho: Boolean(row.onboarding_en),
     permisos: matriz,
+    roles: cfg.roles,
   };
 }
 
@@ -599,10 +608,12 @@ export const asignarRol = createServerFn({ method: "POST" })
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño asigna roles.");
     if (data.userId === context.userId) throw new Error("No puedes cambiar tu propio rol.");
-    const allowed: Rol[] = ["Oficina", "Encargado de campo", "Consulta", "pendiente"];
-    if (!allowed.includes(data.rol)) throw new Error("Rol no permitido.");
-    const preset = presetPermisos(data.rol);
-    const matriz = data.rol === "pendiente" ? preset.matriz : parseMatriz(data.permisos ?? preset.matriz, data.rol);
+    const catalogo = parseConfig(row.config).roles;
+    if (data.rol !== "pendiente" && !catalogo.some((r) => r.nombre === data.rol)) {
+      throw new Error("Ese rol no existe en este rancho. Créalo en Ajustes.");
+    }
+    const base = data.rol === "pendiente" ? presetPermisos("pendiente").matriz : matrizDeCatalogo(data.rol, catalogo);
+    const matriz = data.rol === "pendiente" ? base : parseMatriz(data.permisos ?? base, data.rol);
     const veFinanzas = data.rol === "pendiente" ? false : (data.veFinanzas ?? veFinanzasDeMatriz(matriz));
     const puedeEditar = data.rol === "pendiente" ? false : (data.puedeEditar ?? puedeEditarDeMatriz(matriz));
     const sql = await getSql();
@@ -661,6 +672,56 @@ export const setOrgConfig = createServerFn({ method: "POST" })
     }
     return { ok: true, config: cfg, nombre: data.nombre?.trim() || row.nombre };
   });
+
+export const guardarRolesCatalogo = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { roles: { id?: string; nombre: string; matriz: Matriz }[] }) => p)
+  .handler(async ({ context, data }) => {
+    const row = await loadOrg(context.userId);
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño administra los roles.");
+    const prev = parseConfig(row.config).roles;
+    const next: DefRol[] = [];
+    const seenNom = new Set<string>();
+    const seenId = new Set<string>();
+    for (const r of data.roles) {
+      const nombre = (r.nombre || "").trim();
+      if (!nombre) throw new Error("Cada rol necesita un nombre.");
+      if (nombreRolReservado(nombre)) throw new Error(`“${nombre}” está reservado.`);
+      const id = (r.id || "").trim() || crypto.randomUUID();
+      const key = nombre.toLowerCase();
+      if (seenNom.has(key)) throw new Error(`Hay dos roles llamados ${nombre}.`);
+      if (seenId.has(id)) throw new Error("Identificador de rol repetido.");
+      seenNom.add(key);
+      seenId.add(id);
+      next.push({ id, nombre, matriz: parseMatriz(r.matriz, nombre) });
+    }
+    if (next.length === 0) throw new Error("Deja por lo menos un rol, además del Dueño.");
+    const sql = await getSql();
+    const cfg = parseConfig(row.config);
+    cfg.roles = next;
+    await sql.query(`update agrociclo_org set config = $1::jsonb where id = $2`, [
+      JSON.stringify(cfg),
+      row.organizacion_id,
+    ]);
+    for (const viejo of prev) {
+      const neu = next.find((n) => n.id === viejo.id);
+      if (!neu) {
+        await sql.query(
+          `update usuario_rol set rol = 'pendiente', ve_finanzas = false, puede_editar = false, permisos = '{}'::jsonb
+            where organizacion_id = $1 and rol = $2 and rol <> 'Dueño'`,
+          [row.organizacion_id, viejo.nombre],
+        );
+      } else if (neu.nombre !== viejo.nombre) {
+        await sql.query(
+          `update usuario_rol set rol = $1
+            where organizacion_id = $2 and rol = $3 and rol <> 'Dueño'`,
+          [neu.nombre, row.organizacion_id, viejo.nombre],
+        );
+      }
+    }
+    return { ok: true, roles: next };
+  });
+
 
 export const regenerarInvitacion = createServerFn({ method: "POST" })
   .middleware([authMiddleware])

@@ -9,7 +9,7 @@ import {
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
-import { EquipoPanel, salirAgro, useAgroSession } from "./session";
+import { EquipoPanel, RolesPanel, salirAgro, useAgroSession } from "./session";
 import { AyudaBoton } from "./Ayuda";
 import { Onboarding } from "./Onboarding";
 import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
@@ -3231,6 +3231,11 @@ function AgroCicloApp() {
                     if (otro) await setCiclo(otro.id);
                   }}
                 />
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16, marginBottom: 8 }}>Roles</div>
+                <RolesPanel />
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>

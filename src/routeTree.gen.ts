@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as ConsolaRouteImport } from './routes/consola'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as OperadorRouteImport } from './routes/operador'
+import { Route as PortalRouteImport } from './routes/portal'
 import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
 
 const IndexRoute = IndexRouteImport.update({
@@ -35,6 +36,11 @@ const OperadorRoute = OperadorRouteImport.update({
   path: '/operador',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PortalRoute = PortalRouteImport.update({
+  id: '/portal',
+  path: '/portal',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
   id: '/api/auth/$',
   path: '/api/auth/$',
@@ -46,6 +52,7 @@ export interface FileRoutesByFullPath {
   '/consola': typeof ConsolaRoute
   '/login': typeof LoginRoute
   '/operador': typeof OperadorRoute
+  '/portal': typeof PortalRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +60,7 @@ export interface FileRoutesByTo {
   '/consola': typeof ConsolaRoute
   '/login': typeof LoginRoute
   '/operador': typeof OperadorRoute
+  '/portal': typeof PortalRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRoutesById {
@@ -61,14 +69,23 @@ export interface FileRoutesById {
   '/consola': typeof ConsolaRoute
   '/login': typeof LoginRoute
   '/operador': typeof OperadorRoute
+  '/portal': typeof PortalRoute
   '/api/auth/$': typeof ApiAuthSplatRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/consola' | '/login' | '/operador' | '/api/auth/$'
+  fullPaths:
+    '/' | '/consola' | '/login' | '/operador' | '/portal' | '/api/auth/$'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/consola' | '/login' | '/operador' | '/api/auth/$'
-  id: '__root__' | '/' | '/consola' | '/login' | '/operador' | '/api/auth/$'
+  to: '/' | '/consola' | '/login' | '/operador' | '/portal' | '/api/auth/$'
+  id:
+    | '__root__'
+    | '/'
+    | '/consola'
+    | '/login'
+    | '/operador'
+    | '/portal'
+    | '/api/auth/$'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -76,6 +93,7 @@ export interface RootRouteChildren {
   ConsolaRoute: typeof ConsolaRoute
   LoginRoute: typeof LoginRoute
   OperadorRoute: typeof OperadorRoute
+  PortalRoute: typeof PortalRoute
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
 }
 
@@ -109,6 +127,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OperadorRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/portal': {
+      id: '/portal'
+      path: '/portal'
+      fullPath: '/portal'
+      preLoaderRoute: typeof PortalRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/auth/$': {
       id: '/api/auth/$'
       path: '/api/auth/$'
@@ -124,6 +149,7 @@ const rootRouteChildren: RootRouteChildren = {
   ConsolaRoute: ConsolaRoute,
   LoginRoute: LoginRoute,
   OperadorRoute: OperadorRoute,
+  PortalRoute: PortalRoute,
   ApiAuthSplatRoute: ApiAuthSplatRoute,
 }
 export const routeTree = rootRouteImport

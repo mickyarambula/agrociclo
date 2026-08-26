@@ -14,11 +14,13 @@ import {
   vaciarRancho,
   regenerarInvitacion,
   marcarOnboarding,
+  guardarRolesCatalogo,
   type AgroProfile,
   type Member,
   type Rol,
+  type DefRol,
 } from "./server/fns";
-import { MODULOS, presetMatriz, type AccionModulo } from "./server/roles";
+import { MODULOS, presetMatriz, matrizDeCatalogo, nombreRolReservado, type AccionModulo } from "./server/roles";
 
 const C = {
   bosque: "#1E4429",
@@ -331,6 +333,159 @@ export function AgroGate({ children }: { children: ReactNode }) {
   return <AgroCtx.Provider value={value}>{children}</AgroCtx.Provider>;
 }
 
+export function RolesPanel() {
+  const { profile, reload } = useAgroSession();
+  const [roles, setRoles] = useState<DefRol[]>(profile.roles?.length ? profile.roles : []);
+  const [abierto, setAbierto] = useState<string | null>(null);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    setRoles(profile.roles?.length ? profile.roles : []);
+  }, [profile.roles]);
+
+  if (profile.rol !== "Dueño") return null;
+
+  const persistir = (next: DefRol[]) => {
+    setBusy(true);
+    setErr(null);
+    void guardarRolesCatalogo({ data: { roles: next } })
+      .then(async (res) => {
+        setRoles(res.roles as DefRol[]);
+        await reload();
+      })
+      .catch((e: Error) => setErr(e.message))
+      .finally(() => setBusy(false));
+  };
+
+  const matrizEditar = (id: string, modulo: string, acc: AccionModulo) => {
+    persistir(roles.map((r) => (r.id === id ? { ...r, matriz: { ...r.matriz, [modulo]: acc } } : r)));
+  };
+
+  return (
+    <div>
+      <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
+        Crea los puestos de tu rancho y palomea qué ve y qué edita cada uno. Dueño no se toca: ve y edita todo.
+        Luego en Equipo le pones un rol a cada persona.
+      </p>
+      {err ? <p className="mb-2 text-xs font-semibold" style={{ color: "#B5482E" }}>{err}</p> : null}
+      {roles.map((r) => {
+        const open = abierto === r.id;
+        return (
+          <div key={r.id} className="border-t py-3" style={{ borderColor: C.linea }}>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                value={r.nombre}
+                disabled={busy}
+                onChange={(e) => setRoles((xs) => xs.map((x) => (x.id === r.id ? { ...x, nombre: e.target.value } : x)))}
+                onBlur={(e) => {
+                  const nombre = e.target.value.trim();
+                  if (!nombre || nombre === profile.roles.find((x) => x.id === r.id)?.nombre) return;
+                  persistir(roles.map((x) => (x.id === r.id ? { ...x, nombre } : x)));
+                }}
+                aria-label="Nombre del rol"
+                className="min-h-11 min-w-[160px] flex-1 rounded-md border px-2 text-sm font-semibold"
+                style={{ borderColor: C.linea, background: C.blanco, color: C.tinta }}
+              />
+              <button
+                type="button"
+                className="min-h-11 px-3 text-xs font-semibold"
+                style={{ background: "none", border: "none", color: C.bosque }}
+                onClick={() => setAbierto(open ? null : r.id)}
+              >
+                {open ? "Cerrar permisos" : "Permisos"}
+              </button>
+              <button
+                type="button"
+                disabled={busy || roles.length < 2}
+                className="min-h-11 px-3 text-xs font-semibold"
+                style={{ background: "none", border: "none", color: "#B5482E", opacity: roles.length < 2 ? 0.4 : 1 }}
+                onClick={() => {
+                  if (!window.confirm(`¿Quitar el rol “${r.nombre}”? Quien lo tenía queda en espera.`)) return;
+                  persistir(roles.filter((x) => x.id !== r.id));
+                }}
+              >
+                Eliminar
+              </button>
+            </div>
+            {open ? (
+              <div className="mt-2 overflow-hidden rounded-[10px]" style={{ border: `1px solid ${C.linea}` }}>
+                <div
+                  className="grid grid-cols-[1fr_auto] gap-x-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide"
+                  style={{ color: C.gris, background: "#EEF4EB" }}
+                >
+                  <span>Pantalla</span>
+                  <span>Oculto · Ver · Editar</span>
+                </div>
+                {MODULOS.map((mod) => {
+                  const val = (r.matriz?.[mod.id] ?? "oculto") as AccionModulo;
+                  return (
+                    <div key={mod.id} className="flex items-center justify-between gap-2 px-2 py-1.5" style={{ borderTop: `1px solid ${C.linea}` }}>
+                      <span className="text-xs font-medium">{mod.nombre}</span>
+                      <div className="flex gap-1">
+                        {(["oculto", "ver", "editar"] as const).map((acc) => (
+                          <button
+                            key={acc}
+                            type="button"
+                            disabled={busy}
+                            onClick={() => matrizEditar(r.id, mod.id, acc)}
+                            className="rounded-md px-2 text-[11px] font-semibold"
+                            style={{
+                              minHeight: 32,
+                              background: val === acc ? C.bosque : C.blanco,
+                              color: val === acc ? C.blanco : C.gris,
+                              border: `1px solid ${val === acc ? C.bosque : C.linea}`,
+                            }}
+                          >
+                            {acc === "oculto" ? "No" : acc === "ver" ? "Ver" : "Editar"}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <input
+          value={nuevoNombre}
+          onChange={(e) => setNuevoNombre(e.target.value)}
+          placeholder="Nombre del rol nuevo"
+          className="min-h-11 min-w-[180px] flex-1 rounded-md border px-3 text-sm"
+          style={{ borderColor: C.linea, background: C.blanco, color: C.tinta, fontSize: 16 }}
+        />
+        <button
+          type="button"
+          disabled={busy || !nuevoNombre.trim() || nombreRolReservado(nuevoNombre)}
+          className="min-h-11 rounded-xl px-4 text-sm font-semibold"
+          style={{
+            background: C.bosque,
+            color: C.blanco,
+            opacity: busy || !nuevoNombre.trim() ? 0.5 : 1,
+            border: "none",
+          }}
+          onClick={() => {
+            const nombre = nuevoNombre.trim();
+            if (!nombre || nombreRolReservado(nombre)) return;
+            if (roles.some((r) => r.nombre.toLowerCase() === nombre.toLowerCase())) {
+              setErr("Ya hay un rol con ese nombre.");
+              return;
+            }
+            setNuevoNombre("");
+            persistir([...roles, { id: crypto.randomUUID(), nombre, matriz: presetMatriz("Consulta") }]);
+          }}
+        >
+          Crear rol
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () => void; variante?: "popover" | "pagina" }) {
   const { profile } = useAgroSession();
   const [members, setMembers] = useState<Member[]>([]);
@@ -350,7 +505,10 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
     const actual = members.find((m) => m.userId === userId);
     if (!actual) return;
     const rol = patch.rol ?? actual.rol;
-    const permisos = patch.rol ? presetMatriz(rol) : { ...(actual.permisos || presetMatriz(rol)), ...patch.permisos };
+    const catalogo = profile.roles || [];
+    const permisos = patch.rol
+      ? matrizDeCatalogo(rol, catalogo)
+      : { ...(actual.permisos || matrizDeCatalogo(rol, catalogo)), ...patch.permisos };
     setBusy(userId);
     setErr(null);
     void asignarRol({ data: { userId, rol, permisos } })
@@ -370,14 +528,9 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
   const lista = (
     <>
       <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
-        Quien entra con el código de este rancho queda en espera. Tú le das rol y palomeas qué puede ver y qué puede
-        editar. Sin código, esa persona abre su propio rancho.
+        Quien entra con el código de este rancho queda en espera. Tú le das uno de los roles de arriba y, si hace falta,
+        palomeas distinto por persona.
       </p>
-      <div className="mb-3 grid gap-2 text-xs" style={{ color: C.gris }}>
-        <div><strong style={{ color: C.tinta }}>Oficina</strong> — parcelas, compras, crédito, caja. Ve montos.</div>
-        <div><strong style={{ color: C.tinta }}>Encargado de campo</strong> — labores, raya, boletas, solicitudes. Sin crédito.</div>
-        <div><strong style={{ color: C.tinta }}>Consulta</strong> — ve el rancho, no escribe.</div>
-      </div>
       {err ? <p className="mb-2 text-xs font-semibold" style={{ color: "#B5482E" }}>{err}</p> : null}
       {members.length === 0 ? (
         <p className="text-sm" style={{ color: C.gris }}>
@@ -405,9 +558,12 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
                 style={{ borderColor: C.linea, minHeight: 44, background: C.blanco, color: C.tinta }}
               >
                 <option value="pendiente">En espera</option>
-                <option value="Oficina">Oficina</option>
-                <option value="Encargado de campo">Encargado de campo</option>
-                <option value="Consulta">Consulta</option>
+                {(profile.roles || []).map((r) => (
+                  <option key={r.id} value={r.nombre}>{r.nombre}</option>
+                ))}
+                {m.rol !== "pendiente" && !(profile.roles || []).some((r) => r.nombre === m.rol) ? (
+                  <option value={m.rol}>{m.rol}</option>
+                ) : null}
               </select>
               {m.rol !== "pendiente" ? (
                 <div className="mt-1 overflow-hidden rounded-[10px]" style={{ border: `1px solid ${C.linea}` }}>

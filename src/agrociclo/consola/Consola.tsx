@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { Link } from "@tanstack/react-router";
 import {
   Gauge,
   Building2,
@@ -75,21 +74,22 @@ export function OperadorGate() {
   }, [isPending, user?.id]);
 
   if (isPending) {
-    return <Pantalla texto="Abriendo el panel del operador…" />;
+    return <Pantalla texto="Abriendo el portal…" />;
   }
   if (!user) return <LoginOperador />;
   if (err === "Unauthorized") return <LoginOperador />;
   if (!sesion) return <Pantalla texto={err || "Abriendo…"} />;
   if (!sesion.esPlataforma) {
     return (
-      <Pantalla texto="Este panel es de quien opera AgroCiclo, no de un rancho. Tu cuenta no tiene acceso.">
-        <Link
-          to="/"
+      <Pantalla texto="Este portal es de quien ofrece AgroCiclo. Tu cuenta no tiene acceso.">
+        <button
+          type="button"
+          onClick={() => void salirAgro("/login")}
           className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl px-5 text-sm font-semibold"
           style={{ background: C.bosque, color: C.blanco }}
         >
-          Ir a mi rancho
-        </Link>
+          Salir
+        </button>
       </Pantalla>
     );
   }
@@ -103,7 +103,7 @@ function Pantalla({ texto, children }: { texto: string; children?: ReactNode }) 
       style={{ background: C.tintaOscura, color: C.papel, fontFamily: "IBM Plex Sans, system-ui, sans-serif" }}
     >
       <p style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 22 }}>
-        Operador AgroCiclo
+        Portal AgroCiclo
       </p>
       <p className="mt-2 max-w-sm text-sm" style={{ color: C.gris }}>
         {texto}
@@ -138,7 +138,7 @@ function LoginOperador() {
         password,
       });
       if (err) throw new Error(err.message);
-      window.location.href = "/operador";
+      window.location.href = "/portal";
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo entrar.");
       setBusy(false);
@@ -157,17 +157,17 @@ function LoginOperador() {
           </div>
           <div>
             <h1 style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 24, lineHeight: 1, margin: 0 }}>
-              Operador AgroCiclo
+              Portal AgroCiclo
             </h1>
             <p className="text-xs" style={{ color: C.gris, margin: "6px 0 0" }}>
-              Panel de la herramienta. No es un rancho.
+              Administración de la herramienta. No es un rancho.
             </p>
           </div>
         </div>
 
         <div className="rounded-2xl p-5" style={{ background: "#1A2216", border: "1px solid #2A3326" }}>
           <p className="mb-4 text-sm" style={{ color: "#B8C0B0", lineHeight: 1.5 }}>
-            Aquí mides ranchos, atención, fallas y uso. Los productores entran por otra puerta, a su predio.
+            Aquí ves ranchos, atención, fallas y uso. Los productores no entran por esta puerta.
           </p>
 
           {authEnabled ? (
@@ -176,7 +176,7 @@ function LoginOperador() {
                 <button
                   key={p.providerId}
                   type="button"
-                  onClick={() => void signIn(p.providerId, { callbackURL: "/operador" })}
+                  onClick={() => void signIn(p.providerId, { callbackURL: "/portal" })}
                   disabled={isPending || busy}
                   className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold"
                   style={{
@@ -258,17 +258,10 @@ function LoginOperador() {
                 minHeight: 44,
               }}
             >
-              {busy ? "Entrando…" : "Entrar a la consola"}
+              {busy ? "Entrando…" : "Entrar al portal"}
             </button>
           </form>
         </div>
-
-        <p className="mt-6 text-center text-[12px]" style={{ color: C.gris }}>
-          ¿Eres productor?{" "}
-          <Link to="/login" style={{ color: C.grano, fontWeight: 600, textDecoration: "none" }}>
-            Entra a tu rancho
-          </Link>
-        </p>
       </div>
     </main>
   );
@@ -288,9 +281,9 @@ function Consola({ sesion }: { sesion: SesionOperador }) {
           </div>
           <div>
             <div style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 18, lineHeight: 1 }}>
-              Operador AgroCiclo
+              Portal AgroCiclo
             </div>
-            <div className="hidden text-[11px] opacity-75 md:block">Mides la herramienta. Esto no es un rancho.</div>
+            <div className="hidden text-[11px] opacity-75 md:block">Administración de la herramienta. No es un rancho.</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -299,7 +292,7 @@ function Consola({ sesion }: { sesion: SesionOperador }) {
           </span>
           <button
             type="button"
-            onClick={() => void salirAgro("/operador")}
+            onClick={() => void salirAgro("/portal")}
             className="inline-flex min-h-11 items-center gap-1 rounded-xl px-3 text-xs font-semibold"
             style={{ background: "rgba(255,255,255,0.08)", color: C.papel, border: "1px solid rgba(255,255,255,0.2)" }}
           >

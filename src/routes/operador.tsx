@@ -1,10 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { OperadorGate } from "@/agrociclo/consola/Consola";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/operador")({
-  component: OperadorPage,
+  component: () => <Navigate to="/portal" replace />,
 });
-
-function OperadorPage() {
-  return <OperadorGate />;
-}
