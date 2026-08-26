@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { etiquetaTelefonoMx, normalizarTelefonoMx } from "./contacto";
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -62,6 +63,15 @@ export async function asegurarEsquemaPlataforma() {
       publicado boolean not null default true,
       actualizado_en timestamptz not null default now()
     )`);
+  await sql.query(`
+    create table if not exists plataforma_contacto (
+      id text primary key,
+      telefono text not null default '',
+      actualizado_en timestamptz not null default now()
+    )`);
+  await sql.query(
+    `insert into plataforma_contacto (id, telefono) values ('default', '') on conflict (id) do nothing`,
+  );
 }
 
 const FAQ_INICIAL = [
@@ -88,7 +98,7 @@ const FAQ_INICIAL = [
   {
     pregunta: "Algo falló o no entiendo una pantalla",
     respuesta:
-      "Usa Ayuda → escribir. Llega al operador de AgroCiclo, no a otro rancho.",
+      "Usa Ayuda. Puedes dejar el recado aquí o, si el operador puso su celular, escribirle por WhatsApp sin saber su nombre. Llega a quien arma AgroCiclo, no a otro rancho.",
   },
 ];
 
@@ -154,6 +164,46 @@ export const getSesionOperador = createServerFn({ method: "POST" })
       displayName: data.displayName ?? null,
     } satisfies SesionOperador;
   });
+
+async function leerContacto(): Promise<{ telefono: string; etiqueta: string; listo: boolean }> {
+  await asegurarEsquemaPlataforma();
+  const sql = await getSql();
+  const rows = await sql.query<{ telefono: string }>(
+    `select telefono from plataforma_contacto where id = 'default' limit 1`,
+  );
+  const telefono = normalizarTelefonoMx(rows[0]?.telefono || "");
+  return {
+    telefono,
+    etiqueta: etiquetaTelefonoMx(telefono),
+    listo: telefono.length === 12,
+  };
+}
+
+/** Lo ve el productor en Ayuda: si hay celular, puede escribir por WhatsApp. */
+export const getContactoAtencion = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .handler(async () => {
+    const c = await leerContacto();
+    return { listo: c.listo, etiqueta: c.listo ? c.etiqueta : "", telefono: c.listo ? c.telefono : "" };
+  });
+
+export const guardarContactoAtencion = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { telefono: string }) => p)
+  .handler(async ({ context, data }) => {
+    await requirePlataforma(context.userId);
+    const raw = (data.telefono || "").trim();
+    const telefono = raw ? normalizarTelefonoMx(raw) : "";
+    if (raw && !telefono) throw new Error("Ese número no se entiende. Usa 10 dígitos de México.");
+    const sql = await getSql();
+    await sql.query(
+      `insert into plataforma_contacto (id, telefono, actualizado_en) values ('default', $1, now())
+       on conflict (id) do update set telefono = excluded.telefono, actualizado_en = now()`,
+      [telefono],
+    );
+    return { listo: telefono.length === 12, etiqueta: etiquetaTelefonoMx(telefono), telefono };
+  });
+
 
 
 async function orgDeUsuario(userId: string) {
@@ -407,7 +457,7 @@ export const listFaqPublico = createServerFn({ method: "GET" })
 
 export const crearTicket = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { tipo: "duda" | "falla" | "peticion"; titulo: string; cuerpo: string }) => p)
+  .validator((p: { tipo: "duda" | "falla" | "peticion" | "whatsapp"; titulo: string; cuerpo: string }) => p)
   .handler(async ({ context, data }) => {
     await asegurarEsquemaPlataforma();
     const titulo = data.titulo.trim();

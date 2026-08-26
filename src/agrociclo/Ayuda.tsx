@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { HelpCircle, X } from "lucide-react";
-import { crearTicket, listFaqPublico, listMisTickets } from "./server/plataforma";
+import { HelpCircle, MessageCircle, X } from "lucide-react";
+import { crearTicket, getContactoAtencion, listFaqPublico, listMisTickets } from "./server/plataforma";
+import { mensajeWhatsAppAtencion, urlWhatsApp } from "./server/contacto";
+import { useAgroSession } from "./session";
 
 const C = {
   bosque: "#1E4429",
@@ -11,6 +13,7 @@ const C = {
   linea: "#DEE4D8",
   blanco: "#FFFFFF",
   rojo: "#B5482E",
+  wa: "#128C7E",
 };
 
 export function AyudaBoton() {
@@ -43,6 +46,7 @@ export function AyudaBoton() {
 }
 
 function AyudaPanel({ onClose }: { onClose: () => void }) {
+  const { profile } = useAgroSession();
   const [faq, setFaq] = useState<{ id: string; pregunta: string; respuesta: string }[]>([]);
   const [abierta, setAbierta] = useState<string | null>(null);
   const [tipo, setTipo] = useState<"duda" | "falla" | "peticion">("duda");
@@ -52,11 +56,38 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [mios, setMios] = useState<{ id: string; titulo: string; estado: string; respuesta: string | null }[]>([]);
+  const [wa, setWa] = useState<{ listo: boolean; telefono: string; etiqueta: string }>({
+    listo: false,
+    telefono: "",
+    etiqueta: "",
+  });
 
   useEffect(() => {
     void listFaqPublico().then((r) => setFaq(r as typeof faq));
     void listMisTickets().then((r) => setMios(r as typeof mios));
+    void getContactoAtencion().then((c) =>
+      setWa({ listo: c.listo, telefono: c.telefono, etiqueta: c.etiqueta }),
+    );
   }, []);
+
+  const abrirWhatsApp = () => {
+    if (!wa.listo) return;
+    const texto = mensajeWhatsAppAtencion({
+      nombre: profile.displayName || profile.email,
+      rancho: profile.orgNombre,
+      nota: cuerpo.trim() || titulo.trim(),
+    });
+    void crearTicket({
+      data: {
+        tipo: "whatsapp",
+        titulo: titulo.trim() || "WhatsApp de atención",
+        cuerpo: cuerpo.trim() || "El productor abrió WhatsApp desde Ayuda.",
+      },
+    })
+      .then(() => listMisTickets().then((r) => setMios(r as typeof mios)))
+      .catch(() => undefined);
+    window.open(urlWhatsApp(wa.telefono, texto), "_blank", "noopener,noreferrer");
+  };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-end justify-center md:items-center" style={{ background: "rgba(28,36,25,0.45)" }}>
@@ -92,10 +123,27 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
             ))}
           </div>
 
+          {wa.listo ? (
+            <div className="rounded-[14px] p-3" style={{ background: "#EEF7F4", border: "1px solid #CDE7E0" }}>
+              <div className="text-sm font-semibold">Hablar con atención</div>
+              <p className="mt-1 text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
+                No hace falta saber el nombre. Se abre WhatsApp con Atención AgroCiclo ({wa.etiqueta}).
+              </p>
+              <button
+                type="button"
+                onClick={abrirWhatsApp}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold"
+                style={{ background: C.wa, color: C.blanco }}
+              >
+                <MessageCircle size={16} /> Escribir por WhatsApp
+              </button>
+            </div>
+          ) : null}
+
           <div>
-            <div className="mb-2 text-sm font-semibold">Escribir al operador</div>
+            <div className="mb-2 text-sm font-semibold">Dejar un recado aquí</div>
             <p className="mb-2 text-xs" style={{ color: C.gris }}>
-              Duda, falla técnica o petición. No es el chat del lote: llega a quien arma AgroCiclo.
+              Duda, falla técnica o petición. Queda en tu cuenta y te contestamos aquí.
             </p>
             <div className="mb-2 flex gap-2">
               {(["duda", "falla", "peticion"] as const).map((t) => (
@@ -124,7 +172,7 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
             <textarea
               value={cuerpo}
               onChange={(e) => setCuerpo(e.target.value)}
-              placeholder="Cuéntalo con calma"
+              placeholder="Cuéntalo con calma. Si vas a WhatsApp, esto viaja en el mensaje."
               rows={4}
               className="w-full rounded-[10px] px-3 py-2"
               style={{ border: `1px solid ${C.linea}`, fontSize: 16 }}
@@ -150,7 +198,7 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
                   .finally(() => setBusy(false));
               }}
             >
-              {busy ? "Enviando…" : "Enviar"}
+              {busy ? "Enviando…" : "Enviar recado"}
             </button>
           </div>
 

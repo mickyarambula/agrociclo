@@ -17,6 +17,8 @@ import {
   borrarFaq,
   getPlataformaResumen,
   getSesionOperador,
+  getContactoAtencion,
+  guardarContactoAtencion,
   listFaqAdmin,
   listPlataformaCuentas,
   listPlataformaErrores,
@@ -423,6 +425,76 @@ function TabCuentas() {
   );
 }
 
+function CardCelular() {
+  const [telefono, setTelefono] = useState("");
+  const [guardado, setGuardado] = useState("");
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    void getContactoAtencion().then((c) => {
+      if (c.listo) {
+        setTelefono(c.etiqueta);
+        setGuardado(c.etiqueta);
+      }
+    });
+  }, []);
+  return (
+    <Card>
+      <div className="text-sm font-semibold">Celular de atención</div>
+      <p className="mt-1 text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
+        Los productores te escriben por WhatsApp desde Ayuda. No tienen que saber tu nombre: sale “Atención AgroCiclo”.
+      </p>
+      <label className="mt-3 block text-xs font-semibold" style={{ color: C.gris }}>
+        Número (10 dígitos de México)
+        <input
+          value={telefono}
+          onChange={(e) => setTelefono(e.target.value)}
+          inputMode="tel"
+          autoComplete="tel"
+          placeholder="668 123 4567"
+          className="mt-1 w-full rounded-[10px] px-3 py-2 text-sm"
+          style={{ border: `1px solid ${C.linea}`, fontSize: 16 }}
+        />
+      </label>
+      <div className="mt-3 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={busy}
+          className="min-h-11 rounded-xl px-4 text-sm font-semibold"
+          style={{ background: C.bosque, color: C.blanco, opacity: busy ? 0.6 : 1 }}
+          onClick={() => {
+            setBusy(true);
+            setErr(null);
+            setMsg(null);
+            void guardarContactoAtencion({ data: { telefono } })
+              .then((c) => {
+                setGuardado(c.etiqueta);
+                setTelefono(c.etiqueta || "");
+                setMsg(c.listo ? `Listo. Te llegan al ${c.etiqueta}.` : "Se quitó el número. Ayuda queda solo con recado en la app.");
+              })
+              .catch((e: Error) => setErr(e.message))
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "Guardando…" : "Guardar"}
+        </button>
+        {guardado ? (
+          <span className="text-xs" style={{ color: C.hoja }}>
+            WhatsApp activo · {guardado}
+          </span>
+        ) : (
+          <span className="text-xs" style={{ color: C.gris }}>
+            Todavía no hay número
+          </span>
+        )}
+      </div>
+      {err ? <p className="mt-2 text-xs font-semibold" style={{ color: C.rojo }}>{err}</p> : null}
+      {msg ? <p className="mt-2 text-xs font-semibold" style={{ color: C.hoja }}>{msg}</p> : null}
+    </Card>
+  );
+}
+
 function TabAtencion() {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof listPlataformaTickets>> | null>(null);
   const [abierto, setAbierto] = useState<string | null>(null);
@@ -431,8 +503,7 @@ function TabAtencion() {
   useEffect(() => {
     recargar();
   }, []);
-  if (!rows) return <p className="text-sm" style={{ color: C.gris }}>Cargando bandeja…</p>;
-  const list = rows as {
+  const list = (rows || []) as {
     id: string;
     tipo: string;
     titulo: string;
@@ -444,18 +515,19 @@ function TabAtencion() {
     org_nombre: string | null;
     creado_en: string;
   }[];
-  if (list.length === 0) {
-    return (
-      <Card>
-        <p className="text-sm" style={{ color: C.gris }}>
-          Nadie ha escrito todavía. Cuando un productor use Ayuda, aparece aquí.
-        </p>
-      </Card>
-    );
-  }
   return (
     <div className="flex flex-col gap-3">
-      {list.map((t) => (
+      <CardCelular />
+      {!rows ? (
+        <p className="text-sm" style={{ color: C.gris }}>Cargando bandeja…</p>
+      ) : list.length === 0 ? (
+        <Card>
+          <p className="text-sm" style={{ color: C.gris }}>
+            Nadie ha escrito todavía. Cuando un productor use Ayuda o WhatsApp, aparece aquí.
+          </p>
+        </Card>
+      ) : (
+        list.map((t) => (
         <Card key={t.id}>
           <div className="flex flex-wrap items-start justify-between gap-2">
             <div>
@@ -536,7 +608,8 @@ function TabAtencion() {
             </button>
           )}
         </Card>
-      ))}
+        ))
+      )}
     </div>
   );
 }
