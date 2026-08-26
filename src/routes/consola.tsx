@@ -1,10 +1,5 @@
-import { createFileRoute } from "@tanstack/react-router";
-import { ConsolaGate } from "@/agrociclo/consola/Consola";
+import { Navigate, createFileRoute } from "@tanstack/react-router";
 
 export const Route = createFileRoute("/consola")({
-  component: ConsolaPage,
+  component: () => <Navigate to="/operador" replace />,
 });
-
-function ConsolaPage() {
-  return <ConsolaGate />;
-}

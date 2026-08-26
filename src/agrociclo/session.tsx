@@ -54,7 +54,7 @@ export function useAgroSession(): Ctx {
  * hay bearer (login por correo usa cookie) y te deja en la misma pantalla.
  * Primero matamos la cookie; luego el helper oficial limpia el bearer y redirige.
  */
-export async function salirAgro(): Promise<void> {
+export async function salirAgro(destino = "/login"): Promise<void> {
   const bounded = (start: () => Promise<unknown>, ms: number) =>
     Promise.race([
       start().catch(() => undefined),
@@ -67,9 +67,9 @@ export async function salirAgro(): Promise<void> {
     if (error) throw new Error(error.message);
   }, 4000);
   try {
-    await signOut("/login");
+    await signOut(destino);
   } catch {
-    if (typeof window !== "undefined") window.location.assign("/login");
+    if (typeof window !== "undefined") window.location.assign(destino);
   }
 }
 

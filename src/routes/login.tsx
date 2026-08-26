@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { createFileRoute, Link, Navigate } from "@tanstack/react-router";
 import { Eye, EyeOff } from "lucide-react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
@@ -295,6 +295,18 @@ function Login() {
             {modo === "entrar" ? "¿Primera vez? Crear cuenta" : "Ya tengo cuenta"}
           </button>
         </div>
+
+        <p className="mt-6 text-center text-[12px]" style={{ color: C.gris, lineHeight: 1.5 }}>
+          Esto es el rancho del productor.
+          <br />
+          <Link
+            to="/operador"
+            className="mt-2 inline-flex min-h-11 items-center justify-center font-semibold"
+            style={{ color: C.bosque, textDecoration: "none" }}
+          >
+            Consola del operador →
+          </Link>
+        </p>
       </div>
     </main>
   );

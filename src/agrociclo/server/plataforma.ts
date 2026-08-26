@@ -102,6 +102,60 @@ async function requirePlataforma(userId: string) {
   if (!rows[0]) throw new Error("Esta pantalla es del operador de AgroCiclo.");
 }
 
+export type SesionOperador = {
+  esPlataforma: boolean;
+  userId: string;
+  email: string | null;
+  displayName: string | null;
+};
+
+/**
+ * Sesión de la consola: no abre rancho ni ledger.
+ * El primer usuario que entra por esta puerta queda como operador.
+ */
+export const getSesionOperador = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { email?: string | null; displayName?: string | null }) => p ?? {})
+  .handler(async ({ context, data }) => {
+    await asegurarEsquemaPlataforma();
+    const sql = await getSql();
+    const n = await sql.query<{ n: number }>(`select count(*)::int as n from plataforma_admin`);
+    if (Number(n[0]?.n ?? 0) === 0) {
+      await sql.query(
+        `insert into plataforma_admin (user_id, email, display_name) values ($1, $2, $3)
+         on conflict (user_id) do nothing`,
+        [context.userId, data.email ?? null, data.displayName ?? null],
+      );
+    }
+    const ok = await sql.query<{ n: number }>(
+      `select 1::int as n from plataforma_admin where user_id = $1 limit 1`,
+      [context.userId],
+    );
+    if (ok[0]) {
+      await sql.query(
+        `update plataforma_admin set email = coalesce($2, email), display_name = coalesce($3, display_name)
+          where user_id = $1`,
+        [context.userId, data.email ?? null, data.displayName ?? null],
+      );
+      try {
+        await sql.query(
+          `insert into plataforma_evento (id, tipo, user_id, detalle)
+           values ($1, 'login_operador', $2, $3::jsonb)`,
+          [crypto.randomUUID(), context.userId, JSON.stringify({ puerta: "operador" })],
+        );
+      } catch {
+        /* esquema aún no listo */
+      }
+    }
+    return {
+      esPlataforma: Boolean(ok[0]),
+      userId: context.userId,
+      email: data.email ?? null,
+      displayName: data.displayName ?? null,
+    } satisfies SesionOperador;
+  });
+
+
 async function orgDeUsuario(userId: string) {
   const sql = await getSql();
   const rows = await sql<{

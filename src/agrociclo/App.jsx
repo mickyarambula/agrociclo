@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, Gauge
+  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut
 } from "lucide-react";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
@@ -1866,16 +1866,6 @@ function AgroCicloApp() {
             style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
             {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, rol === "Encargado de campo")}</option>)}
           </select>
-          {profile.esPlataforma && (
-            <a
-              href="/consola"
-              title="Consola del operador"
-              aria-label="Consola"
-              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
-            >
-              <Gauge size={15} /> <span className="hidden md:inline">Consola</span>
-            </a>
-          )}
           {rol === "Dueño" && (
             <button
               type="button"
