@@ -11,7 +11,11 @@ import { asegurarEsquemaPlataforma } from "./plataforma";
 import {
   allowRpc,
   allowTable,
+  parseMatriz,
   presetPermisos,
+  puedeEditarDeMatriz,
+  veFinanzasDeMatriz,
+  type Matriz,
 } from "./roles";
 import type { Rol } from "./roles";
 
@@ -40,6 +44,8 @@ export type AgroProfile = {
   encargadoVePrecios: boolean;
   esPlataforma: boolean;
   codigoInvitacion: string | null;
+  onboardingHecho: boolean;
+  permisos: Matriz;
 };
 
 export type Member = {
@@ -49,6 +55,7 @@ export type Member = {
   rol: Rol;
   veFinanzas: boolean;
   puedeEditar: boolean;
+  permisos: Matriz;
 };
 
 const REDACT: (keyof Ledger)[] = [
@@ -111,6 +118,12 @@ function parseConfig(raw: unknown): { encargadoVePrecios: boolean } {
   return { encargadoVePrecios: asBool(obj.encargadoVePrecios, false) };
 }
 
+async function asegurarEsquemaRoles() {
+  const sql = await getSql();
+  await sql.query(`alter table usuario_rol add column if not exists permisos jsonb not null default '{}'::jsonb`);
+  await sql.query(`alter table usuario_rol add column if not exists onboarding_en timestamptz`);
+}
+
 async function loadOrg(userId: string) {
   const sql = await getSql();
   const rows = await sql<{
@@ -123,9 +136,11 @@ async function loadOrg(userId: string) {
     nombre: string;
     config: unknown;
     codigo_invitacion: string | null;
+    permisos: unknown;
+    onboarding_en: string | null;
   }>`
     select r.organizacion_id, r.rol, r.ve_finanzas, r.puede_editar, r.email, r.display_name,
-           o.nombre, o.config, o.codigo_invitacion
+           o.nombre, o.config, o.codigo_invitacion, r.permisos, r.onboarding_en
     from usuario_rol r
     join agrociclo_org o on o.id = r.organizacion_id
     where r.user_id = ${userId}
@@ -373,6 +388,8 @@ function toProfile(
     nombre: string;
     config?: unknown;
     codigo_invitacion?: string | null;
+    permisos?: unknown;
+    onboarding_en?: string | null;
   },
   cicloId: string,
   ciclos: AgroProfile["ciclos"],
@@ -381,8 +398,9 @@ function toProfile(
 ): AgroProfile {
   const rol = row.rol as Rol;
   const preset = presetPermisos(rol);
-  const veFinanzas = rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas);
-  const puedeEditar = rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar);
+  const matriz = parseMatriz(row.permisos, rol);
+  const veFinanzas = rol === "Dueño" ? true : asBool(row.ve_finanzas, veFinanzasDeMatriz(matriz) || preset.veFinanzas);
+  const puedeEditar = rol === "Dueño" ? true : asBool(row.puede_editar, puedeEditarDeMatriz(matriz));
   const cfg = parseConfig(row.config);
   return {
     userId,
@@ -399,6 +417,8 @@ function toProfile(
     encargadoVePrecios: cfg.encargadoVePrecios,
     esPlataforma: extra.esPlataforma,
     codigoInvitacion: extra.codigoInvitacion,
+    onboardingHecho: Boolean(row.onboarding_en),
+    permisos: matriz,
   };
 }
 
@@ -408,6 +428,7 @@ export const getAgroSession = createServerFn({ method: "POST" })
   .handler(async ({ context, data }) => {
     return serialize("agc-org-boot", async () => {
       await asegurarEsquemaPlataforma();
+      await asegurarEsquemaRoles();
       const sql = await getSql();
       let row = await loadOrg(context.userId);
       if (!row) {
@@ -469,9 +490,11 @@ export const runAgroRpc = createServerFn({ method: "POST" })
     if (!row) return { error: { message: "Sin membresía" }, data: null as Json | null, ledger: null as Json | null };
     const rol = row.rol as Rol;
     const preset = presetPermisos(rol);
+    const matriz = parseMatriz(row.permisos, rol);
     const flags = {
       veFinanzas: rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas),
       puedeEditar: rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar),
+      matriz,
     };
     const denied = allowRpc(rol, data.name, flags);
     if (denied) return { error: { message: denied }, data: null as Json | null, ledger: null as Json | null };
@@ -501,9 +524,11 @@ export const runAgroTable = createServerFn({ method: "POST" })
     if (!row) return { error: { message: "Sin membresía" }, data: null as boolean | null, ledger: null as Json | null };
     const rol = row.rol as Rol;
     const preset = presetPermisos(rol);
+    const matriz = parseMatriz(row.permisos, rol);
     const flags = {
       veFinanzas: rol === "Dueño" ? true : asBool(row.ve_finanzas, preset.veFinanzas),
       puedeEditar: rol === "Dueño" ? true : asBool(row.puede_editar, preset.puedeEditar),
+      matriz,
     };
     const denied = allowTable(rol, data.table, flags);
     if (denied) return { error: { message: denied }, data: null as boolean | null, ledger: null as Json | null };
@@ -544,8 +569,9 @@ export const listEquipo = createServerFn({ method: "GET" })
       rol: string;
       ve_finanzas: boolean | string;
       puede_editar: boolean | string | null;
+      permisos: unknown;
     }>`
-      select user_id, email, display_name, rol, ve_finanzas, puede_editar
+      select user_id, email, display_name, rol, ve_finanzas, puede_editar, permisos
       from usuario_rol
       where organizacion_id = ${row.organizacion_id}
       order by creado_en
@@ -553,6 +579,7 @@ export const listEquipo = createServerFn({ method: "GET" })
     return members.map((m) => {
       const rol = m.rol as Rol;
       const preset = presetPermisos(rol);
+      const permisos = parseMatriz(m.permisos, rol);
       return {
         userId: m.user_id,
         email: m.email,
@@ -560,13 +587,14 @@ export const listEquipo = createServerFn({ method: "GET" })
         rol,
         veFinanzas: rol === "Dueño" ? true : asBool(m.ve_finanzas, preset.veFinanzas),
         puedeEditar: rol === "Dueño" ? true : asBool(m.puede_editar, preset.puedeEditar),
+        permisos,
       };
     });
   });
 
 export const asignarRol = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { userId: string; rol: Rol; veFinanzas?: boolean; puedeEditar?: boolean }) => p)
+  .validator((p: { userId: string; rol: Rol; veFinanzas?: boolean; puedeEditar?: boolean; permisos?: Matriz }) => p)
   .handler(async ({ context, data }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño asigna roles.");
@@ -574,15 +602,16 @@ export const asignarRol = createServerFn({ method: "POST" })
     const allowed: Rol[] = ["Oficina", "Encargado de campo", "Consulta", "pendiente"];
     if (!allowed.includes(data.rol)) throw new Error("Rol no permitido.");
     const preset = presetPermisos(data.rol);
-    const veFinanzas = data.rol === "pendiente" ? false : (data.veFinanzas ?? preset.veFinanzas);
-    const puedeEditar = data.rol === "pendiente" ? false : (data.puedeEditar ?? preset.puedeEditar);
+    const matriz = data.rol === "pendiente" ? preset.matriz : parseMatriz(data.permisos ?? preset.matriz, data.rol);
+    const veFinanzas = data.rol === "pendiente" ? false : (data.veFinanzas ?? veFinanzasDeMatriz(matriz));
+    const puedeEditar = data.rol === "pendiente" ? false : (data.puedeEditar ?? puedeEditarDeMatriz(matriz));
     const sql = await getSql();
     await sql.query(
-      `update usuario_rol set rol = $1, ve_finanzas = $2, puede_editar = $3
-       where user_id = $4 and organizacion_id = $5`,
-      [data.rol, veFinanzas, puedeEditar, data.userId, row.organizacion_id],
+      `update usuario_rol set rol = $1, ve_finanzas = $2, puede_editar = $3, permisos = $4::jsonb
+       where user_id = $5 and organizacion_id = $6`,
+      [data.rol, veFinanzas, puedeEditar, JSON.stringify(matriz), data.userId, row.organizacion_id],
     );
-    return { ok: true, veFinanzas, puedeEditar };
+    return { ok: true, veFinanzas, puedeEditar, permisos: matriz };
   });
 
 export const resetAgroDemo = createServerFn({ method: "POST" })
@@ -642,4 +671,13 @@ export const regenerarInvitacion = createServerFn({ method: "POST" })
     const codigo = await codigoUnico();
     await sql.query(`update agrociclo_org set codigo_invitacion = $1 where id = $2`, [codigo, row.organizacion_id]);
     return { codigo };
+  });
+
+export const marcarOnboarding = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    await asegurarEsquemaRoles();
+    const sql = await getSql();
+    await sql.query(`update usuario_rol set onboarding_en = now() where user_id = $1`, [context.userId]);
+    return { ok: true };
   });

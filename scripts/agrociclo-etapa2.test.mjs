@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
-const { allowRpc, allowTable, veFinanzasOf, presetPermisos } = await jiti.import("../src/agrociclo/server/roles.ts");
+const { allowRpc, allowTable, veFinanzasOf, presetPermisos, presetMatriz } = await jiti.import("../src/agrociclo/server/roles.ts");
 const { rolDeEntrada, debePromoverADueño, etiquetaDueño } = await jiti.import("../src/agrociclo/server/dueno.ts");
 
 describe("Etapa 2 · gates de rol", () => {
@@ -41,6 +41,12 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(presetPermisos("Encargado de campo").veFinanzas, false);
     assert.equal(presetPermisos("Encargado de campo").puedeEditar, true);
     assert.equal(presetPermisos("Consulta").puedeEditar, false);
+  });
+  it("la matriz puede dar crédito al Encargado y quitar labores", () => {
+    const dar = { ...presetMatriz("Encargado de campo"), credito: "editar" };
+    assert.equal(allowRpc("Encargado de campo", "fn_liquidar_disposicion", { matriz: dar, puedeEditar: true }), null);
+    const quitar = { ...presetMatriz("Encargado de campo"), labores: "ver" };
+    assert.equal(allowRpc("Encargado de campo", "fn_registrar_labor", { matriz: quitar, puedeEditar: true }), "No tienes permiso de escritura.");
   });
 });
 

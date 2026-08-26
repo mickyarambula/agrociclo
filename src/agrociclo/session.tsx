@@ -13,11 +13,12 @@ import {
   setOrgConfig,
   vaciarRancho,
   regenerarInvitacion,
+  marcarOnboarding,
   type AgroProfile,
   type Member,
   type Rol,
 } from "./server/fns";
-import { presetPermisos } from "./server/roles";
+import { MODULOS, presetMatriz, type AccionModulo } from "./server/roles";
 
 const C = {
   bosque: "#1E4429",
@@ -37,6 +38,7 @@ type Ctx = {
   vaciar: () => Promise<string>;
   guardarAjustes: (p: { encargadoVePrecios?: boolean; nombre?: string }) => Promise<void>;
   regenerarCodigo: () => Promise<string>;
+  marcarGuia: () => Promise<void>;
 };
 
 const AgroCtx = createContext<Ctx | null>(null);
@@ -255,6 +257,10 @@ export function AgroGate({ children }: { children: ReactNode }) {
         setProfile((p) => (p ? { ...p, codigoInvitacion: res.codigo } : p));
         return res.codigo;
       },
+      async marcarGuia() {
+        await marcarOnboarding();
+        setProfile((p) => (p ? { ...p, onboardingHecho: true } : p));
+      },
     };
   }, [profile, reload]);
 
@@ -337,21 +343,22 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
 
   if (profile.rol !== "Dueño") return null;
 
-  const aplicar = (userId: string, patch: { rol?: Rol; veFinanzas?: boolean; puedeEditar?: boolean }) => {
+  const aplicar = (
+    userId: string,
+    patch: { rol?: Rol; permisos?: Record<string, AccionModulo> },
+  ) => {
     const actual = members.find((m) => m.userId === userId);
     if (!actual) return;
     const rol = patch.rol ?? actual.rol;
-    const preset = patch.rol ? presetPermisos(rol) : { veFinanzas: actual.veFinanzas, puedeEditar: actual.puedeEditar };
-    const veFinanzas = patch.veFinanzas ?? preset.veFinanzas;
-    const puedeEditar = patch.puedeEditar ?? preset.puedeEditar;
+    const permisos = patch.rol ? presetMatriz(rol) : { ...(actual.permisos || presetMatriz(rol)), ...patch.permisos };
     setBusy(userId);
     setErr(null);
-    void asignarRol({ data: { userId, rol, veFinanzas, puedeEditar } })
+    void asignarRol({ data: { userId, rol, permisos } })
       .then((res) => {
         setMembers((xs) =>
           xs.map((x) =>
             x.userId === userId
-              ? { ...x, rol, veFinanzas: res.veFinanzas, puedeEditar: res.puedeEditar }
+              ? { ...x, rol, veFinanzas: res.veFinanzas, puedeEditar: res.puedeEditar, permisos: res.permisos }
               : x,
           ),
         );
@@ -403,36 +410,41 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
                 <option value="Consulta">Consulta</option>
               </select>
               {m.rol !== "pendiente" ? (
-                <div className="flex flex-col gap-2">
-                  <label className="flex items-center gap-3 text-sm" style={{ minHeight: 44, cursor: busy === m.userId ? "wait" : "pointer" }}>
-                    <input
-                      type="checkbox"
-                      disabled={busy === m.userId}
-                      checked={m.veFinanzas}
-                      onChange={(e) => aplicar(m.userId, { veFinanzas: e.target.checked })}
-                      style={{ width: 18, height: 18, accentColor: C.bosque }}
-                    />
-                    <span>
-                      Ve montos y finanzas
-                      <span className="block text-xs" style={{ color: C.gris }}>Crédito, costos, saldos. Si no, solo ve el lote.</span>
-                    </span>
-                  </label>
-                  <label className="flex items-center gap-3 text-sm" style={{ minHeight: 44, cursor: busy === m.userId ? "wait" : "pointer" }}>
-                    <input
-                      type="checkbox"
-                      disabled={busy === m.userId}
-                      checked={m.puedeEditar}
-                      onChange={(e) => aplicar(m.userId, { puedeEditar: e.target.checked })}
-                      style={{ width: 18, height: 18, accentColor: C.bosque }}
-                    />
-                    <span>
-                      Puede capturar y editar
-                      <span className="block text-xs" style={{ color: C.gris }}>Si no, queda en consulta: ve, no guarda.</span>
-                    </span>
-                  </label>
+                <div className="mt-1 overflow-hidden rounded-[10px]" style={{ border: `1px solid ${C.linea}` }}>
+                  <div className="grid grid-cols-[1fr_auto] gap-x-2 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide" style={{ color: C.gris, background: "#EEF4EB" }}>
+                    <span>Módulo</span>
+                    <span>Oculto · Ver · Editar</span>
+                  </div>
+                  {MODULOS.map((mod) => {
+                    const val = (m.permisos?.[mod.id] ?? "oculto") as AccionModulo;
+                    return (
+                      <div key={mod.id} className="flex items-center justify-between gap-2 px-2 py-1.5" style={{ borderTop: `1px solid ${C.linea}` }}>
+                        <span className="text-xs font-medium">{mod.nombre}</span>
+                        <div className="flex gap-1">
+                          {(["oculto", "ver", "editar"] as const).map((acc) => (
+                            <button
+                              key={acc}
+                              type="button"
+                              disabled={busy === m.userId}
+                              onClick={() => aplicar(m.userId, { permisos: { [mod.id]: acc } })}
+                              className="rounded-md px-2 text-[11px] font-semibold"
+                              style={{
+                                minHeight: 32,
+                                background: val === acc ? C.bosque : C.blanco,
+                                color: val === acc ? C.blanco : C.gris,
+                                border: `1px solid ${val === acc ? C.bosque : C.linea}`,
+                              }}
+                            >
+                              {acc === "oculto" ? "No" : acc === "ver" ? "Ver" : "Editar"}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               ) : (
-                <p className="text-xs" style={{ color: C.gris }}>Asigna un rol para palomear permisos.</p>
+                <p className="text-xs" style={{ color: C.gris }}>Asigna un rol para palomear qué ve y qué edita.</p>
               )}
             </>
           )}

@@ -11,6 +11,8 @@ import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
 import { EquipoPanel, salirAgro, useAgroSession } from "./session";
 import { AyudaBoton } from "./Ayuda";
+import { Onboarding } from "./Onboarding";
+import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 /* ---------- Paleta: Valle del Fuerte ---------- */
@@ -299,6 +301,8 @@ function AgroCicloApp() {
   const { profile, setCiclo, restaurarDemo, reload, vaciar, guardarAjustes, regenerarCodigo } = useAgroSession();
   const user = useCurrentUser();
   const rol = profile.rol;
+  const matriz = profile.permisos && Object.keys(profile.permisos).length ? profile.permisos : presetMatriz(rol);
+  const [guia, setGuia] = useState(!profile.onboardingHecho);
   const ORG_ID = profile.orgId;
   const CICLO_ID = profile.cicloId;
   const ciclos = profile.ciclos.length
@@ -345,7 +349,7 @@ function AgroCicloApp() {
   /* --- roles de sesión (servidor) --- */
 
   const veFinanzas = profile.veFinanzas;
-  const puedeEditar = profile.puedeEditar;
+  const puedeEditar = puedeEscribirModulo(rol, vista, matriz);
   const vePrecios = veFinanzas || profile.encargadoVePrecios;
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
@@ -1821,11 +1825,7 @@ function AgroCicloApp() {
     { id: "reportes", nombre: "Reportes", icono: BarChart3, soloFinanzas: true },
     { id: "ajustes", nombre: "Ajustes", icono: SlidersHorizontal, soloDueno: true },
   ];
-  const NAV = NAV_TODOS.filter((n) =>
-    (veFinanzas || !n.soloFinanzas)
-    && (rol === "Encargado de campo" || !n.soloCampo)
-    && (rol === "Dueño" || !n.soloDueno)
-  );
+  const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz));
   const NAV_MOVIL = rol === "Encargado de campo"
     ? NAV.filter((n) => ["captura", "labores", "cuadrillas", "cosecha"].includes(n.id))
     : NAV.filter((n) => n.id !== "ajustes");
@@ -1837,6 +1837,7 @@ function AgroCicloApp() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}>
+      {guia ? <Onboarding forzar={profile.onboardingHecho} onCerrar={() => setGuia(false)} /> : null}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
@@ -3165,6 +3166,14 @@ function AgroCicloApp() {
                 <p style={{ margin: "6px 0 0", fontSize: 14, color: C.gris }}>
                   Equipo, permisos, ciclos y catálogo. Lo que vive el lote se captura en las otras secciones.
                 </p>
+                <button
+                  type="button"
+                  className="mt-3 min-h-11 text-sm font-semibold"
+                  style={{ background: "none", border: "none", color: C.hoja, padding: 0 }}
+                  onClick={() => setGuia(true)}
+                >
+                  Ver guía de uso
+                </button>
               </div>
 
               <Tarjeta style={{ padding: 18 }}>
