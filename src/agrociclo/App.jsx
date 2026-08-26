@@ -980,7 +980,7 @@ function AgroCicloApp() {
       a.push({ nivel: "ambar", ambito: "fin", texto: `El costo financiero ya es ${num((costoFinTotal / inversionTotal) * 100, 1)}% de tu inversión total.` });
     comprasT.filter(c => c.origen === "externo" && !c.fechaPago && diasEntre(c.fecha, hoyStr) > 90)
       .forEach(c => a.push({ nivel: "ambar", ambito: "fin", texto: `La compra a crédito de proveedor de ${c.insumoNombre} lleva ${diasEntre(c.fecha, hoyStr)} días al ${num(c.tasa, 1)}% (${money(interesCompra(c))} acumulado).` }));
-    insumos.filter(i => i.stock <= 2).forEach(i => a.push({ nivel: "ambar", ambito: "op", texto: `Stock bajo de ${i.nombre}: quedan ${num(i.stock, 1)} ${i.unidad}.` }));
+    insumosAlmacen.filter(i => i.stock <= 2).forEach(i => a.push({ nivel: "ambar", ambito: "op", texto: `Stock bajo de ${i.nombre}: quedan ${num(i.stock, 1)} ${i.unidad}.` }));
     if (rayaPendiente > 0) a.push({ nivel: "info", ambito: "op", texto: `Raya pendiente: ${money(rayaPendiente)} para el próximo día de pago.` });
     const sinAplicar = prestamosT.reduce((s, pp) => s + Math.max(0, pp.monto - (pp.aplicaciones || []).reduce((x, ap) => x + ap.monto, 0)), 0);
     if (sinAplicar > 0) a.push({ nivel: "info", ambito: "fin", texto: `Préstamos en efectivo con ${money(sinAplicar)} sin aplicar — registra en qué se usó ese dinero.` });
@@ -1021,7 +1021,7 @@ function AgroCicloApp() {
     if (porRecibir > 0) a.push({ nivel: "info", ambito: "op", texto: `${porRecibir} compra(s) autorizada(s) por recibir en almacén.` });
     if (cajaPorAutorizar > 0) a.push({ nivel: "ambar", ambito: "fin", texto: `Caja chica: ${money(cajaPorAutorizar)} en salidas por autorizar.` });
     return veFinanzas ? a : a.filter(x => x.ambito === "op");
-  }, [parcelasT, costosParcela, inversionTotal, costoFinTotal, comprasT, insumos, rayaPendiente, creditosT, veFinanzas, solicitudesT, cajaPorAutorizar, prestamosT, freezePorDispId]);
+  }, [parcelasT, costosParcela, inversionTotal, costoFinTotal, comprasT, insumosAlmacen, rayaPendiente, creditosT, veFinanzas, solicitudesT, cajaPorAutorizar, prestamosT, freezePorDispId]);
 
   /* --- helper: diésel del catálogo (para FormLabor y el panel) --- */
   const dieselIns = insumos.find(i => i.categoria === "Diésel");
@@ -2446,24 +2446,6 @@ function AgroCicloApp() {
               <div style={{ background: C.papel, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: C.gris }}>
                 Flujo: <strong style={{ color: C.azul }}>Solicitado</strong> → <strong style={{ color: C.grano }}>Cotizado</strong> → <strong style={{ color: C.hoja }}>Autorizado</strong> → <strong style={{ color: C.bosque }}>Recibido</strong>. Al recibir, el insumo entra al almacén y se registra la compra automáticamente.
               </div>
-
-              {rol === "Dueño" && (
-                <Tarjeta style={{ padding: 14, borderLeft: `3px solid ${C.azul}` }}>
-                  <label className="flex items-start gap-3" style={{ cursor: "pointer" }}>
-                    <input type="checkbox" checked={config.encargadoVePrecios}
-                      onChange={(e) => setConfig({ ...config, encargadoVePrecios: e.target.checked })}
-                      style={{ marginTop: 3, width: 16, height: 16, accentColor: C.bosque }} />
-                    <span>
-                      <span style={{ fontWeight: 700, fontSize: 13.5 }}>El encargado de campo puede ver los precios de las cotizaciones</span>
-                      <div style={{ fontSize: 12, color: C.gris, marginTop: 2 }}>
-                        {config.encargadoVePrecios
-                          ? "Encendido: el encargado ve montos y puede capturar cotizaciones."
-                          : "Apagado: el encargado solo ve qué se pidió y puede recibir, sin ver montos. (Solo tú, como Dueño, cambias esto.)"}
-                      </div>
-                    </span>
-                  </label>
-                </Tarjeta>
-              )}
 
               {solicitudesT.length === 0 && <Vacio texto="Sin solicitudes de compra. Levanta la primera con “Nueva solicitud”." />}
               <div className="flex flex-col gap-3">

@@ -20,7 +20,7 @@
 
 ## Shims vivos
 - Ledger JSONB por org (no RLS de Postgres todavía).
-- `v_cuenta_productor` sigue sellando `ciclo_id` con `ciclo[0]` — vacío en oi2627 funciona; hay que corregirlo cuando haya movimientos en dos ciclos a la vez.
+- `v_cuenta_productor` / `v_movimiento_cuenta_productor` ya sellan `ciclo_id` del movimiento (no `ciclo[0]`). Cuentas y almacén son por ciclo. Arrastre físico entre ciclos sigue pendiente al cierre de oi2526.
 
 ## Verificación
 - Canarios de oi2526 siguen en 97,977.53 / −28,233.69 con el ciclo extra vacío.
