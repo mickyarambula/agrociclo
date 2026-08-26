@@ -31,7 +31,9 @@ export function runCanarios(): { checks: CanarioCheck[]; allOk: boolean } {
   );
   const oficial = round2(accesorios + interes);
 
-  const cuenta = vCuentaProductor().find((c) => c.productor_id === IDS.p3567);
+  const cuenta = vCuentaProductor().find(
+    (c) => c.productor_id === IDS.p3567 && String(c.ciclo_id) === CICLO_ID,
+  );
   const saldo3567 = round2(Number(cuenta?.saldo) || 0);
 
   const stockById = new Map(

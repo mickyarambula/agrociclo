@@ -95,4 +95,22 @@ describe("Etapa 4a · ciclo vacío", () => {
     );
     assert.equal(Number(dieselDemo?.stock), CANARIO_STOCK[0]);
   });
+
+  it("cuenta de productor 3567 es del demo, no del ciclo vacío", async () => {
+    const { demoLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { replaceLedger, vCuentaProductor } = await jiti.import("../src/agrociclo/data/db.ts");
+    const { runCanarios, CANARIO_SALDO_3567 } = await jiti.import("../src/agrociclo/data/canarios.ts");
+    const { CICLO_ID } = await jiti.import("../src/agrociclo/lib/org.ts");
+
+    replaceLedger(demoLedger());
+    assert.equal(runCanarios().allOk, true);
+
+    const enNuevo = vCuentaProductor().filter((c) => String(c.ciclo_id) === IDS.cicloOi2627);
+    assert.equal(enNuevo.length, 0);
+
+    const c3567 = vCuentaProductor().find(
+      (c) => String(c.productor_id) === IDS.p3567 && String(c.ciclo_id) === CICLO_ID,
+    );
+    assert.ok(Math.abs(Number(c3567?.saldo) - CANARIO_SALDO_3567) < 0.05);
+  });
 });

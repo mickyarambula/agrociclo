@@ -383,6 +383,7 @@ function AgroCicloApp() {
      por construcción. Mientras no haya pagos, todo cae a null y los números no se mueven. */
   const dispInteresQ = useOrgRead(["disp-interes", CICLO_ID], "v_disposicion_interes", {
     columns: "id, fecha_corte, saldada, interes_devengado, pagado, saldo",
+    build: (q) => q.eq("ciclo_id", CICLO_ID),
   });
   /* PAGOS PARCIALES: abonos vivos por disposición (lista para la UI + p_pago_id de revertir-uno).
      pago_disposicion no tiene ciclo_id; en dev hay un solo ciclo, así que leemos todos los vivos de
@@ -543,7 +544,7 @@ function AgroCicloApp() {
      Se filtran las labores cuya parcela no está en parcelasT (otro ciclo / dada de baja). */
   const laboresQ = useOrgRead(["labores", CICLO_ID], "labor", {
     columns: "id, parcela_id, fecha, tipo, descripcion, costo_operacion, labor_insumo ( insumo_id, cantidad, costo_unitario, costo_total, insumo ( categoria ) )",
-    build: (q) => q.is("eliminado_en", null).order("fecha"),
+    build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha"),
   });
   const laboresT = useMemo(() => {
     return (laboresQ.data ?? []).map(r => {
@@ -593,7 +594,7 @@ function AgroCicloApp() {
      estado de cuenta (ya cableado). `id`/`_uuid` = uuid de la boleta. `seedBoletas` eliminado. */
   const boletasQ = useOrgRead(["boletas", CICLO_ID], "boleta", {
     columns: "id, parcela_id, fecha, folio, peso_bruto, tara, humedad, impurezas, humedad_std, impurezas_std, precio_ton, trilla, flete, otros, almacenadora ( nombre )",
-    build: (q) => q.is("eliminado_en", null).order("fecha"),
+    build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha"),
   });
   const boletas = useMemo(() => {
     return (boletasQ.data ?? []).map(r => {

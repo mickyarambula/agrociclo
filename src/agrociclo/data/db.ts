@@ -202,6 +202,7 @@ function calcBoletaNeto(b: Row): number {
 export function vMovimientoCuentaProductor(): Row[] {
   const out: Row[] = [];
   const push = (
+    ciclo_id: unknown,
     productor_id: unknown,
     fecha: unknown,
     origen: string,
@@ -212,8 +213,8 @@ export function vMovimientoCuentaProductor(): Row[] {
   ) => {
     if (!productor_id || !monto) return;
     out.push({
-      id: `${origen}-${origen_id}`,
-      ciclo_id: tables.ciclo[0]?.id,
+      id: `${ciclo_id ?? ""}-${origen}-${origen_id}`,
+      ciclo_id: ciclo_id ?? null,
       productor_id,
       fecha,
       origen,
@@ -225,39 +226,41 @@ export function vMovimientoCuentaProductor(): Row[] {
   };
 
   for (const d of live("dispersion")) {
-    push(d.productor_id, d.fecha, "Dispersión", d.id, String(d.concepto || "Dispersión"), Number(d.monto) || 0, "cargo");
+    push(d.ciclo_id, d.productor_id, d.fecha, "Dispersión", String(d.id), String(d.concepto || "Dispersión"), Number(d.monto) || 0, "cargo");
   }
   for (const p of live("prestamo")) {
-    push(p.productor_id, p.fecha, "Préstamo", p.id, String(p.nota || "Préstamo"), Number(p.monto) || 0, "cargo");
+    push(p.ciclo_id, p.productor_id, p.fecha, "Préstamo", String(p.id), String(p.nota || "Préstamo"), Number(p.monto) || 0, "cargo");
   }
   for (const c of live("compra")) {
-    push(c.productor_id, c.fecha, "Compra", c.id, String(c.insumo_nombre || "Compra"), Number(c.monto) || 0, "cargo");
+    push(c.ciclo_id, c.productor_id, c.fecha, "Compra", String(c.id), String(c.insumo_nombre || "Compra"), Number(c.monto) || 0, "cargo");
   }
   for (const g of live("gasto")) {
-    push(g.productor_id, g.fecha, "Gasto", g.id, String(g.descripcion || g.categoria || "Gasto"), Number(g.monto) || 0, "cargo");
+    push(g.ciclo_id, g.productor_id, g.fecha, "Gasto", String(g.id), String(g.descripcion || g.categoria || "Gasto"), Number(g.monto) || 0, "cargo");
   }
   for (const b of live("boleta")) {
     const parc = getById("parcela", String(b.parcela_id));
     if (!parc?.productor_id) continue;
-    push(parc.productor_id, b.fecha, "Boleta", b.id, `Boleta ${b.folio || ""}`.trim(), calcBoletaNeto(b), "abono");
+    push(b.ciclo_id ?? parc.ciclo_id, parc.productor_id, b.fecha, "Boleta", String(b.id), `Boleta ${b.folio || ""}`.trim(), calcBoletaNeto(b), "abono");
   }
   return out;
 }
 
 export function vCuentaProductor(): Row[] {
   const movs = vMovimientoCuentaProductor();
-  const map = new Map<string, { total_cargos: number; total_abonos: number }>();
+  const map = new Map<string, { ciclo_id: unknown; productor_id: string; total_cargos: number; total_abonos: number }>();
   for (const m of movs) {
-    const id = String(m.productor_id);
-    const cur = map.get(id) ?? { total_cargos: 0, total_abonos: 0 };
+    const productor_id = String(m.productor_id);
+    const ciclo_id = m.ciclo_id ?? "";
+    const key = `${ciclo_id}:${productor_id}`;
+    const cur = map.get(key) ?? { ciclo_id, productor_id, total_cargos: 0, total_abonos: 0 };
     if (m.tipo === "cargo") cur.total_cargos += Number(m.monto) || 0;
     else cur.total_abonos += Number(m.monto) || 0;
-    map.set(id, cur);
+    map.set(key, cur);
   }
-  return [...map.entries()].map(([productor_id, t]) => ({
-    id: productor_id,
-    productor_id,
-    ciclo_id: tables.ciclo[0]?.id,
+  return [...map.values()].map((t) => ({
+    id: `${t.ciclo_id}:${t.productor_id}`,
+    productor_id: t.productor_id,
+    ciclo_id: t.ciclo_id,
     total_cargos: t.total_cargos,
     total_abonos: t.total_abonos,
     saldo: t.total_cargos - t.total_abonos,

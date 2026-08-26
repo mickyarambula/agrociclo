@@ -226,7 +226,7 @@ export function AgroGate({ children }: { children: ReactNode }) {
   const splashExtra = stale ? (
     <div className="mt-4 flex flex-col items-center gap-2">
       <p className="max-w-sm text-xs" style={{ color: C.gris }}>
-        Si te quedas aquí, sal y vuelve a entrar. Publicar el rancho evita que se pierda la sesión al recargar.
+        Si te quedas aquí, sal y vuelve a entrar.
       </p>
       <button
         type="button"
@@ -247,10 +247,14 @@ export function AgroGate({ children }: { children: ReactNode }) {
     </div>
   ) : null;
 
-  if (isPending || (user && loading && err !== "Tardó demasiado abrir el ciclo.")) {
-    return <Splash texto="Abriendo el ciclo…" extra={splashExtra} />;
+  // Sin sesión no decimos "abriendo el ciclo". Si get-session se atasca, a los 8 s vamos al login.
+  if (isPending && !stale) {
+    return <Splash texto="Cargando…" />;
   }
   if (!user || err === "Unauthorized") return <RedirectToSignIn />;
+  if (user && loading && err !== "Tardó demasiado abrir el ciclo.") {
+    return <Splash texto="Abriendo el ciclo…" extra={splashExtra} />;
+  }
   if (err) {
     return (
       <Splash
