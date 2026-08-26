@@ -152,9 +152,9 @@ const fuente = {
   cuerpo: "'IBM Plex Sans', system-ui, sans-serif",
 };
 
-function Tarjeta({ children, style, onClick }) {
+function Tarjeta({ children, style, onClick, className }) {
   return (
-    <div onClick={onClick}
+    <div onClick={onClick} className={className}
       style={{ background: C.blanco, border: `1px solid ${C.linea}`, borderRadius: 14, cursor: onClick ? "pointer" : "default", ...style }}>
       {children}
     </div>
@@ -185,10 +185,60 @@ function Campo({ label, children }) {
     </label>
   );
 }
+function PickerParcela({ parcelas, value, onChange, opcional }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {opcional && (
+        <button
+          type="button"
+          onClick={() => onChange({ target: { value: "" } })}
+          style={{
+            minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
+            fontFamily: fuente.cuerpo,
+            border: `1.5px solid ${!value ? C.bosque : C.linea}`,
+            background: !value ? C.bosque : C.blanco,
+            color: !value ? C.blanco : C.tinta,
+          }}
+        >
+          Sin asignar
+        </button>
+      )}
+      {parcelas.map((p) => {
+        const on = String(value) === String(p.id);
+        return (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => onChange({ target: { value: p.id } })}
+            style={{
+              minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
+              fontFamily: fuente.cuerpo, textAlign: "left",
+              border: `1.5px solid ${on ? C.bosque : C.linea}`,
+              background: on ? C.bosque : C.blanco,
+              color: on ? C.blanco : C.tinta,
+            }}
+          >
+            {p.cultivo} · {p.nombre}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 const estiloInput = {
   border: `1px solid ${C.linea}`, borderRadius: 8, padding: "8px 10px",
   fontSize: 14, color: C.tinta, fontFamily: fuente.cuerpo, background: C.blanco, fontWeight: 400, width: "100%",
 };
+
+function etiquetaCiclo(t, compacto) {
+  if (!t) return "Ciclo";
+  if (!compacto) return t.nombre || t.clave || "Ciclo";
+  const k = String(t.clave || "").toUpperCase();
+  const m = k.match(/^([A-Z]+)(\d{2})(\d{2})$/);
+  if (m) return `${m[1]} ${m[2]}/${m[3]}`;
+  return t.clave || t.nombre || "Ciclo";
+}
+
 
 function Acciones({ onEditar, onEliminar }) {
   const [confirmar, setConfirmar] = useState(false);
@@ -246,7 +296,7 @@ class ErrorBoundary extends Component {
 
 /* ---------- App ---------- */
 function AgroCicloApp() {
-  const { profile, setCiclo, restaurarDemo } = useAgroSession();
+  const { profile, setCiclo, restaurarDemo, reload } = useAgroSession();
   const user = useCurrentUser();
   const rol = profile.rol;
   const ORG_ID = profile.orgId;
@@ -255,8 +305,9 @@ function AgroCicloApp() {
     ? profile.ciclos
     : [{ id: CICLO_ID, clave: "oi2526", nombre: "Otoño–Invierno 2025/26" }];
   const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2526";
-  const [vista, setVista] = useState("panel");
+  const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
   const [equipoOpen, setEquipoOpen] = useState(false);
+  const [cicloNuevoOpen, setCicloNuevoOpen] = useState(false);
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
     || TEMPORADAS.find((t) => t.id === temporadaId)?.nombre
     || temporadaId;
@@ -1720,6 +1771,7 @@ function AgroCicloApp() {
   const eliminarCajaMov = (mov) => eliminarCajaMovMut.mutate(mov);
 
   const NAV_TODOS = [
+    { id: "captura", nombre: "Captura", icono: Plus, soloCampo: true },
     { id: "panel", nombre: "Panel", icono: LayoutDashboard },
     { id: "parcelas", nombre: "Parcelas", icono: Sprout },
     { id: "labores", nombre: "Labores", icono: Tractor },
@@ -1734,7 +1786,10 @@ function AgroCicloApp() {
     { id: "costofin", nombre: "Costo financiero", icono: TrendingUp, soloFinanzas: true },
     { id: "reportes", nombre: "Reportes", icono: BarChart3, soloFinanzas: true },
   ];
-  const NAV = NAV_TODOS.filter(n => veFinanzas || !n.soloFinanzas);
+  const NAV = NAV_TODOS.filter((n) => (veFinanzas || !n.soloFinanzas) && (rol === "Encargado de campo" || !n.soloCampo));
+  const NAV_MOVIL = rol === "Encargado de campo"
+    ? NAV.filter((n) => ["captura", "labores", "cuadrillas", "cosecha"].includes(n.id))
+    : NAV;
 
   const accionRapida = (vistaDestino, tipoForm) => {
     setVista(vistaDestino);
@@ -1748,26 +1803,53 @@ function AgroCicloApp() {
         * { box-sizing: border-box; }
         input:focus, select:focus, textarea:focus { outline: 2px solid ${C.hoja}; outline-offset: 1px; }
         input[type=range] { accent-color: ${C.bosque}; }
+        @media (max-width: 768px) {
+          input:not([type=checkbox]):not([type=range]), select, textarea { font-size: 16px !important; min-height: 44px; }
+        }
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
       `}</style>
 
-      <header className="flex items-center justify-between flex-wrap gap-3 px-4 md:px-8 py-4" style={{ background: C.bosque, color: C.blanco }}>
-        <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center" style={{ width: 36, height: 36, borderRadius: 10, background: C.grano }}>
+      <header className={`flex items-center justify-between gap-2 px-3 md:px-8 py-3 md:py-4 ${rol === "Encargado de campo" ? "flex-nowrap" : "flex-wrap"}`} style={{ background: C.bosque, color: C.blanco }}>
+        <div className="flex items-center gap-2 md:gap-3 min-w-0">
+          <div className="flex items-center justify-center shrink-0" style={{ width: 36, height: 36, borderRadius: 10, background: C.grano }}>
             <Sprout size={20} color={C.bosque} strokeWidth={2.5} />
           </div>
-          <div>
+          <div className="min-w-0">
             <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, lineHeight: 1 }}>AgroCiclo</div>
-            <div style={{ fontSize: 11, opacity: 0.75 }}>El costo real de tu siembra · Valle del Fuerte</div>
+            <div className="hidden md:block" style={{ fontSize: 11, opacity: 0.75 }}>El costo real de tu siembra · Valle del Fuerte</div>
           </div>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          {veFinanzas && <CanarioBadge />}
-          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista("panel"); cerrar(); }}
+        <div className="flex items-center gap-2 shrink-0">
+          {veFinanzas && <span className="hidden md:inline-flex"><CanarioBadge /></span>}
+          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); }}
             title="Ciclo de siembra"
-            style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
-            {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{t.nombre || t.clave}</option>)}
+            aria-label="Ciclo de siembra"
+            style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
+            {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, rol === "Encargado de campo")}</option>)}
           </select>
+          {rol === "Dueño" && (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => { setCicloNuevoOpen((v) => !v); setEquipoOpen(false); }}
+                title="Abrir un ciclo vacío para capturar la siembra nueva"
+                style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
+              >
+                + Ciclo
+              </button>
+              {cicloNuevoOpen && (
+                <AbrirCicloPanel
+                  onClose={() => setCicloNuevoOpen(false)}
+                  onCreado={async (id) => {
+                    setCicloNuevoOpen(false);
+                    await reload();
+                    await setCiclo(id);
+                    setVista("parcelas");
+                  }}
+                />
+              )}
+            </div>
+          )}
           {rol === "Dueño" && (
             <div style={{ position: "relative" }}>
               <button
@@ -1796,16 +1878,17 @@ function AgroCicloApp() {
             </button>
           )}
           <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
-            <span style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <span className="hidden md:inline" style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
             </span>
             <button
               type="button"
               onClick={() => void signOut()}
               title="Salir"
-              style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+              aria-label="Salir"
+              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
-              <LogOut size={13} /> Salir
+              <LogOut size={15} /> <span className="hidden md:inline">Salir</span>
             </button>
           </div>
         </div>
@@ -1828,6 +1911,100 @@ function AgroCicloApp() {
         </nav>
 
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100 }}>
+
+          {/* ===== CAPTURA DE CAMPO ===== */}
+          {vista === "captura" && (
+            <div className="flex flex-col gap-4">
+              <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Captura de campo</h1>
+              <p style={{ margin: 0, fontSize: 14, color: C.gris }}>
+                {nombreCiclo}. Un toque por registro. La oficina ve montos; aquí se anota lo que pasó en el lote.
+              </p>
+              {parcelasT.length === 0 ? (
+                <Tarjeta style={{ padding: 28, textAlign: "center" }}>
+                  <Sprout size={36} color={C.hoja} className="mx-auto" />
+                  <p style={{ fontWeight: 600, marginTop: 12 }}>Este ciclo todavía no tiene parcelas.</p>
+                  <p style={{ fontSize: 13, color: C.gris, marginTop: 6 }}>
+                    El Dueño da de alta los lotes en Parcelas. Mientras tanto no hay labores ni boletas que capturar.
+                  </p>
+                  {rol === "Dueño" || rol === "Oficina" ? (
+                    <div className="flex justify-center mt-3"><Boton onClick={() => setVista("parcelas")}>Ir a Parcelas <ChevronRight size={15} /></Boton></div>
+                  ) : null}
+                </Tarjeta>
+              ) : (
+                <div className="grid grid-cols-2 gap-3">
+                  {[
+                    { id: "labor", vista: "labores", titulo: "Labor", desc: "Riego, rastreo, aplicación", Ic: Tractor },
+                    { id: "nomina", vista: "cuadrillas", titulo: "Raya", desc: "Jornales del día", Ic: Users },
+                    { id: "boleta", vista: "cosecha", titulo: "Boleta", desc: "Entrega en bodega", Ic: Wheat },
+                    { id: "solicitud", vista: "solicitudes", titulo: "Solicitud", desc: "Pedir insumo", Ic: ClipboardList },
+                  ].map((a) => {
+                    const Ic = a.Ic;
+                    return (
+                      <button
+                        key={a.id}
+                        type="button"
+                        onClick={() => accionRapida(a.vista, a.id)}
+                        className="text-left"
+                        style={{
+                          background: C.blanco, border: `1px solid ${C.linea}`, borderTop: `3px solid ${C.bosque}`,
+                          borderRadius: 14, padding: 16, minHeight: 108, cursor: "pointer",
+                          fontFamily: fuente.cuerpo, color: C.tinta,
+                        }}
+                      >
+                        <Ic size={22} color={C.bosque} />
+                        <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, marginTop: 8 }}>{a.titulo}</div>
+                        <div style={{ fontSize: 12, color: C.gris }}>{a.desc}</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "parcelas", l: "Parcelas" },
+                  { id: "inventario", l: "Insumos" },
+                  { id: "solicitudes", l: "Solicitudes" },
+                ].map((x) => (
+                  <button
+                    key={x.id}
+                    type="button"
+                    onClick={() => { setVista(x.id); cerrar(); }}
+                    style={{
+                      border: `1px solid ${C.linea}`, background: C.blanco, color: C.tinta, borderRadius: 999,
+                      padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44,
+                      fontFamily: fuente.cuerpo,
+                    }}
+                  >
+                    {x.l}
+                  </button>
+                ))}
+              </div>
+              {(() => {
+                const hoyLab = laboresT.filter((l) => l.fecha === hoyStr);
+                const hoyRay = nominaT.filter((n) => n.fecha === hoyStr);
+                const hoyBol = boletasT.filter((b) => b.fecha === hoyStr);
+                const n = hoyLab.length + hoyRay.length + hoyBol.length;
+                if (n === 0) {
+                  return <Vacio texto="Hoy todavía no hay registros. El primero del día sale en un toque." />;
+                }
+                return (
+                  <Tarjeta style={{ padding: 16 }}>
+                    <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Hoy en el lote · {n}</div>
+                    {hoyLab.map((l) => {
+                      const p = parcelas.find((x) => x.id === l.parcelaId);
+                      return <div key={l.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>{l.tipo} · {p?.nombre || "parcela"} · {l.desc || "sin nota"}</div>;
+                    })}
+                    {hoyRay.map((r) => (
+                      <div key={r.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>Raya · {r.cuadrilla} · {r.actividad}</div>
+                    ))}
+                    {hoyBol.map((b) => (
+                      <div key={b.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>Boleta {b.boleta || "s/n"} · {num(calcBoleta(b).pagable, 0)} kg</div>
+                    ))}
+                  </Tarjeta>
+                );
+              })()}
+            </div>
+          )}
 
           {/* ===== PANEL ===== */}
           {vista === "panel" && (
@@ -2067,7 +2244,7 @@ function AgroCicloApp() {
             <Seccion titulo="Labores y aplicaciones" accion="Registrar labor" puedeEditar={puedeEditar}
               abierto={form?.tipo === "labor"} onAbrir={() => setForm({ tipo: "labor", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} onGuardar={(f) => guardarLabor(f, form?.item)} />}>
+              form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} veFinanzas={veFinanzas} onGuardar={(f) => guardarLabor(f, form?.item)} />}>
 
               <TareasWhatsApp labores={laboresT} parcelas={parcelas} insumos={insumos} />
 
@@ -2084,11 +2261,11 @@ function AgroCicloApp() {
                           <div style={{ fontSize: 12, color: C.gris }}>
                             {l.fecha} · {l.desc}
                             {ins ? ` · ${num(l.cantidad, 1)} ${ins.unidad} ${ins.nombre}` : ""}
-                            {l.litrosDiesel ? ` · ⛽ ${num(l.litrosDiesel, 0)} L (${money(l.costoDiesel)})` : ""}
+                            {l.litrosDiesel ? ` · ${num(l.litrosDiesel, 0)} L diésel${veFinanzas ? ` (${money(l.costoDiesel)})` : ""}` : ""}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{money(costoLabor(l))}</div>
+                          {veFinanzas && <div style={{ fontWeight: 700, fontSize: 14 }}>{money(costoLabor(l))}</div>}
                           {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "labor", item: l })} onEliminar={() => eliminarLabor(l)} />}
                         </div>
                       </div>
@@ -2101,7 +2278,7 @@ function AgroCicloApp() {
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
           {vista === "inventario" && (
-            <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar}
+            <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
               abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
               form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
@@ -2225,7 +2402,7 @@ function AgroCicloApp() {
             <Seccion titulo="Cosecha · entregas en bodega" accion="Registrar boleta" puedeEditar={puedeEditar}
               abierto={form?.tipo === "boleta"} onAbrir={() => setForm({ tipo: "boleta", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
+              form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
 
               <div className="grid md:grid-cols-3 gap-3">
                 {parcelasT.map(p => {
@@ -2265,11 +2442,12 @@ function AgroCicloApp() {
                               Boleta {b.boleta} · {b.bodega} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.cultivo} ({p?.nombre})</span>
                             </div>
                             <div style={{ fontSize: 12, color: C.gris }}>
-                              {b.fecha} · Neto {num(c.neto, 0)} kg · Hum {num(b.humedad, 1)}% (−{num(c.descH, 0)} kg) · Imp {num(b.impurezas, 1)}% (−{num(c.descI, 0)} kg) → <strong style={{ color: C.tinta }}>{num(c.pagable, 0)} kg</strong> × {money(b.precioTon)}/ton
+                              {b.fecha} · Neto {num(c.neto, 0)} kg · Hum {num(b.humedad, 1)}% (−{num(c.descH, 0)} kg) · Imp {num(b.impurezas, 1)}% (−{num(c.descI, 0)} kg) → <strong style={{ color: C.tinta }}>{num(c.pagable, 0)} kg</strong>
+                              {veFinanzas ? <> × {money(b.precioTon)}/ton</> : null}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">
-                            <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 16, color: C.bosque }}>{money(c.ingresoNeto)}</div>
+                            {veFinanzas && <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 16, color: C.bosque }}>{money(c.ingresoNeto)}</div>}
                             {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "boleta", item: b })} onEliminar={() => eliminarBoleta(b)} />}
                           </div>
                         </div>
@@ -2986,14 +3164,14 @@ function AgroCicloApp() {
         </main>
       </div>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 flex overflow-x-auto py-1.5" style={{ background: C.blanco, borderTop: `1px solid ${C.linea}` }}>
-        {NAV.map(item => {
+      <nav className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around py-1.5" style={{ background: C.blanco, borderTop: `1px solid ${C.linea}` }}>
+        {NAV_MOVIL.map(item => {
           const Ic = item.icono; const activo = vista === item.id;
           return (
             <button key={item.id} onClick={() => { setVista(item.id); cerrar(); }}
-              className="flex flex-col items-center gap-0.5 flex-shrink-0"
-              style={{ border: "none", background: "transparent", cursor: "pointer", padding: "6px 9px", color: activo ? C.bosque : C.gris, fontWeight: activo ? 700 : 500, fontSize: 9, fontFamily: fuente.cuerpo }}>
-              <Ic size={17} /> {item.nombre}
+              className="flex flex-col items-center gap-0.5 flex-1"
+              style={{ border: "none", background: "transparent", cursor: "pointer", padding: "8px 6px", minHeight: 52, color: activo ? C.bosque : C.gris, fontWeight: activo ? 700 : 500, fontSize: 11, fontFamily: fuente.cuerpo }}>
+              <Ic size={20} /> {item.nombre}
             </button>
           );
         })}
@@ -3046,6 +3224,62 @@ function CanarioBadge() {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+function AbrirCicloPanel({ onClose, onCreado }) {
+  const [clave, setClave] = useState("oi2627");
+  const [nombre, setNombre] = useState("Otoño–Invierno 2026/27");
+  const [inicio, setInicio] = useState("2026-10-01");
+  const [fin, setFin] = useState("2027-09-30");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+  return (
+    <div
+      style={{
+        position: "absolute", right: 0, top: "calc(100% + 8px)", zIndex: 50, width: 320, maxWidth: "80vw",
+        background: C.blanco, color: C.tinta, border: `1px solid ${C.linea}`, borderRadius: 12,
+        boxShadow: "0 12px 32px rgba(28,36,25,0.18)", padding: 12, fontFamily: fuente.cuerpo,
+      }}
+    >
+      <div className="mb-2 flex items-center justify-between">
+        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 14 }}>Abrir ciclo vacío</span>
+        <button type="button" onClick={onClose} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }}>Cerrar</button>
+      </div>
+      <p style={{ fontSize: 12, color: C.gris, margin: "0 0 8px" }}>
+        Para la siembra que sigue. Queda sin parcelas; el demo oi2526 no se toca.
+      </p>
+      <div className="flex flex-col gap-2">
+        <Campo label="Clave"><input style={estiloInput} value={clave} onChange={(e) => setClave(e.target.value)} /></Campo>
+        <Campo label="Nombre"><input style={estiloInput} value={nombre} onChange={(e) => setNombre(e.target.value)} /></Campo>
+        <Campo label="Inicio"><input type="date" style={estiloInput} value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
+        <Campo label="Fin"><input type="date" style={estiloInput} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
+        {error && <p style={{ fontSize: 12, color: C.rojo, fontWeight: 600, margin: 0 }}>{error}</p>}
+        <Boton
+          deshabilitado={busy || !clave.trim() || !nombre.trim()}
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            void supabase.rpc("fn_abrir_ciclo", {
+              p_clave: clave.trim(),
+              p_nombre: nombre.trim(),
+              p_fecha_inicio: inicio,
+              p_fecha_fin: fin,
+            }).then((res) => {
+              if (res.error) throw new Error(res.error.message);
+              const id = res.data && typeof res.data === "object" ? res.data.id : null;
+              if (!id) throw new Error("No se obtuvo el ciclo.");
+              return onCreado(String(id));
+            }).catch((e) => {
+              setError(e instanceof Error ? e.message : String(e));
+              setBusy(false);
+            });
+          }}
+        >
+          {busy ? "Abriendo…" : "Abrir ciclo"}
+        </Boton>
+      </div>
     </div>
   );
 }
@@ -3554,13 +3788,27 @@ function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, form, c
         {!abierto && puedeEditar && <Boton onClick={onAbrir}><Plus size={15} /> {accion}</Boton>}
       </div>
       {abierto && puedeEditar && (
-        <Tarjeta style={{ padding: 18, borderLeft: `3px solid ${C.hoja}` }}>
-          <div className="flex justify-between items-center mb-3">
-            <span style={{ fontWeight: 700, fontSize: 14 }}>{editando ? "Editar registro" : accion}</span>
-            <button onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar formulario"><X size={17} /></button>
+        <>
+          <div
+            className="md:hidden fixed inset-0 z-50 flex flex-col"
+            style={{ background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}
+          >
+            <div className="flex items-center justify-between px-4 py-3" style={{ background: C.bosque, color: C.blanco }}>
+              <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>{editando ? "Editar registro" : accion}</span>
+              <button type="button" onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.blanco, minWidth: 44, minHeight: 44 }} aria-label="Cerrar formulario">
+                <X size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 pb-10">{form}</div>
           </div>
-          {form}
-        </Tarjeta>
+          <Tarjeta className="hidden md:block" style={{ padding: 18, borderLeft: `3px solid ${C.hoja}` }}>
+            <div className="flex justify-between items-center mb-3">
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{editando ? "Editar registro" : accion}</span>
+              <button onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar formulario"><X size={17} /></button>
+            </div>
+            {form}
+          </Tarjeta>
+        </>
       )}
       {children}
     </div>
@@ -3587,7 +3835,7 @@ function useForm(inicial) {
 }
 
 /* ---------- Formularios ---------- */
-function FormLabor({ inicial, parcelas, insumos, onGuardar }) {
+function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true }) {
   const [f, set] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
@@ -3613,17 +3861,19 @@ function FormLabor({ inicial, parcelas, insumos, onGuardar }) {
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
-      <Campo label="Parcela"><select style={estiloInput} value={f.parcelaId} onChange={set("parcelaId")}>{parcelas.map(p => <option key={p.id} value={p.id}>{p.cultivo} · {p.nombre}</option>)}</select></Campo>
+      <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Tipo de labor"><select style={estiloInput} value={f.tipo} onChange={set("tipo")}>{TIPOS_LABOR.map(t => <option key={t}>{t}</option>)}</select></Campo>
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
-      <Campo label="Costo de operación (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, renta, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
+      {veFinanzas && (
+        <Campo label="Costo de operación (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, renta, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
+      )}
       <Campo label={`Diésel del tanque (L) · disponible ${num(dispDiesel, 0)}`}>
-        <input type="number" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
       </Campo>
       <Campo label="Insumo usado (opcional)"><select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}><option value="">— Ninguno —</option>{noDiesel.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}</select></Campo>
       {f.insumoId && (
         <Campo label={`Cantidad usada · disponible ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
-          <input type="number" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
         </Campo>
       )}
       {(faltaInsumo || faltaDiesel) && (
@@ -3783,7 +4033,7 @@ function FormNomina({ inicial, parcelas, directorio, onGuardar }) {
         </>
       )}
       <Campo label="Actividad"><input style={estiloInput} placeholder="Ej. Rastreo / deshierbe" value={f.actividad} onChange={set("actividad")} /></Campo>
-      <Campo label="Parcela"><select style={estiloInput} value={f.parcelaId} onChange={set("parcelaId")}>{parcelas.map(p => <option key={p.id} value={p.id}>{p.cultivo} · {p.nombre}</option>)}</select></Campo>
+      <div className="md:col-span-3"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Personas"><input type="number" style={estiloInput} placeholder={f.tipo === "Operador" ? "1" : "Ej. 6"} value={f.personas} onChange={set("personas")} /></Campo>
       <Campo label="Días trabajados"><input type="number" style={estiloInput} placeholder="Ej. 5" value={f.dias} onChange={set("dias")} /></Campo>
       <Campo label="Pago por día (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 650" value={f.pago} onChange={set("pago")} /></Campo>
@@ -3835,7 +4085,7 @@ function FormCredito({ inicial, productores, onGuardar }) {
   );
 }
 
-function FormBoleta({ inicial, parcelas, onGuardar }) {
+function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true }) {
   const [f, set] = useForm({
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
     fecha: inicial?.fecha || hoyStr,
@@ -3849,24 +4099,28 @@ function FormBoleta({ inicial, parcelas, onGuardar }) {
   const c = calcBoleta(f);
   return (
     <div className="grid md:grid-cols-3 gap-3">
-      <Campo label="Parcela"><select style={estiloInput} value={f.parcelaId} onChange={set("parcelaId")}>{parcelas.map(p => <option key={p.id} value={p.id}>{p.cultivo} · {p.nombre}</option>)}</select></Campo>
+      <div className="md:col-span-3"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Bodega / almacén"><input style={estiloInput} placeholder="Ej. Almacenadora El Carrizo" value={f.bodega} onChange={set("bodega")} /></Campo>
       <Campo label="No. de boleta"><input style={estiloInput} placeholder="Ej. 78214" value={f.boleta} onChange={set("boleta")} /></Campo>
-      <Campo label="Peso bruto (kg)"><input type="number" style={estiloInput} placeholder="Ej. 41800" value={f.pesoBruto} onChange={set("pesoBruto")} /></Campo>
-      <Campo label="Tara (kg)"><input type="number" style={estiloInput} placeholder="Ej. 13900" value={f.tara} onChange={set("tara")} /></Campo>
-      <Campo label={`Humedad (%) · estándar ${f.hStd}%`}><input type="number" style={estiloInput} placeholder="Ej. 15.5" value={f.humedad} onChange={set("humedad")} /></Campo>
-      <Campo label={`Impurezas (%) · estándar ${f.iStd}%`}><input type="number" style={estiloInput} placeholder="Ej. 2.8" value={f.impurezas} onChange={set("impurezas")} /></Campo>
-      <Campo label="Precio ($/ton)"><input type="number" style={estiloInput} placeholder="Ej. 5650" value={f.precioTon} onChange={set("precioTon")} /></Campo>
-      <Campo label="Estándar humedad (%)"><input type="number" style={estiloInput} value={f.hStd} onChange={set("hStd")} /></Campo>
-      <Campo label="Estándar impurezas (%)"><input type="number" style={estiloInput} value={f.iStd} onChange={set("iStd")} /></Campo>
-      <Campo label="Flete del viaje (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 4200" value={f.flete} onChange={set("flete")} /></Campo>
-      <Campo label="Trilla por ton (MXN, opcional)"><input type="number" style={estiloInput} placeholder="0 si pagas maquila/ha" value={f.trilla} onChange={set("trilla")} /></Campo>
-      <Campo label="Secado / maniobras / otros (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.otros} onChange={set("otros")} /></Campo>
+      <Campo label="Peso bruto (kg)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 41800" value={f.pesoBruto} onChange={set("pesoBruto")} /></Campo>
+      <Campo label="Tara (kg)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 13900" value={f.tara} onChange={set("tara")} /></Campo>
+      <Campo label={`Humedad (%) · estándar ${f.hStd}%`}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 15.5" value={f.humedad} onChange={set("humedad")} /></Campo>
+      <Campo label={`Impurezas (%) · estándar ${f.iStd}%`}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 2.8" value={f.impurezas} onChange={set("impurezas")} /></Campo>
+      {veFinanzas && (
+        <>
+          <Campo label="Precio ($/ton)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 5650" value={f.precioTon} onChange={set("precioTon")} /></Campo>
+          <Campo label="Estándar humedad (%)"><input type="number" style={estiloInput} value={f.hStd} onChange={set("hStd")} /></Campo>
+          <Campo label="Estándar impurezas (%)"><input type="number" style={estiloInput} value={f.iStd} onChange={set("iStd")} /></Campo>
+          <Campo label="Flete del viaje (MXN)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 4200" value={f.flete} onChange={set("flete")} /></Campo>
+          <Campo label="Trilla por ton (MXN, opcional)"><input type="number" style={estiloInput} placeholder="0 si pagas maquila/ha" value={f.trilla} onChange={set("trilla")} /></Campo>
+          <Campo label="Secado / maniobras / otros (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.otros} onChange={set("otros")} /></Campo>
+        </>
+      )}
       {c.neto > 0 && (
         <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>
           Neto {num(c.neto, 0)} kg − humedad {num(c.descH, 0)} kg − impurezas {num(c.descI, 0)} kg = <strong>{num(c.pagable, 0)} kg pagables ({num(c.ton, 2)} ton)</strong>
-          {c.ingresoBruto > 0 ? <> → bruto <strong>{money(c.ingresoBruto)}</strong> − deducciones {money(c.deducciones)} = <strong>{money(c.ingresoNeto)}</strong></> : null}
+          {veFinanzas && c.ingresoBruto > 0 ? <> → bruto <strong>{money(c.ingresoBruto)}</strong> − deducciones {money(c.deducciones)} = <strong>{money(c.ingresoNeto)}</strong></> : null}
         </div>
       )}
       <div className="flex items-end"><Boton onClick={() => f.parcelaId && f.pesoBruto && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar boleta"}</Boton></div>
@@ -4023,12 +4277,7 @@ function FormSolicitud({ inicial, insumos, parcelas, onGuardar }) {
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
       <Campo label="Unidad"><input style={estiloInput} placeholder="ton, L, bolsa, pieza…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="¿Para qué? (motivo)"><input style={estiloInput} placeholder="Ej. Control de maleza Lote 12" value={f.motivo} onChange={set("motivo")} /></Campo>
-      <Campo label="Parcela (opcional)">
-        <select style={estiloInput} value={f.parcelaId} onChange={set("parcelaId")}>
-          <option value="">— Sin asignar —</option>
-          {parcelas.map(p => <option key={p.id} value={p.id}>{p.cultivo} · {p.nombre}</option>)}
-        </select>
-      </Campo>
+      <div className="md:col-span-3"><Campo label="Parcela (opcional)"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} opcional /></Campo></div>
       <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar({ ...f, insumoId: esNuevo ? "" : f.insumoId })}>{inicial ? "Guardar cambios" : "Levantar solicitud"}</Boton></div>
     </div>
   );

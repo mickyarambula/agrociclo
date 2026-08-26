@@ -812,6 +812,26 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     return ok(hoyMochis());
   },
 
+  fn_abrir_ciclo(p) {
+    const org = ensureOrg(p);
+    if (!org) return err("Falta organización");
+    const clave = String(p.p_clave ?? "").trim().toLowerCase();
+    const nombre = String(p.p_nombre ?? "").trim();
+    if (!clave || !nombre) return err("Faltan clave y nombre del ciclo.");
+    const dup = live("ciclo").find((c) => String(c.clave).toLowerCase() === clave);
+    if (dup) return err(`Ya existe el ciclo ${clave}.`);
+    const id = uid();
+    insertRow("ciclo", {
+      id,
+      organizacion_id: org,
+      clave,
+      nombre,
+      fecha_inicio: p.p_fecha_inicio ? String(p.p_fecha_inicio) : null,
+      fecha_fin: p.p_fecha_fin ? String(p.p_fecha_fin) : null,
+    });
+    return ok({ id, clave, nombre });
+  },
+
   fn_disposicion_interes(p) {
     const corte = String(p.p_corte ?? p[0] ?? hoyMochis());
     return ok(vDisposicionInteres(corte));

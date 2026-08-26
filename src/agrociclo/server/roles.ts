@@ -20,6 +20,7 @@ export const FINANCIAL_RPC = new Set([
   "fn_recibir_solicitud",
   "fn_guardar_parcela",
   "fn_eliminar_parcela",
+  "fn_abrir_ciclo",
 ]);
 
 export const ENCARGADO_RPC = new Set([

@@ -18,6 +18,7 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(allowRpc("Encargado de campo", "fn_guardar_boleta"), null);
     assert.equal(allowRpc("Encargado de campo", "fn_liquidar_disposicion"), "Esta operación es de oficina.");
     assert.equal(allowRpc("Encargado de campo", "fn_autorizar_solicitud"), "Esta operación es de oficina.");
+    assert.equal(allowRpc("Encargado de campo", "fn_abrir_ciclo"), "Esta operación es de oficina.");
     assert.equal(allowTable("Encargado de campo", "jornal"), null);
     assert.equal(allowTable("Encargado de campo", "productor"), "Esta tabla es de oficina.");
   });
@@ -28,5 +29,31 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(veFinanzasOf("Encargado de campo"), false);
     assert.equal(allowRpc("Dueño", "fn_liquidar_disposicion"), null);
     assert.equal(allowRpc("Oficina", "fn_guardar_linea_credito"), null);
+    assert.equal(allowRpc("Dueño", "fn_abrir_ciclo"), null);
+  });
+});
+
+describe("Etapa 4a · ciclo vacío", () => {
+  it("demo trae oi2627 vacío y abrir otro no rompe canarios", async () => {
+    const { demoLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const { replaceLedger } = await jiti.import("../src/agrociclo/data/db.ts");
+    const { runCanarios } = await jiti.import("../src/agrociclo/data/canarios.ts");
+
+    const base = demoLedger();
+    assert.equal(base.ciclo.length, 2, "oi2526 + oi2627");
+    replaceLedger(base);
+    assert.equal(runCanarios().allOk, true);
+
+    const { result, ledger } = await applyRpcToLedger(base, "fn_abrir_ciclo", {
+      p_clave: "pv27",
+      p_nombre: "Primavera–Verano 2027",
+      p_fecha_inicio: "2027-03-01",
+      p_fecha_fin: "2027-09-30",
+    });
+    assert.equal(result.error, null);
+    assert.equal(ledger.ciclo.length, 3);
+    replaceLedger(ledger);
+    assert.equal(runCanarios().allOk, true);
   });
 });

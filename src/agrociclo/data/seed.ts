@@ -8,6 +8,7 @@ const T = "2026-06-16T18:00:00-07:00";
 export const IDS = {
   org: ORG,
   ciclo: CICLO,
+  cicloOi2627: "c1c10e26-2026-4000-8000-000000002627",
   p3566: "a1b2c3d4-3566-4000-8000-000000003566",
   p3567: "e5d0691c-c906-4cb6-8e1e-d8eb4aace24a",
   p3572: "a1b2c3d4-3572-4000-8000-000000003572",
@@ -929,6 +930,12 @@ export function demoLedger(): Ledger {
         nombre: "Otoño–Invierno 2025/26",
         fecha_inicio: "2025-10-01",
         fecha_fin: "2026-09-30",
+      }),
+      row(I.cicloOi2627, {
+        clave: "oi2627",
+        nombre: "Otoño–Invierno 2026/27",
+        fecha_inicio: "2026-10-01",
+        fecha_fin: "2027-09-30",
       }),
     ],
     productor: [
