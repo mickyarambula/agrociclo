@@ -1061,12 +1061,16 @@ export function emptyLedger(): Ledger {
 }
 
 /** Rancho listo para la siembra: un ciclo vacío, sin números de prueba. */
-export function ranchoVacioLedger(): Ledger {
+export function ranchoVacioLedger(orgId: string = ORG, nombre = "Agroempresa Valle del Fuerte"): Ledger {
   const I = IDS;
+  const stamp = (id: string, extra: Record<string, unknown>) => ({
+    ...row(id, extra),
+    organizacion_id: orgId,
+  });
   return {
-    organizacion: [row(ORG, { nombre: "Agroempresa Valle del Fuerte" })],
+    organizacion: [stamp(orgId, { nombre })],
     ciclo: [
-      row(I.cicloOi2627, {
+      stamp(I.cicloOi2627, {
         clave: "oi2627",
         nombre: "Otoño–Invierno 2026/27",
         fecha_inicio: "2026-10-01",
@@ -1076,12 +1080,12 @@ export function ranchoVacioLedger(): Ledger {
     productor: [],
     parcela: [],
     insumo: [
-      row(I.diesel, { nombre: "Diésel", unidad: "L", categoria: "Diésel", costo_unitario_ref: 0, activo: true }),
-      row(I.glifosato, { nombre: "Herbicida glifosato", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
-      row(I.insecticida, { nombre: "Insecticida", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
-      row(I.map, { nombre: "MAP 11-52-00", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
-      row(I.semilla, { nombre: "Semilla", unidad: "bolsa", categoria: "Semilla", costo_unitario_ref: 0, activo: true }),
-      row(I.urea, { nombre: "Urea", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
+      stamp(I.diesel, { nombre: "Diésel", unidad: "L", categoria: "Diésel", costo_unitario_ref: 0, activo: true }),
+      stamp(I.glifosato, { nombre: "Herbicida glifosato", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
+      stamp(I.insecticida, { nombre: "Insecticida", unidad: "L", categoria: "Agroquímico", costo_unitario_ref: 0, activo: true }),
+      stamp(I.map, { nombre: "MAP 11-52-00", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
+      stamp(I.semilla, { nombre: "Semilla", unidad: "bolsa", categoria: "Semilla", costo_unitario_ref: 0, activo: true }),
+      stamp(I.urea, { nombre: "Urea", unidad: "ton", categoria: "Fertilizante", costo_unitario_ref: 0, activo: true }),
     ],
     inventario_movimiento: [],
     labor: [],

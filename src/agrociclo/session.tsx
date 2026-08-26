@@ -12,6 +12,7 @@ import {
   setAgroCiclo,
   setOrgConfig,
   vaciarRancho,
+  regenerarInvitacion,
   type AgroProfile,
   type Member,
   type Rol,
@@ -35,6 +36,7 @@ type Ctx = {
   restaurarDemo: () => Promise<void>;
   vaciar: () => Promise<string>;
   guardarAjustes: (p: { encargadoVePrecios?: boolean; nombre?: string }) => Promise<void>;
+  regenerarCodigo: () => Promise<string>;
 };
 
 const AgroCtx = createContext<Ctx | null>(null);
@@ -117,8 +119,8 @@ function EsperandoDueño({ orgNombre, dueñoEtiqueta }: { orgNombre: string; due
         Esperando al Dueño
       </p>
       <p className="mt-3 max-w-md text-sm" style={{ color: C.gris, lineHeight: 1.55 }}>
-        Ya entraste. Esta cuenta todavía no tiene rol en {orgNombre}. El primero que entra al rancho queda como
-        Dueño; los demás esperan a que les asignen Oficina, Encargado de campo o Consulta.
+        Ya entraste a {orgNombre}, pero el Dueño todavía no te da rol. Si abriste un rancho por error, sal y entra de
+        nuevo con el código que te pasaron.
       </p>
       {dueñoEtiqueta ? (
         <p className="mt-3 max-w-md text-sm font-semibold" style={{ color: C.tinta }}>
@@ -182,9 +184,14 @@ export function AgroGate({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => {
       if (!cancelled) setErr("Tardó demasiado abrir el ciclo.");
     }, 12000);
-    getAgroSession({ data: { email: user.primaryEmail, displayName: user.displayName } })
+    const inviteCode =
+      typeof window !== "undefined" ? window.sessionStorage.getItem("agrociclo-invite") : null;
+    getAgroSession({
+      data: { email: user.primaryEmail, displayName: user.displayName, inviteCode },
+    })
       .then((res) => {
         if (cancelled) return;
+        if (inviteCode && typeof window !== "undefined") window.sessionStorage.removeItem("agrociclo-invite");
         setProfile(res.profile);
         if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
         setErr(null);
@@ -242,6 +249,11 @@ export function AgroGate({ children }: { children: ReactNode }) {
               }
             : prev,
         );
+      },
+      async regenerarCodigo() {
+        const res = await regenerarInvitacion();
+        setProfile((p) => (p ? { ...p, codigoInvitacion: res.codigo } : p));
+        return res.codigo;
       },
     };
   }, [profile, reload]);
@@ -351,7 +363,8 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
   const lista = (
     <>
       <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
-        Quien entra por primera vez queda en espera. Tú le das rol y palomeas qué puede ver y qué puede editar.
+        Quien entra con el código de este rancho queda en espera. Tú le das rol y palomeas qué puede ver y qué puede
+        editar. Sin código, esa persona abre su propio rancho.
       </p>
       <div className="mb-3 grid gap-2 text-xs" style={{ color: C.gris }}>
         <div><strong style={{ color: C.tinta }}>Oficina</strong> — parcelas, compras, crédito, caja. Ve montos.</div>

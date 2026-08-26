@@ -3,10 +3,11 @@ import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { demoLedger, IDS, ledgerListoParaProduccion, ranchoVacioLedger, esLedgerDemo } from "../data/seed";
 import type { Ledger, TableName } from "../data/types";
-import { ORG_ID } from "../lib/org";
 import { serialize } from "../lib/serialize.mjs";
 import { applyRpcToLedger, applyTableToLedger } from "./apply";
 import { debePromoverADueño, etiquetaDueño, rolDeEntrada } from "./dueno";
+import { destinoAlta, generarCodigoInvitacion, nombreRanchoNuevo, normalizarCodigo } from "./alta-rancho";
+import { asegurarEsquemaPlataforma } from "./plataforma";
 import {
   allowRpc,
   allowTable,
@@ -37,6 +38,8 @@ export type AgroProfile = {
   ciclos: { id: string; clave: string; nombre: string; fechaInicio: string | null; fechaFin: string | null }[];
   dueñoEtiqueta: string | null;
   encargadoVePrecios: boolean;
+  esPlataforma: boolean;
+  codigoInvitacion: string | null;
 };
 
 export type Member = {
@@ -119,8 +122,10 @@ async function loadOrg(userId: string) {
     display_name: string | null;
     nombre: string;
     config: unknown;
+    codigo_invitacion: string | null;
   }>`
-    select r.organizacion_id, r.rol, r.ve_finanzas, r.puede_editar, r.email, r.display_name, o.nombre, o.config
+    select r.organizacion_id, r.rol, r.ve_finanzas, r.puede_editar, r.email, r.display_name,
+           o.nombre, o.config, o.codigo_invitacion
     from usuario_rol r
     join agrociclo_org o on o.id = r.organizacion_id
     where r.user_id = ${userId}
@@ -129,29 +134,31 @@ async function loadOrg(userId: string) {
   return rows[0] ?? null;
 }
 
-/** Dueño cuya cuenta de acceso sigue existiendo. Los renglones huérfanos no cuentan. */
-async function countLivingDueños(): Promise<number> {
+/** Dueño vivo de ESTE rancho. Un Dueño de otro rancho no cuenta. */
+async function countLivingDueños(orgId: string): Promise<number> {
   const sql = await getSql();
   const rows = await sql.query<{ n: number }>(
     `select count(*)::int as n
        from usuario_rol r
       where r.rol = $1
+        and r.organizacion_id = $2
         and exists (select 1 from "user" u where u.id = r.user_id)`,
-    ["Dueño"],
+    ["Dueño", orgId],
   );
   return Number(rows[0]?.n ?? 0);
 }
 
-async function loadDueñoEtiqueta(): Promise<string | null> {
+async function loadDueñoEtiqueta(orgId: string): Promise<string | null> {
   const sql = await getSql();
   const rows = await sql.query<{ email: string | null; display_name: string | null }>(
     `select email, display_name
        from usuario_rol r
       where r.rol = $1
+        and r.organizacion_id = $2
         and exists (select 1 from "user" u where u.id = r.user_id)
       order by r.creado_en
       limit 1`,
-    ["Dueño"],
+    ["Dueño", orgId],
   );
   return etiquetaDueño(rows[0]);
 }
@@ -175,64 +182,183 @@ async function saveLedger(orgId: string, ledger: Ledger) {
   );
 }
 
-async function asegurarOrgYLedger(userId: string) {
+async function codigoUnico(): Promise<string> {
   const sql = await getSql();
+  for (let i = 0; i < 8; i += 1) {
+    const codigo = generarCodigoInvitacion();
+    const hit = await sql.query<{ n: number }>(
+      `select 1::int as n from agrociclo_org where codigo_invitacion = $1 limit 1`,
+      [codigo],
+    );
+    if (!hit[0]) return codigo;
+  }
+  return `${generarCodigoInvitacion()}${Date.now().toString(36).slice(-2)}`.slice(0, 8).toUpperCase();
+}
+
+async function orgPorCodigo(codigo: string) {
+  const sql = await getSql();
+  const rows = await sql<{ id: string; nombre: string }>`
+    select id, nombre from agrociclo_org where codigo_invitacion = ${codigo} limit 1
+  `;
+  return rows[0] ?? null;
+}
+
+async function crearRancho(userId: string, email: string | null, displayName: string | null) {
+  const sql = await getSql();
+  const orgId = crypto.randomUUID();
+  const nombre = nombreRanchoNuevo(displayName);
+  const codigo = await codigoUnico();
   await sql.query(
-    `insert into agrociclo_org (id, nombre, creado_por) values ($1, $2, $3)
-     on conflict (id) do nothing`,
-    [ORG_ID, "Agroempresa Valle del Fuerte", userId],
+    `insert into agrociclo_org (id, nombre, creado_por, codigo_invitacion) values ($1, $2, $3, $4)`,
+    [orgId, nombre, userId, codigo],
   );
-  const led = await sql.query<{ n: number }>(
-    `select 1::int as n from agrociclo_ledger where organizacion_id = $1 limit 1`,
-    [ORG_ID],
+  await saveLedger(orgId, ranchoVacioLedger(orgId, nombre));
+  await sql.query(
+    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (user_id) do update set
+       organizacion_id = excluded.organizacion_id,
+       rol = excluded.rol,
+       ve_finanzas = excluded.ve_finanzas,
+       puede_editar = excluded.puede_editar,
+       email = coalesce(excluded.email, usuario_rol.email),
+       display_name = coalesce(excluded.display_name, usuario_rol.display_name)`,
+    [userId, orgId, "Dueño", true, true, email, displayName],
   );
-  if (!led[0]) await saveLedger(ORG_ID, ranchoVacioLedger());
+  await sql.query(`insert into user_ciclo (user_id, ciclo_id) values ($1, $2) on conflict (user_id) do nothing`, [
+    userId,
+    IDS.cicloOi2627,
+  ]);
+  return orgId;
+}
+
+async function unirseARancho(
+  userId: string,
+  orgId: string,
+  email: string | null,
+  displayName: string | null,
+) {
+  const sql = await getSql();
+  const hayDueño = (await countLivingDueños(orgId)) > 0;
+  const rol = rolDeEntrada(hayDueño ? 1 : 0);
+  const preset = presetPermisos(rol);
+  await sql.query(
+    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (user_id) do nothing`,
+    [userId, orgId, rol, preset.veFinanzas, preset.puedeEditar, email, displayName],
+  );
   await sql.query(`insert into user_ciclo (user_id, ciclo_id) values ($1, $2) on conflict (user_id) do nothing`, [
     userId,
     IDS.cicloOi2627,
   ]);
 }
 
-/** Baja Dueños cuya cuenta de auth ya no existe para no dejar dos Dueños. */
-async function limpiarDueñosHuérfanos() {
+/** Baja Dueños huérfanos de este rancho para no dejar dos Dueños. */
+async function limpiarDueñosHuérfanos(orgId: string) {
   const sql = await getSql();
   await sql.query(
     `update usuario_rol set rol = 'pendiente', ve_finanzas = false, puede_editar = false
       where rol = 'Dueño'
+        and organizacion_id = $1
         and not exists (select 1 from "user" u where u.id = usuario_rol.user_id)`,
+    [orgId],
   );
 }
 
-async function promoverADueño(userId: string, email: string | null, displayName: string | null) {
+async function promoverADueño(
+  userId: string,
+  orgId: string,
+  email: string | null,
+  displayName: string | null,
+) {
   const sql = await getSql();
-  await limpiarDueñosHuérfanos();
-  await asegurarOrgYLedger(userId);
+  await limpiarDueñosHuérfanos(orgId);
   await sql.query(
-    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
-     values ($1, $2, $3, $4, $5, $6, $7)
-     on conflict (user_id) do update set
-       rol = excluded.rol,
-       ve_finanzas = excluded.ve_finanzas,
-       puede_editar = excluded.puede_editar,
-       email = coalesce(excluded.email, usuario_rol.email),
-       display_name = coalesce(excluded.display_name, usuario_rol.display_name)`,
-    [userId, ORG_ID, "Dueño", true, true, email, displayName],
+    `update usuario_rol set rol = $1, ve_finanzas = true, puede_editar = true,
+            email = coalesce($3, email), display_name = coalesce($4, display_name)
+      where user_id = $2 and organizacion_id = $5`,
+    ["Dueño", userId, email, displayName, orgId],
   );
 }
 
-async function bootstrap(userId: string, email: string | null, displayName: string | null) {
-  const sql = await getSql();
-  const hayDueño = (await countLivingDueños()) > 0;
-  if (!hayDueño) {
-    await promoverADueño(userId, email, displayName);
+async function bootstrap(
+  userId: string,
+  email: string | null,
+  displayName: string | null,
+  inviteCode: string | null,
+) {
+  const codigo = normalizarCodigo(inviteCode);
+  const orgInv = codigo ? await orgPorCodigo(codigo) : null;
+  const destino = destinoAlta(false, Boolean(orgInv));
+  if (destino === "unirse" && orgInv) {
+    await unirseARancho(userId, orgInv.id, email, displayName);
     return;
   }
+  if (codigo && !orgInv) {
+    throw new Error("Ese código de rancho no existe. Revísalo o déjalo vacío para abrir el tuyo.");
+  }
+  await crearRancho(userId, email, displayName);
+}
+
+async function countPlataformaAdmin(): Promise<number> {
+  const sql = await getSql();
+  try {
+    const rows = await sql.query<{ n: number }>(`select count(*)::int as n from plataforma_admin`);
+    return Number(rows[0]?.n ?? 0);
+  } catch {
+    return 0;
+  }
+}
+
+async function esPlataformaAdmin(userId: string): Promise<boolean> {
+  const sql = await getSql();
+  try {
+    const rows = await sql.query<{ n: number }>(
+      `select 1::int as n from plataforma_admin where user_id = $1 limit 1`,
+      [userId],
+    );
+    return Boolean(rows[0]);
+  } catch {
+    return false;
+  }
+}
+
+async function asegurarPlataformaAdmin(userId: string, email: string | null, displayName: string | null) {
+  if ((await countPlataformaAdmin()) > 0) return;
+  const sql = await getSql();
   await sql.query(
-    `insert into usuario_rol (user_id, organizacion_id, rol, ve_finanzas, puede_editar, email, display_name)
-     values ($1, $2, $3, $4, $5, $6, $7)
+    `insert into plataforma_admin (user_id, email, display_name) values ($1, $2, $3)
      on conflict (user_id) do nothing`,
-    [userId, ORG_ID, rolDeEntrada(1), false, false, email, displayName],
+    [userId, email, displayName],
   );
+}
+
+async function registrarEvento(tipo: string, userId: string, orgId: string | null, detalle: Record<string, unknown> = {}) {
+  const sql = await getSql();
+  try {
+    await sql.query(
+      `insert into plataforma_evento (id, tipo, organizacion_id, user_id, detalle)
+       values ($1, $2, $3, $4, $5::jsonb)`,
+      [crypto.randomUUID(), tipo, orgId, userId, JSON.stringify(detalle)],
+    );
+  } catch {
+    /* esquema todavía no aplicado */
+  }
+}
+
+async function asegurarCodigoOrg(orgId: string, actual: string | null): Promise<string> {
+  if (actual) return actual;
+  const sql = await getSql();
+  const codigo = await codigoUnico();
+  await sql.query(`update agrociclo_org set codigo_invitacion = $1 where id = $2 and codigo_invitacion is null`, [
+    codigo,
+    orgId,
+  ]);
+  const rows = await sql<{ codigo_invitacion: string | null }>`
+    select codigo_invitacion from agrociclo_org where id = ${orgId} limit 1
+  `;
+  return rows[0]?.codigo_invitacion || codigo;
 }
 
 function toProfile(
@@ -246,10 +372,12 @@ function toProfile(
     display_name: string | null;
     nombre: string;
     config?: unknown;
+    codigo_invitacion?: string | null;
   },
   cicloId: string,
   ciclos: AgroProfile["ciclos"],
   dueñoEtiqueta: string | null,
+  extra: { esPlataforma: boolean; codigoInvitacion: string | null },
 ): AgroProfile {
   const rol = row.rol as Rol;
   const preset = presetPermisos(rol);
@@ -269,18 +397,21 @@ function toProfile(
     ciclos,
     dueñoEtiqueta,
     encargadoVePrecios: cfg.encargadoVePrecios,
+    esPlataforma: extra.esPlataforma,
+    codigoInvitacion: extra.codigoInvitacion,
   };
 }
 
 export const getAgroSession = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { email?: string | null; displayName?: string | null }) => p ?? {})
+  .validator((p: { email?: string | null; displayName?: string | null; inviteCode?: string | null }) => p ?? {})
   .handler(async ({ context, data }) => {
     return serialize("agc-org-boot", async () => {
+      await asegurarEsquemaPlataforma();
       const sql = await getSql();
       let row = await loadOrg(context.userId);
       if (!row) {
-        await bootstrap(context.userId, data.email ?? null, data.displayName ?? null);
+        await bootstrap(context.userId, data.email ?? null, data.displayName ?? null, data.inviteCode ?? null);
         row = await loadOrg(context.userId);
       } else if (data.email || data.displayName) {
         await sql.query(
@@ -290,16 +421,22 @@ export const getAgroSession = createServerFn({ method: "POST" })
         );
         row = await loadOrg(context.userId);
       }
-      if (row && debePromoverADueño(row.rol, await countLivingDueños())) {
-        await promoverADueño(context.userId, data.email ?? row.email, data.displayName ?? row.display_name);
+      if (!row) throw new Error("No se pudo abrir la sesión de rancho.");
+      if (debePromoverADueño(row.rol, await countLivingDueños(row.organizacion_id))) {
+        await promoverADueño(context.userId, row.organizacion_id, data.email ?? row.email, data.displayName ?? row.display_name);
         row = await loadOrg(context.userId);
       }
       if (!row) throw new Error("No se pudo abrir la sesión de rancho.");
+      await asegurarPlataformaAdmin(context.userId, data.email ?? row.email, data.displayName ?? row.display_name);
+      const plataforma = await esPlataformaAdmin(context.userId);
+      const codigoInvitacion = await asegurarCodigoOrg(row.organizacion_id, row.codigo_invitacion ?? null);
+      await registrarEvento("login", context.userId, row.organizacion_id, { rol: row.rol });
       const rol = row.rol as Rol;
-      const dueñoEtiqueta = rol === "pendiente" ? await loadDueñoEtiqueta() : null;
+      const dueñoEtiqueta = rol === "pendiente" ? await loadDueñoEtiqueta(row.organizacion_id) : null;
+      const extra = { esPlataforma: plataforma, codigoInvitacion };
       if (rol === "pendiente") {
         return {
-          profile: toProfile(context.userId, row, IDS.cicloOi2627, [], dueñoEtiqueta),
+          profile: toProfile(context.userId, row, IDS.cicloOi2627, [], dueñoEtiqueta, extra),
           ledger: null as Json | null,
         };
       }
@@ -316,7 +453,7 @@ export const getAgroSession = createServerFn({ method: "POST" })
         pref[0]?.ciclo_id && ciclos.some((c) => c.id === pref[0].ciclo_id)
           ? pref[0].ciclo_id
           : (ciclos[0]?.id ?? IDS.cicloOi2627);
-      const profile = toProfile(context.userId, row, cicloId, ciclos, null);
+      const profile = toProfile(context.userId, row, cicloId, ciclos, null, extra);
       return {
         profile,
         ledger: asJson(redact(ledger, profile.veFinanzas)),
@@ -463,7 +600,7 @@ export const vaciarRancho = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño vacía el rancho.");
-    const ledger = ranchoVacioLedger();
+    const ledger = ranchoVacioLedger(row.organizacion_id, row.nombre);
     await saveLedger(row.organizacion_id, ledger);
     const sql = await getSql();
     await sql.query(
@@ -494,4 +631,15 @@ export const setOrgConfig = createServerFn({ method: "POST" })
       ]);
     }
     return { ok: true, config: cfg, nombre: data.nombre?.trim() || row.nombre };
+  });
+
+export const regenerarInvitacion = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .handler(async ({ context }) => {
+    const row = await loadOrg(context.userId);
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño administra el código del rancho.");
+    const sql = await getSql();
+    const codigo = await codigoUnico();
+    await sql.query(`update agrociclo_org set codigo_invitacion = $1 where id = $2`, [codigo, row.organizacion_id]);
+    return { codigo };
   });

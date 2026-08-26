@@ -4,12 +4,13 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut
+  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, Gauge
 } from "lucide-react";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
 import { EquipoPanel, salirAgro, useAgroSession } from "./session";
+import { AyudaBoton } from "./Ayuda";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 /* ---------- Paleta: Valle del Fuerte ---------- */
@@ -295,7 +296,7 @@ class ErrorBoundary extends Component {
 
 /* ---------- App ---------- */
 function AgroCicloApp() {
-  const { profile, setCiclo, restaurarDemo, reload, vaciar, guardarAjustes } = useAgroSession();
+  const { profile, setCiclo, restaurarDemo, reload, vaciar, guardarAjustes, regenerarCodigo } = useAgroSession();
   const user = useCurrentUser();
   const rol = profile.rol;
   const ORG_ID = profile.orgId;
@@ -1864,6 +1865,16 @@ function AgroCicloApp() {
             style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
             {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, rol === "Encargado de campo")}</option>)}
           </select>
+          {profile.esPlataforma && (
+            <a
+              href="/consola"
+              title="Consola del operador"
+              aria-label="Consola"
+              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, textDecoration: "none", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+            >
+              <Gauge size={15} /> <span className="hidden md:inline">Consola</span>
+            </a>
+          )}
           {rol === "Dueño" && (
             <button
               type="button"
@@ -1876,6 +1887,7 @@ function AgroCicloApp() {
             </button>
           )}
           <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
+            <AyudaBoton />
             <span className="hidden md:inline" style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
             </span>
@@ -3170,6 +3182,38 @@ function AgroCicloApp() {
                     }}
                   />
                 </Campo>
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Código para tu equipo</div>
+                <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                  El Encargado y la oficina lo escriben al entrar. Sin código abren su propio rancho, no el tuyo.
+                </p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div
+                    className="rounded-[10px] px-3 py-2 font-mono text-lg font-semibold tracking-[0.2em]"
+                    style={{ background: "#EEF4EB", border: `1px solid ${C.linea}`, minHeight: 44, display: "flex", alignItems: "center" }}
+                  >
+                    {profile.codigoInvitacion || "————"}
+                  </div>
+                  <Boton
+                    secundario
+                    onClick={() => {
+                      const c = profile.codigoInvitacion;
+                      if (c && navigator.clipboard) void navigator.clipboard.writeText(c);
+                    }}
+                  >
+                    <Copy size={14} /> Copiar
+                  </Boton>
+                  <Boton
+                    secundario
+                    onClick={() => {
+                      if (window.confirm("El código anterior deja de servir. ¿Nuevo código?")) void regenerarCodigo();
+                    }}
+                  >
+                    Nuevo código
+                  </Boton>
+                </div>
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>

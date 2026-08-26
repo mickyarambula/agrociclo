@@ -83,6 +83,7 @@ function Login() {
   const [password, setPassword] = useState("");
   const [password2, setPassword2] = useState("");
   const [nombre, setNombre] = useState("");
+  const [codigoRancho, setCodigoRancho] = useState("");
   const [verClave, setVerClave] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -94,6 +95,10 @@ function Login() {
     setBusy(true);
     setError(null);
     try {
+      const codigo = codigoRancho.trim().toUpperCase();
+      if (codigo && typeof window !== "undefined") {
+        window.sessionStorage.setItem("agrociclo-invite", codigo);
+      }
       if (modo === "crear") {
         if (password !== password2) {
           setError("Las contraseñas no coinciden.");
@@ -153,8 +158,8 @@ function Login() {
         <div className="rounded-2xl p-5" style={{ background: C.blanco, border: `1px solid ${C.linea}` }}>
           <p className="mb-4 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
             {modo === "crear"
-              ? "Crea tu cuenta. Si eres el primero del rancho, quedas como Dueño."
-              : "Entra con tu cuenta. El primero del rancho es Dueño; los demás esperan a que les asignen rol."}
+              ? "Crea tu cuenta y abres tu rancho. Si te invitaron, escribe el código antes de continuar."
+              : "Entra a tu rancho. El Encargado o la oficina usan el código que les dio el Dueño."}
           </p>
 
           {authEnabled ? (
@@ -163,7 +168,11 @@ function Login() {
                 <button
                   key={p.providerId}
                   type="button"
-                  onClick={() => void signIn(p.providerId, { callbackURL: "/" })}
+                  onClick={() => {
+                    const codigo = codigoRancho.trim().toUpperCase();
+                    if (codigo) window.sessionStorage.setItem("agrociclo-invite", codigo);
+                    void signIn(p.providerId, { callbackURL: "/" });
+                  }}
                   disabled={isPending || busy}
                   className="w-full rounded-xl px-4 py-2.5 text-sm font-semibold"
                   style={{
@@ -238,6 +247,18 @@ function Login() {
                 </p>
               </>
             )}
+            <label className="text-xs font-semibold" style={{ color: C.gris }}>
+              Código de rancho (si te invitaron)
+              <input
+                value={codigoRancho}
+                onChange={(e) => setCodigoRancho(e.target.value.toUpperCase())}
+                className="mt-1 w-full rounded-xl px-3 py-2.5 font-medium tracking-widest"
+                style={campo}
+                autoComplete="off"
+                placeholder="Opcional"
+                maxLength={8}
+              />
+            </label>
             {error && (
               <p className="text-xs font-semibold" style={{ color: C.rojo }}>
                 {error}
