@@ -64,15 +64,16 @@ export function useOrgRead(
   },
 ) {
   const ver = useSyncExternalStore(subscribe, getVersion, () => 0);
-  const cache = useRef<{ ver: number; data: Row[] } | null>(null);
-  if (!cache.current || cache.current.ver !== ver) {
+  const cacheKey = `${table}:${JSON.stringify(_key ?? null)}:${opts?.columns ?? ""}`;
+  const cache = useRef<{ ver: number; key: string; data: Row[] } | null>(null);
+  if (!cache.current || cache.current.ver !== ver || cache.current.key !== cacheKey) {
     let rows = readTable(table);
     if (opts?.build) {
       const q = new QueryBuilder();
       opts.build(q);
       rows = q.apply(rows);
     }
-    cache.current = { ver, data: attachEmbeds(table, rows, opts?.columns) };
+    cache.current = { ver, key: cacheKey, data: attachEmbeds(table, rows, opts?.columns) };
   }
   return { data: cache.current.data, isLoading: false, error: null, refetch: () => undefined };
 }

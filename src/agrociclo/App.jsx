@@ -4,13 +4,14 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote
+  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut
 } from "lucide-react";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
-import { ORG_ID, CICLO_ID } from "./lib/org";
-import { resetDemo, hydrateLedger } from "./data/db";
 import { runCanarios } from "./data/canarios";
+import { EquipoPanel, useAgroSession } from "./session";
+import { signOut } from "@/lib/auth/client";
+import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 /* ---------- Paleta: Valle del Fuerte ---------- */
 const C = {
@@ -74,8 +75,6 @@ const TEMPORADAS = [
   { id: "oi2526", nombre: "Otoño–Invierno 2025/26" },
   { id: "pv26", nombre: "Primavera–Verano 2026" },
 ];
-
-const ROLES = ["Dueño", "Oficina", "Encargado de campo", "Consulta"];
 
 /* tipo de productor: enum del DB ('grupo'/'prestanombre'/…) <-> etiqueta del prototipo */
 const TIPO_LABEL = { grupo: "Grupo", prestanombre: "Prestanombre", propio: "Propio", externo: "Externo" };
@@ -247,10 +246,21 @@ class ErrorBoundary extends Component {
 
 /* ---------- App ---------- */
 function AgroCicloApp() {
-  const [temporadaId, setTemporadaId] = useState("oi2526");
+  const { profile, setCiclo, restaurarDemo } = useAgroSession();
+  const user = useCurrentUser();
+  const rol = profile.rol;
+  const ORG_ID = profile.orgId;
+  const CICLO_ID = profile.cicloId;
+  const ciclos = profile.ciclos.length
+    ? profile.ciclos
+    : [{ id: CICLO_ID, clave: "oi2526", nombre: "Otoño–Invierno 2025/26" }];
+  const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2526";
   const [vista, setVista] = useState("panel");
-  const [rol, setRol] = useState("Dueño");
-  useEffect(() => { hydrateLedger(); }, []);
+  const [equipoOpen, setEquipoOpen] = useState(false);
+  const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
+    || TEMPORADAS.find((t) => t.id === temporadaId)?.nombre
+    || temporadaId;
+
   // parcelas: leídas de la base (slice migrado). Se construyen como `parcelasT`
   // (DB → id ES el uuid de la parcela) más abajo; `parcelas` es su alias.
   // insumos y labores: leídos de la base (este slice). Se construyen como insumosT/laboresT
@@ -284,7 +294,8 @@ function AgroCicloApp() {
     }
   }, [form]);
 
-  /* --- roles (simulados; en la versión real esto vive en el servidor) --- */
+  /* --- roles de sesión (servidor) --- */
+
   const veFinanzas = rol === "Dueño" || rol === "Oficina" || rol === "Consulta";
   const puedeEditar = rol !== "Consulta";
   /* política configurable por el Dueño: ¿el encargado de campo ve montos de cotizaciones? */
@@ -1751,29 +1762,52 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <CanarioBadge />
-          <select value={rol} onChange={(e) => { setRol(e.target.value); setVista("panel"); cerrar(); }}
-            title="Simulación de roles — en la versión real cada usuario entra con su cuenta"
+          {veFinanzas && <CanarioBadge />}
+          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista("panel"); cerrar(); }}
+            title="Ciclo de siembra"
             style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
-            {ROLES.map(r => <option key={r} value={r} style={{ color: C.tinta }}>👤 {r}</option>)}
+            {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{t.nombre || t.clave}</option>)}
           </select>
-          <select value={temporadaId} onChange={(e) => { setTemporadaId(e.target.value); cerrar(); }}
-            style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
-            {TEMPORADAS.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{t.nombre}</option>)}
-          </select>
-          <button
-            type="button"
-            onClick={() => {
-              if (window.confirm("Esto restaura el ciclo de demostración oi2526 (datos de junio 2026). Se pierden los cambios de esta sesión.")) {
-                resetDemo();
-                window.location.reload();
-              }
-            }}
-            title="Volver a los datos de demostración verificados"
-            style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
-          >
-            Restaurar demo
-          </button>
+          {rol === "Dueño" && (
+            <div style={{ position: "relative" }}>
+              <button
+                type="button"
+                onClick={() => setEquipoOpen((v) => !v)}
+                title="Equipo del rancho"
+                style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
+              >
+                Equipo
+              </button>
+              {equipoOpen && <EquipoPanel onClose={() => setEquipoOpen(false)} />}
+            </div>
+          )}
+          {rol === "Dueño" && (
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm("Esto restaura el ciclo de demostración oi2526 (datos de junio 2026). Se pierden los cambios de esta sesión.")) {
+                  void restaurarDemo().then(() => window.location.reload());
+                }
+              }}
+              title="Volver a los datos de demostración verificados"
+              style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer" }}
+            >
+              Restaurar demo
+            </button>
+          )}
+          <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
+            <span style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
+            </span>
+            <button
+              type="button"
+              onClick={() => void signOut()}
+              title="Salir"
+              style={{ ...estiloInput, width: "auto", background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}
+            >
+              <LogOut size={13} /> Salir
+            </button>
+          </div>
         </div>
       </header>
 
@@ -1800,12 +1834,12 @@ function AgroCicloApp() {
             <div className="flex flex-col gap-5">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>
-                  {TEMPORADAS.find(t => t.id === temporadaId)?.nombre}
+                  {nombreCiclo}
                 </h1>
                 {puedeEditar && (
                   <div className="flex gap-2 flex-wrap">
                     <Boton chico secundario onClick={() => accionRapida("labores", "labor")}><Plus size={13} /> Labor</Boton>
-                    <Boton chico secundario onClick={() => accionRapida("inventario", "compra")}><Plus size={13} /> Compra</Boton>
+                    {veFinanzas && <Boton chico secundario onClick={() => accionRapida("inventario", "compra")}><Plus size={13} /> Compra</Boton>}
                     <Boton chico secundario onClick={() => accionRapida("solicitudes", "solicitud")}><Plus size={13} /> Solicitud</Boton>
                     <Boton chico secundario onClick={() => accionRapida("cuadrillas", "nomina")}><Plus size={13} /> Trabajo</Boton>
                     <Boton chico secundario onClick={() => accionRapida("cosecha", "boleta")}><Plus size={13} /> Boleta</Boton>

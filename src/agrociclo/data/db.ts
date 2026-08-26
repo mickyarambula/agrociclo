@@ -6,26 +6,18 @@ const KEY = "agrociclo-ledger-v4";
 
 let tables: Ledger = demoLedger();
 const listeners = new Set<() => void>();
+let persistEnabled = false;
 
 export function hydrateLedger(): void {
-  if (typeof window === "undefined") return;
-  try {
-    const raw = window.localStorage.getItem(KEY);
-    if (!raw) {
-      persist();
-      return;
-    }
-    const parsed = JSON.parse(raw) as Ledger;
-    if (!parsed?.productor?.length || !parsed?.linea_credito?.length) return;
-    tables = parsed;
-    listeners.forEach((l) => l());
-  } catch {
-    /* ignore corrupt */
-  }
+  /* source of truth is the server after Fase 4 */
+}
+
+export function setPersistEnabled(v: boolean): void {
+  persistEnabled = v;
 }
 
 function persist() {
-  if (typeof window === "undefined") return;
+  if (!persistEnabled || typeof window === "undefined") return;
   try {
     window.localStorage.setItem(KEY, JSON.stringify(tables));
   } catch {
@@ -35,6 +27,15 @@ function persist() {
 
 export function getDb(): Ledger {
   return tables;
+}
+
+export function snapshotLedger(): Ledger {
+  return structuredClone(tables);
+}
+
+export function loadInMemory(next: Ledger): void {
+  tables = next;
+  listeners.forEach((l) => l());
 }
 
 export function subscribe(fn: () => void): () => void {
@@ -122,7 +123,6 @@ export function vInventarioStock(): Row[] {
 }
 
 export function vDisposicionInteres(corte = hoyMochis()): Row[] {
-  const db = getDb();
   return live("disposicion").map((d) => {
     const linea = getById("linea_credito", String(d.linea_credito_id));
     const r = linea ? tasaDiaria(linea) : 0;
@@ -307,9 +307,7 @@ export function attachEmbeds(table: string, rows: Row[], columns?: string): Row[
         });
     }
     if (table === "prestamo" && want("prestamo_aplicacion")) {
-      out.prestamo_aplicacion = live("prestamo_aplicacion").filter(
-        (a) => a.prestamo_id === r.id,
-      );
+      out.prestamo_aplicacion = live("prestamo_aplicacion").filter((a) => a.prestamo_id === r.id);
     }
     if (table === "solicitud_compra" && want("solicitud_cotizacion")) {
       out.solicitud_cotizacion = live("solicitud_cotizacion").filter((c) => c.solicitud_id === r.id);
@@ -317,3 +315,4 @@ export function attachEmbeds(table: string, rows: Row[], columns?: string): Row[
     return out;
   });
 }
+
