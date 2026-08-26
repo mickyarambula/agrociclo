@@ -4,6 +4,7 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
 const { allowRpc, allowTable, veFinanzasOf } = await jiti.import("../src/agrociclo/server/roles.ts");
+const { rolDeEntrada, debePromoverADueño, etiquetaDueño } = await jiti.import("../src/agrociclo/server/dueno.ts");
 
 describe("Etapa 2 · gates de rol", () => {
   it("Consulta y pendiente no escriben", () => {
@@ -30,6 +31,26 @@ describe("Etapa 2 · gates de rol", () => {
     assert.equal(allowRpc("Dueño", "fn_liquidar_disposicion"), null);
     assert.equal(allowRpc("Oficina", "fn_guardar_linea_credito"), null);
     assert.equal(allowRpc("Dueño", "fn_abrir_ciclo"), null);
+  });
+});
+
+describe("Dueño vivo vs huérfano", () => {
+  it("el primero entra como Dueño; el siguiente espera", () => {
+    assert.equal(rolDeEntrada(0), "Dueño");
+    assert.equal(rolDeEntrada(1), "pendiente");
+  });
+
+  it("si no hay Dueño vivo, se promueve al que abre sesión", () => {
+    assert.equal(debePromoverADueño("pendiente", 0), true);
+    assert.equal(debePromoverADueño("Oficina", 0), true);
+    assert.equal(debePromoverADueño("Dueño", 0), false);
+    assert.equal(debePromoverADueño("pendiente", 1), false);
+  });
+
+  it("etiqueta del Dueño para la pantalla de espera", () => {
+    assert.equal(etiquetaDueño({ display_name: "Miguel", email: "miguel@rancho.mx" }), "Miguel · miguel@rancho.mx");
+    assert.equal(etiquetaDueño({ display_name: "", email: "a@b.c" }), "a@b.c");
+    assert.equal(etiquetaDueño(null), null);
   });
 });
 

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
+import { Eye, EyeOff } from "lucide-react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -17,12 +18,72 @@ const C = {
   rojo: "#B5482E",
 };
 
+const campo = {
+  border: `1px solid ${C.linea}`,
+  background: C.blanco,
+  color: C.tinta,
+  fontSize: 16,
+} as const;
+
+function CampoClave({
+  label,
+  value,
+  onChange,
+  autoComplete,
+  ver,
+  onToggleVer,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+  autoComplete: string;
+  ver: boolean;
+  onToggleVer: () => void;
+}) {
+  return (
+    <label className="text-xs font-semibold" style={{ color: C.gris }}>
+      {label}
+      <span className="relative mt-1 block">
+        <input
+          type={ver ? "text" : "password"}
+          required
+          minLength={8}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          autoComplete={autoComplete}
+          className="w-full rounded-xl px-3 py-2.5 pr-12 font-medium"
+          style={campo}
+        />
+        <button
+          type="button"
+          onClick={onToggleVer}
+          aria-label={ver ? "Ocultar contraseña" : "Ver contraseña"}
+          title={ver ? "Ocultar contraseña" : "Ver contraseña"}
+          className="absolute right-0 top-1/2 grid -translate-y-1/2 place-items-center"
+          style={{
+            width: 44,
+            height: 44,
+            border: "none",
+            background: "transparent",
+            color: C.gris,
+            cursor: "pointer",
+          }}
+        >
+          {ver ? <EyeOff size={18} strokeWidth={2.2} /> : <Eye size={18} strokeWidth={2.2} />}
+        </button>
+      </span>
+    </label>
+  );
+}
+
 function Login() {
   const { user, isPending } = useCurrentUserState();
   const [modo, setModo] = useState<"entrar" | "crear">("entrar");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [password2, setPassword2] = useState("");
   const [nombre, setNombre] = useState("");
+  const [verClave, setVerClave] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -34,6 +95,16 @@ function Login() {
     setError(null);
     try {
       if (modo === "crear") {
+        if (password !== password2) {
+          setError("Las contraseñas no coinciden.");
+          setBusy(false);
+          return;
+        }
+        if (password.length < 8) {
+          setError("La contraseña debe tener al menos 8 caracteres.");
+          setBusy(false);
+          return;
+        }
         const { error: err } = await authClient.signUp.email({
           email: email.trim(),
           password,
@@ -80,8 +151,10 @@ function Login() {
         </div>
 
         <div className="rounded-2xl p-5" style={{ background: C.blanco, border: `1px solid ${C.linea}` }}>
-          <p className="mb-4 text-sm" style={{ color: C.gris }}>
-            Entra con tu cuenta. El primer usuario del rancho queda como Dueño; los demás esperan a que les asignen rol.
+          <p className="mb-4 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
+            {modo === "crear"
+              ? "Crea tu cuenta. Si eres el primero del rancho, quedas como Dueño."
+              : "Entra con tu cuenta. El primero del rancho es Dueño; los demás esperan a que les asignen rol."}
           </p>
 
           {authEnabled ? (
@@ -98,6 +171,7 @@ function Login() {
                     background: C.papel,
                     color: C.tinta,
                     cursor: "pointer",
+                    minHeight: 44,
                   }}
                 >
                   Continuar con {p.label}
@@ -123,8 +197,8 @@ function Login() {
                 <input
                   value={nombre}
                   onChange={(e) => setNombre(e.target.value)}
-                  className="mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-medium"
-                  style={{ border: `1px solid ${C.linea}`, background: C.blanco, color: C.tinta }}
+                  className="mt-1 w-full rounded-xl px-3 py-2.5 font-medium"
+                  style={campo}
                   autoComplete="name"
                 />
               </label>
@@ -136,24 +210,34 @@ function Login() {
                 required
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-medium"
-                style={{ border: `1px solid ${C.linea}`, background: C.blanco, color: C.tinta }}
+                className="mt-1 w-full rounded-xl px-3 py-2.5 font-medium"
+                style={campo}
                 autoComplete="email"
               />
             </label>
-            <label className="text-xs font-semibold" style={{ color: C.gris }}>
-              Contraseña
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="mt-1 w-full rounded-xl px-3 py-2.5 text-sm font-medium"
-                style={{ border: `1px solid ${C.linea}`, background: C.blanco, color: C.tinta }}
-                autoComplete={modo === "crear" ? "new-password" : "current-password"}
-              />
-            </label>
+            <CampoClave
+              label="Contraseña"
+              value={password}
+              onChange={setPassword}
+              autoComplete={modo === "crear" ? "new-password" : "current-password"}
+              ver={verClave}
+              onToggleVer={() => setVerClave((v) => !v)}
+            />
+            {modo === "crear" && (
+              <>
+                <CampoClave
+                  label="Confirmar contraseña"
+                  value={password2}
+                  onChange={setPassword2}
+                  autoComplete="new-password"
+                  ver={verClave}
+                  onToggleVer={() => setVerClave((v) => !v)}
+                />
+                <p className="text-xs" style={{ color: C.gris }}>
+                  Mínimo 8 caracteres. Usa el ojo para verla antes de guardar.
+                </p>
+              </>
+            )}
             {error && (
               <p className="text-xs font-semibold" style={{ color: C.rojo }}>
                 {error}
@@ -162,8 +246,15 @@ function Login() {
             <button
               type="submit"
               disabled={busy || isPending}
-              className="mt-1 w-full rounded-xl px-4 py-2.5 text-sm font-semibold"
-              style={{ background: C.bosque, color: C.blanco, border: "none", cursor: "pointer", opacity: busy ? 0.7 : 1 }}
+              className="mt-1 w-full rounded-xl px-4 text-sm font-semibold"
+              style={{
+                background: C.bosque,
+                color: C.blanco,
+                border: "none",
+                cursor: "pointer",
+                opacity: busy ? 0.7 : 1,
+                minHeight: 44,
+              }}
             >
               {busy ? "Entrando…" : modo === "crear" ? "Crear cuenta" : "Entrar"}
             </button>
@@ -174,9 +265,11 @@ function Login() {
             onClick={() => {
               setModo((m) => (m === "entrar" ? "crear" : "entrar"));
               setError(null);
+              setPassword2("");
+              setVerClave(false);
             }}
             className="mt-3 w-full text-center text-xs font-semibold"
-            style={{ background: "transparent", border: "none", color: C.hoja, cursor: "pointer" }}
+            style={{ background: "transparent", border: "none", color: C.hoja, cursor: "pointer", minHeight: 44 }}
           >
             {modo === "entrar" ? "¿Primera vez? Crear cuenta" : "Ya tengo cuenta"}
           </button>

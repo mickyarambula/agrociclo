@@ -9,8 +9,7 @@ import {
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
-import { EquipoPanel, useAgroSession } from "./session";
-import { signOut } from "@/lib/auth/client";
+import { EquipoPanel, salirAgro, useAgroSession } from "./session";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 
 /* ---------- Paleta: Valle del Fuerte ---------- */
@@ -1883,7 +1882,7 @@ function AgroCicloApp() {
             </span>
             <button
               type="button"
-              onClick={() => void signOut()}
+              onClick={() => void salirAgro()}
               title="Salir"
               aria-label="Salir"
               style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}

@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
 import { RedirectToSignIn } from "@/lib/auth/gates";
-import { signOut } from "@/lib/auth/client";
+import { authClient, signOut } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { replaceLedger } from "./data/db";
 import type { Ledger } from "./data/types";
@@ -40,6 +40,30 @@ export function useAgroSession(): Ctx {
   return v;
 }
 
+/**
+ * Cierra sesión de verdad. El signOut del preview se salta el servidor si no
+ * hay bearer (login por correo usa cookie) y te deja en la misma pantalla.
+ * Primero matamos la cookie; luego el helper oficial limpia el bearer y redirige.
+ */
+export async function salirAgro(): Promise<void> {
+  const bounded = (start: () => Promise<unknown>, ms: number) =>
+    Promise.race([
+      start().catch(() => undefined),
+      new Promise<void>((resolve) => {
+        setTimeout(resolve, ms);
+      }),
+    ]);
+  await bounded(async () => {
+    const { error } = await authClient.signOut();
+    if (error) throw new Error(error.message);
+  }, 4000);
+  try {
+    await signOut("/login");
+  } catch {
+    if (typeof window !== "undefined") window.location.assign("/login");
+  }
+}
+
 function Splash({ texto }: { texto: string }) {
   return (
     <div
@@ -60,6 +84,67 @@ function Splash({ texto }: { texto: string }) {
       <p className="text-sm" style={{ color: C.gris }}>
         {texto}
       </p>
+    </div>
+  );
+}
+
+function EsperandoDueño({ orgNombre, dueñoEtiqueta }: { orgNombre: string; dueñoEtiqueta: string | null }) {
+  const [signingOut, setSigningOut] = useState(false);
+  const [salirError, setSalirError] = useState<string | null>(null);
+
+  const onSalir = () => {
+    if (signingOut) return;
+    setSigningOut(true);
+    setSalirError(null);
+    void salirAgro().catch(() => {
+      setSalirError("No se pudo salir. Intenta de nuevo.");
+      setSigningOut(false);
+    });
+  };
+
+  return (
+    <div
+      className="flex min-h-dvh flex-col items-center justify-center px-6 text-center"
+      style={{ background: C.papel, color: C.tinta, fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}
+    >
+      <p style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 800, fontSize: 24 }}>
+        Esperando al Dueño
+      </p>
+      <p className="mt-3 max-w-md text-sm" style={{ color: C.gris, lineHeight: 1.55 }}>
+        Ya entraste. Esta cuenta todavía no tiene rol en {orgNombre}. El primero que entra al rancho queda como
+        Dueño; los demás esperan a que les asignen Oficina, Encargado de campo o Consulta.
+      </p>
+      {dueñoEtiqueta ? (
+        <p className="mt-3 max-w-md text-sm font-semibold" style={{ color: C.tinta }}>
+          Dueño actual: {dueñoEtiqueta}
+        </p>
+      ) : null}
+      <p className="mt-2 max-w-md text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
+        Si tú eres el Dueño, sal y entra con la cuenta que usaste primero. Si esa cuenta ya no existe, al volver a
+        entrar te asignamos el rancho.
+      </p>
+      <button
+        type="button"
+        onClick={onSalir}
+        disabled={signingOut}
+        className="mt-6 rounded-xl px-5 text-sm font-semibold"
+        style={{
+          background: C.bosque,
+          color: C.blanco,
+          border: "none",
+          cursor: signingOut ? "wait" : "pointer",
+          minHeight: 44,
+          minWidth: 120,
+          opacity: signingOut ? 0.75 : 1,
+        }}
+      >
+        {signingOut ? "Saliendo…" : "Salir"}
+      </button>
+      {salirError ? (
+        <p className="mt-3 text-xs font-semibold" style={{ color: "#B5482E" }}>
+          {salirError}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -130,28 +215,7 @@ export function AgroGate({ children }: { children: ReactNode }) {
   }
   if (!profile) return <Splash texto="Abriendo el ciclo…" />;
   if (profile.rol === "pendiente") {
-    return (
-      <div
-        className="flex min-h-dvh flex-col items-center justify-center px-6 text-center"
-        style={{ background: C.papel, color: C.tinta, fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}
-      >
-        <p style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 800, fontSize: 24 }}>
-          Esperando al Dueño
-        </p>
-        <p className="mt-3 max-w-md text-sm" style={{ color: C.gris }}>
-          Ya entraste. El Dueño de {profile.orgNombre} tiene que asignarte un rol (Oficina, Encargado de campo o
-          Consulta) para que veas el ciclo.
-        </p>
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          className="mt-6 rounded-xl px-4 py-2 text-sm font-semibold"
-          style={{ background: C.bosque, color: C.blanco, border: "none", cursor: "pointer" }}
-        >
-          Salir
-        </button>
-      </div>
-    );
+    return <EsperandoDueño orgNombre={profile.orgNombre} dueñoEtiqueta={profile.dueñoEtiqueta} />;
   }
   if (!value) return <Splash texto="Abriendo el ciclo…" />;
   return <AgroCtx.Provider value={value}>{children}</AgroCtx.Provider>;
