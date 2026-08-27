@@ -357,6 +357,9 @@ function AgroCicloApp() {
   const puedeOrdenar = puedeLabores && veFinanzas;
   // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
   const [rapida, setRapida] = useState(null);
+  // Guía de arranque de El ciclo: "Ocultar" solo vive esta sesión (sin flag en
+  // el ledger); al volver a entrar sin captura, reaparece.
+  const [guiaCicloOculta, setGuiaCicloOculta] = useState(false);
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
   // B2a: `id` ES EL UUID real (se eliminó el id sintético i+1 y el puente por fuente).
@@ -1907,6 +1910,37 @@ function AgroCicloApp() {
         onGuardar={(f) => guardarOrden(f, form.item, cerrar)} onCancelar={cerrar} />
     </Tarjeta>
   ) : null;
+  /* Guía de arranque de El ciclo: viva mientras el ciclo no tenga ni una
+     captura real (labor hecha, compra, raya o boleta). Ocultable por sesión. */
+  const hayCaptura = laboresHechas.length + comprasT.length + nominaT.length + boletasT.length > 0;
+  const pasosGuiaCiclo = [
+    {
+      titulo: "Da de alta tus parcelas",
+      hint: "Una parcela es el lote que se siembra y se cosecha junto — no el predio completo.",
+      done: parcelasT.length > 0,
+      cta: puedeEscribirModulo(rol, "parcelas", matriz) ? { label: "Ir a Parcelas", onClick: () => { cerrar(); setVista("parcelas"); } } : null,
+      nota: "Los lotes los da de alta el Dueño o la Oficina.",
+    },
+    {
+      titulo: "Pon el presupuesto del ciclo",
+      done: presupuestoCiclo > 0,
+      opcional: true,
+      cta: rol === "Dueño" ? { label: "Fijar en Ajustes", onClick: () => { cerrar(); setVista("ajustes"); } } : null,
+      nota: "Lo fija el Dueño en Ajustes → Ciclos.",
+    },
+    {
+      titulo: "Captura lo primero que pase en el lote",
+      done: hayCaptura,
+      cta: puedeLabores && parcelasT.length > 0
+        ? { label: "Ir a Hoy", onClick: () => { cerrar(); setVista("captura"); setRapida({ orden: null }); } }
+        : null,
+      nota: parcelasT.length > 0 ? "La captura se hace en Hoy, en tres toques." : "Primero las parcelas.",
+    },
+  ];
+  const tarjetaGuiaCiclo = !hayCaptura && !guiaCicloOculta
+    ? <GuiaCiclo pasos={pasosGuiaCiclo} onOcultar={() => setGuiaCicloOculta(true)} />
+    : null;
+
   const tarjetaPorHacer = (
     <PorHacerLabores ordenes={ordenesLabor} parcelas={parcelas} insumos={insumos}
       puedeLabores={puedeLabores} puedeOrdenar={puedeOrdenar}
@@ -1941,7 +1975,7 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); }}
+          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); setGuiaCicloOculta(false); }}
             title="Ciclo de siembra"
             aria-label="Ciclo de siembra"
             style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
@@ -2135,13 +2169,16 @@ function AgroCicloApp() {
               </div>
 
               {parcelasT.length === 0 ? (
-                <Tarjeta style={{ padding: 32, textAlign: "center" }}>
-                  <Sprout size={36} color={C.hoja} className="mx-auto" />
-                  <p style={{ fontWeight: 600, marginTop: 12 }}>Esta temporada todavía no tiene parcelas.</p>
-                  <div className="flex justify-center mt-3"><Boton onClick={() => setVista("parcelas")}>Ir a Parcelas <ChevronRight size={15} /></Boton></div>
-                </Tarjeta>
+                tarjetaGuiaCiclo || (
+                  <Tarjeta style={{ padding: 32, textAlign: "center" }}>
+                    <Sprout size={36} color={C.hoja} className="mx-auto" />
+                    <p style={{ fontWeight: 600, marginTop: 12 }}>Esta temporada todavía no tiene parcelas.</p>
+                    <div className="flex justify-center mt-3"><Boton onClick={() => setVista("parcelas")}>Ir a Parcelas <ChevronRight size={15} /></Boton></div>
+                  </Tarjeta>
+                )
               ) : (
                 <>
+                  {tarjetaGuiaCiclo}
                   {/* ===== TIRA DE PLATA: el pulso del dinero en una franja ===== */}
                   {veFinanzas && (
                     <Tarjeta style={{ padding: "12px 16px", background: C.bosque }}>
@@ -4637,6 +4674,56 @@ function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, puedeOrdena
           );
         })
       )}
+    </Tarjeta>
+  );
+}
+
+/* Guía de arranque de El ciclo: 3 pasos derivados del estado real del ciclo
+   (sin flags en el ledger). Desaparece sola con la primera captura. */
+function GuiaCiclo({ pasos, onOcultar }) {
+  const actual = pasos.findIndex((p) => !p.done);
+  return (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Arranca tu ciclo</div>
+          <div style={{ fontSize: 12, color: C.gris }}>Tres pasos y el panel empieza a decir la verdad.</div>
+        </div>
+        <button type="button" onClick={onOcultar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: C.gris, fontFamily: fuente.cuerpo, padding: 4 }}>
+          Ocultar
+        </button>
+      </div>
+      {pasos.map((p, i) => {
+        const esActual = i === actual;
+        return (
+          <div key={p.titulo} className="flex items-start gap-3" style={{ padding: "12px 0 2px", borderTop: i ? `1px solid ${C.linea}` : "none", marginTop: 10, opacity: p.done || esActual ? 1 : 0.75 }}>
+            {p.done ? (
+              <CheckCircle2 size={26} color={C.hoja} style={{ flexShrink: 0 }} />
+            ) : (
+              <span style={{
+                width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontFamily: fuente.display, fontWeight: 800, fontSize: 14,
+                background: esActual ? C.bosque : C.blanco, color: esActual ? C.blanco : C.gris,
+                border: esActual ? "none" : `1.5px solid ${C.linea}`,
+              }}>{i + 1}</span>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span style={{ fontWeight: 600, fontSize: 14, color: p.done ? C.gris : C.tinta }}>
+                  {p.titulo}
+                  {p.opcional && !p.done ? <span style={{ fontWeight: 400, color: C.gris }}> · recomendado</span> : null}
+                </span>
+                {!p.done && p.cta && (
+                  <Boton chico secundario={!esActual} onClick={p.cta.onClick}>{p.cta.label} <ChevronRight size={13} /></Boton>
+                )}
+              </div>
+              {p.hint && <div style={{ fontSize: 12, color: C.gris, marginTop: 2 }}>{p.hint}</div>}
+              {!p.done && !p.cta && p.nota && <div style={{ fontSize: 12, color: C.barrial, marginTop: 2 }}>{p.nota}</div>}
+            </div>
+          </div>
+        );
+      })}
     </Tarjeta>
   );
 }
