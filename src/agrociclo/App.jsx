@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut
+  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, ListTodo
 } from "lucide-react";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
@@ -307,7 +307,7 @@ function AgroCicloApp() {
   const CICLO_ID = profile.cicloId;
   const ciclos = profile.ciclos.length
     ? profile.ciclos
-    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30" }];
+    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0 }];
   const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2627";
   const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
@@ -1809,8 +1809,8 @@ function AgroCicloApp() {
   const eliminarCajaMov = (mov) => eliminarCajaMovMut.mutate(mov);
 
   const NAV_TODOS = [
-    { id: "captura", nombre: "Captura", icono: Plus, soloCampo: true },
-    { id: "panel", nombre: "Panel", icono: LayoutDashboard },
+    { id: "captura", nombre: "Hoy", icono: ListTodo, soloCampo: true },
+    { id: "panel", nombre: "El ciclo", icono: LayoutDashboard },
     { id: "parcelas", nombre: "Parcelas", icono: Sprout },
     { id: "labores", nombre: "Labores", icono: Tractor },
     { id: "inventario", nombre: "Insumos", icono: Package },
@@ -1826,9 +1826,17 @@ function AgroCicloApp() {
     { id: "ajustes", nombre: "Ajustes", icono: SlidersHorizontal, soloDueno: true },
   ];
   const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz));
+  const NAV_GRUPOS = [
+    { etiqueta: null, ids: ["captura", "panel"] },
+    { etiqueta: "Campo", ids: ["parcelas", "labores", "inventario", "solicitudes", "cuadrillas"] },
+    { etiqueta: "Venta", ids: ["cosecha", "productores"] },
+    { etiqueta: "Números", ids: ["gastos", "caja", "credito", "costofin", "reportes"] },
+  ];
   const NAV_MOVIL = rol === "Encargado de campo"
     ? NAV.filter((n) => ["captura", "labores", "cuadrillas", "cosecha"].includes(n.id))
     : NAV.filter((n) => n.id !== "ajustes");
+  const cicloActual = ciclos.find((c) => c.id === CICLO_ID);
+  const presupuestoCiclo = Number(cicloActual?.presupuesto) || 0;
 
   const accionRapida = (vistaDestino, tipoForm) => {
     setVista(vistaDestino);
@@ -1897,14 +1905,27 @@ function AgroCicloApp() {
 
       <div className="flex">
         <nav className="hidden md:flex flex-col gap-1 p-3" style={{ width: 210, borderRight: `1px solid ${C.linea}`, minHeight: "calc(100vh - 68px)" }}>
-          {NAV.map(item => {
-            const Ic = item.icono; const activo = vista === item.id;
+          {NAV_GRUPOS.map((g) => {
+            const items = g.ids.map((id) => NAV.find((n) => n.id === id)).filter(Boolean);
+            if (items.length === 0) return null;
             return (
-              <button key={item.id} onClick={() => { setVista(item.id); cerrar(); }}
-                className="flex items-center gap-2.5 text-left transition-colors"
-                style={{ padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: activo ? C.bosque : "transparent", color: activo ? C.blanco : C.tinta, fontWeight: activo ? 700 : 500, fontSize: 14, fontFamily: fuente.cuerpo }}>
-                <Ic size={17} /> {item.nombre}
-              </button>
+              <div key={g.etiqueta || "inicio"} className="flex flex-col gap-0.5">
+                {g.etiqueta ? (
+                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gris, padding: "12px 12px 4px" }}>
+                    {g.etiqueta}
+                  </div>
+                ) : null}
+                {items.map((item) => {
+                  const Ic = item.icono; const activo = vista === item.id;
+                  return (
+                    <button key={item.id} onClick={() => { setVista(item.id); cerrar(); }}
+                      className="flex items-center gap-2.5 text-left transition-colors"
+                      style={{ padding: "10px 12px", borderRadius: 10, border: "none", cursor: "pointer", background: activo ? C.bosque : "transparent", color: activo ? C.blanco : C.tinta, fontWeight: activo ? 700 : 500, fontSize: 14, fontFamily: fuente.cuerpo }}>
+                      <Ic size={17} /> {item.nombre}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
           {rol === "Consulta" && <div style={{ fontSize: 11, color: C.gris, padding: "10px 12px" }}>Modo consulta: solo lectura.</div>}
@@ -1916,9 +1937,9 @@ function AgroCicloApp() {
           {/* ===== CAPTURA DE CAMPO ===== */}
           {vista === "captura" && (
             <div className="flex flex-col gap-4">
-              <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Captura de campo</h1>
+              <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Tarja de hoy</h1>
               <p style={{ margin: 0, fontSize: 14, color: C.gris }}>
-                {nombreCiclo}. Un toque por registro. La oficina ve montos; aquí se anota lo que pasó en el lote.
+                {nombreCiclo}. Lo que pasó en el lote, en tres toques. La oficina ve montos.
               </p>
               {parcelasT.length === 0 ? (
                 <Tarjeta style={{ padding: 28, textAlign: "center" }}>
@@ -1932,78 +1953,87 @@ function AgroCicloApp() {
                   ) : null}
                 </Tarjeta>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {[
-                    { id: "labor", vista: "labores", titulo: "Labor", desc: "Riego, rastreo, aplicación", Ic: Tractor },
-                    { id: "nomina", vista: "cuadrillas", titulo: "Raya", desc: "Jornales del día", Ic: Users },
-                    { id: "boleta", vista: "cosecha", titulo: "Boleta", desc: "Entrega en bodega", Ic: Wheat },
-                    { id: "solicitud", vista: "solicitudes", titulo: "Solicitud", desc: "Pedir insumo", Ic: ClipboardList },
-                  ].map((a) => {
-                    const Ic = a.Ic;
+                <>
+                  {(() => {
+                    const ordenes = solicitudesT.filter((s) => s.estado !== "recibido" && s.estado !== "cancelado");
+                    if (ordenes.length === 0) return null;
                     return (
-                      <button
-                        key={a.id}
-                        type="button"
-                        onClick={() => accionRapida(a.vista, a.id)}
-                        className="text-left"
-                        style={{
-                          background: C.blanco, border: `1px solid ${C.linea}`, borderTop: `3px solid ${C.bosque}`,
-                          borderRadius: 14, padding: 16, minHeight: 108, cursor: "pointer",
-                          fontFamily: fuente.cuerpo, color: C.tinta,
-                        }}
-                      >
-                        <Ic size={22} color={C.bosque} />
-                        <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, marginTop: 8 }}>{a.titulo}</div>
-                        <div style={{ fontSize: 12, color: C.gris }}>{a.desc}</div>
-                      </button>
+                      <Tarjeta style={{ padding: 16 }}>
+                        <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
+                          Órdenes abiertas · {ordenes.length}
+                        </div>
+                        <p style={{ margin: "0 0 8px", fontSize: 12, color: C.gris }}>La oficina pidió o autorizó. Tú cierras en el lote.</p>
+                        {ordenes.slice(0, 6).map((s) => (
+                          <button
+                            key={s.id}
+                            type="button"
+                            onClick={() => { setVista("solicitudes"); setForm({ tipo: "solicitud", item: s }); }}
+                            className="flex w-full items-center justify-between gap-2 text-left"
+                            style={{ fontSize: 13, padding: "10px 0", borderTop: `1px solid ${C.linea}`, background: "transparent", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: "pointer", minHeight: 44, color: C.tinta, fontFamily: fuente.cuerpo }}
+                          >
+                            <span>
+                              <strong>{s.insumoNombre || "Insumo"}</strong>
+                              <span style={{ color: C.gris }}> · {s.cantidad} {s.unidad}</span>
+                            </span>
+                            <span style={{ fontSize: 11, fontWeight: 700, color: C.bosque }}>{s.estado}</span>
+                          </button>
+                        ))}
+                      </Tarjeta>
                     );
-                  })}
-                </div>
-              )}
-              <div className="flex flex-wrap gap-2">
-                {[
-                  { id: "parcelas", l: "Parcelas" },
-                  { id: "inventario", l: "Insumos" },
-                  { id: "solicitudes", l: "Solicitudes" },
-                ].map((x) => (
-                  <button
-                    key={x.id}
-                    type="button"
-                    onClick={() => { setVista(x.id); cerrar(); }}
-                    style={{
-                      border: `1px solid ${C.linea}`, background: C.blanco, color: C.tinta, borderRadius: 999,
-                      padding: "10px 14px", fontSize: 13, fontWeight: 600, cursor: "pointer", minHeight: 44,
-                      fontFamily: fuente.cuerpo,
-                    }}
-                  >
-                    {x.l}
-                  </button>
-                ))}
-              </div>
-              {(() => {
-                const hoyLab = laboresT.filter((l) => l.fecha === hoyStr);
-                const hoyRay = nominaT.filter((n) => n.fecha === hoyStr);
-                const hoyBol = boletasT.filter((b) => b.fecha === hoyStr);
-                const n = hoyLab.length + hoyRay.length + hoyBol.length;
-                if (n === 0) {
-                  return <Vacio texto="Hoy todavía no hay registros. El primero del día sale en un toque." />;
-                }
-                return (
-                  <Tarjeta style={{ padding: 16 }}>
-                    <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Hoy en el lote · {n}</div>
-                    {hoyLab.map((l) => {
-                      const p = parcelas.find((x) => x.id === l.parcelaId);
-                      return <div key={l.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>{l.tipo} · {p?.nombre || "parcela"} · {l.desc || "sin nota"}</div>;
+                  })()}
+                  {(() => {
+                    const hoyLab = laboresT.filter((l) => l.fecha === hoyStr);
+                    const hoyRay = nominaT.filter((n) => n.fecha === hoyStr);
+                    const hoyBol = boletasT.filter((b) => b.fecha === hoyStr);
+                    const n = hoyLab.length + hoyRay.length + hoyBol.length;
+                    if (n === 0) {
+                      return <Vacio texto="Hoy todavía no hay registros. El primero del día sale en un toque." />;
+                    }
+                    return (
+                      <Tarjeta style={{ padding: 16 }}>
+                        <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>Hecho hoy · {n}</div>
+                        {hoyLab.map((l) => {
+                          const p = parcelas.find((x) => x.id === l.parcelaId);
+                          return <div key={l.id} style={{ fontSize: 13, padding: "8px 0", borderTop: `1px solid ${C.linea}` }}>{l.tipo} · {p?.nombre || "parcela"} · {l.desc || "sin nota"}</div>;
+                        })}
+                        {hoyRay.map((r) => (
+                          <div key={r.id} style={{ fontSize: 13, padding: "8px 0", borderTop: `1px solid ${C.linea}` }}>Raya · {r.cuadrilla} · {r.actividad}</div>
+                        ))}
+                        {hoyBol.map((b) => (
+                          <div key={b.id} style={{ fontSize: 13, padding: "8px 0", borderTop: `1px solid ${C.linea}` }}>Boleta {b.boleta || "s/n"} · {num(calcBoleta(b).pagable, 0)} kg</div>
+                        ))}
+                      </Tarjeta>
+                    );
+                  })()}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { id: "labor", vista: "labores", titulo: "Labor", desc: "Riego, rastreo, aplicación", Ic: Tractor },
+                      { id: "nomina", vista: "cuadrillas", titulo: "Raya", desc: "Jornales del día", Ic: Users },
+                      { id: "boleta", vista: "cosecha", titulo: "Boleta", desc: "Entrega en bodega", Ic: Wheat },
+                      { id: "solicitud", vista: "solicitudes", titulo: "Solicitud", desc: "Pedir insumo", Ic: ClipboardList },
+                    ].map((a) => {
+                      const Ic = a.Ic;
+                      return (
+                        <button
+                          key={a.id}
+                          type="button"
+                          onClick={() => accionRapida(a.vista, a.id)}
+                          className="text-left"
+                          style={{
+                            background: C.blanco, border: `1px solid ${C.linea}`, borderTop: `3px solid ${C.bosque}`,
+                            borderRadius: 14, padding: 16, minHeight: 108, cursor: "pointer",
+                            fontFamily: fuente.cuerpo, color: C.tinta,
+                          }}
+                        >
+                          <Ic size={22} color={C.bosque} />
+                          <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, marginTop: 8 }}>{a.titulo}</div>
+                          <div style={{ fontSize: 12, color: C.gris }}>{a.desc}</div>
+                        </button>
+                      );
                     })}
-                    {hoyRay.map((r) => (
-                      <div key={r.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>Raya · {r.cuadrilla} · {r.actividad}</div>
-                    ))}
-                    {hoyBol.map((b) => (
-                      <div key={b.id} style={{ fontSize: 13, padding: "6px 0", borderTop: `1px solid ${C.linea}` }}>Boleta {b.boleta || "s/n"} · {num(calcBoleta(b).pagable, 0)} kg</div>
-                    ))}
-                  </Tarjeta>
-                );
-              })()}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
@@ -2074,6 +2104,53 @@ function AgroCicloApp() {
                       </Tarjeta>
                     ))}
                   </div>
+
+                  {veFinanzas && (
+                    <Tarjeta style={{ padding: 18 }}>
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Presupuesto vs real</span>
+                        {rol === "Dueño" ? (
+                          <button
+                            type="button"
+                            onClick={() => setVista("ajustes")}
+                            style={{ border: "none", background: "transparent", color: C.hoja, fontWeight: 600, fontSize: 12, cursor: "pointer", minHeight: 44 }}
+                          >
+                            Fijar en Ajustes
+                          </button>
+                        ) : null}
+                      </div>
+                      {presupuestoCiclo > 0 ? (
+                        <>
+                          <div className="grid grid-cols-3 gap-3 mt-3">
+                            {[
+                              { l: "Presupuestado", v: money(presupuestoCiclo) },
+                              { l: "Gastado", v: money(inversionTotal) },
+                              { l: inversionTotal > presupuestoCiclo ? "Pasado" : "Falta", v: money(Math.abs(presupuestoCiclo - inversionTotal)), c: inversionTotal > presupuestoCiclo ? C.rojo : C.bosque },
+                            ].map((k) => (
+                              <div key={k.l}>
+                                <Etiqueta>{k.l}</Etiqueta>
+                                <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-3" style={{ height: 10, borderRadius: 99, background: C.papel, border: `1px solid ${C.linea}`, overflow: "hidden" }}>
+                            <div style={{
+                              height: "100%",
+                              width: `${Math.min(100, (inversionTotal / presupuestoCiclo) * 100)}%`,
+                              background: inversionTotal > presupuestoCiclo ? C.rojo : C.bosque,
+                            }} />
+                          </div>
+                          <div style={{ fontSize: 12, color: C.gris, marginTop: 6 }}>
+                            {num((inversionTotal / presupuestoCiclo) * 100, 0)}% del presupuesto · {num(haTotal, 0)} ha
+                          </div>
+                        </>
+                      ) : (
+                        <p style={{ margin: "8px 0 0", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                          Aún no hay presupuesto de este ciclo. El Dueño lo pone en Ajustes → Ciclos. El gastado va aquí: {money(inversionTotal)}.
+                        </p>
+                      )}
+                    </Tarjeta>
+                  )}
 
                   {veFinanzas && grupoCargos > 0 && (
                     <Tarjeta onClick={() => { setVista("productores"); cerrar(); }}
@@ -3370,6 +3447,9 @@ function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
   const [nombre, setNombre] = useState(inicial?.nombre || "");
   const [inicio, setInicio] = useState(inicial?.fechaInicio || inicial?.fecha_inicio || "");
   const [fin, setFin] = useState(inicial?.fechaFin || inicial?.fecha_fin || "");
+  const [presupuesto, setPresupuesto] = useState(
+    inicial?.presupuesto != null && Number(inicial.presupuesto) > 0 ? String(inicial.presupuesto) : "",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   return (
@@ -3382,13 +3462,30 @@ function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
       </Campo>
       <Campo label="Inicio"><input type="date" style={estiloInput} value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
       <Campo label="Fin"><input type="date" style={estiloInput} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
+      <Campo label="Presupuesto del ciclo (pesos)">
+        <input
+          type="number"
+          min="0"
+          step="1000"
+          style={estiloInput}
+          placeholder="0 = sin presupuesto"
+          value={presupuesto}
+          onChange={(e) => setPresupuesto(e.target.value)}
+        />
+      </Campo>
       {error && <p style={{ fontSize: 12, color: C.rojo, fontWeight: 600, margin: 0 }}>{error}</p>}
       <Boton
         deshabilitado={busy || !clave.trim() || !nombre.trim()}
         onClick={() => {
           setBusy(true);
           setError(null);
-          void onListo({ clave: clave.trim(), nombre: nombre.trim(), inicio, fin })
+          void onListo({
+            clave: clave.trim(),
+            nombre: nombre.trim(),
+            inicio,
+            fin,
+            presupuesto: presupuesto === "" ? 0 : Math.max(0, Number(presupuesto) || 0),
+          })
             .catch((e) => {
               setError(e instanceof Error ? e.message : String(e));
               setBusy(false);
@@ -3420,6 +3517,7 @@ function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado }) {
               <div style={{ fontSize: 12, color: C.gris }}>
                 {String(c.clave || "").toUpperCase()}
                 {c.fechaInicio ? ` · ${c.fechaInicio}` : ""}{c.fechaFin ? ` → ${c.fechaFin}` : ""}
+                {Number(c.presupuesto) > 0 ? ` · presupuesto ${money(c.presupuesto)}` : ""}
                 {c.id === actualId ? " · trabajando" : ""}
               </div>
             </div>
@@ -3447,13 +3545,14 @@ function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado }) {
               <FormCiclo
                 inicial={c}
                 etiquetaSubmit="Guardar ciclo"
-                onListo={async ({ clave, nombre, inicio, fin }) => {
+                onListo={async ({ clave, nombre, inicio, fin, presupuesto }) => {
                   const res = await supabase.rpc("fn_editar_ciclo", {
                     p_id: c.id,
                     p_clave: clave,
                     p_nombre: nombre,
                     p_fecha_inicio: inicio || null,
                     p_fecha_fin: fin || null,
+                    p_presupuesto: presupuesto ?? 0,
                   });
                   if (res.error) throw new Error(res.error.message);
                   setEditId(null);
@@ -3472,12 +3571,13 @@ function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado }) {
           </div>
           <FormCiclo
             etiquetaSubmit="Abrir ciclo"
-            onListo={async ({ clave, nombre, inicio, fin }) => {
+            onListo={async ({ clave, nombre, inicio, fin, presupuesto }) => {
               const res = await supabase.rpc("fn_abrir_ciclo", {
                 p_clave: clave,
                 p_nombre: nombre,
                 p_fecha_inicio: inicio || null,
                 p_fecha_fin: fin || null,
+                p_presupuesto: presupuesto ?? 0,
               });
               if (res.error) throw new Error(res.error.message);
               const id = res.data && typeof res.data === "object" ? res.data.id : null;

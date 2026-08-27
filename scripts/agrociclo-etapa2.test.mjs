@@ -165,10 +165,12 @@ describe("Rancho de producción · sin demo", () => {
       p_id: id,
       p_clave: "pv27",
       p_nombre: "PV 2027 Valle",
+      p_presupuesto: 1500000,
     });
     assert.equal(editado.result.error, null);
     const row = editado.ledger.ciclo.find((c) => c.id === id);
     assert.equal(row.nombre, "PV 2027 Valle");
+    assert.equal(Number(row.presupuesto), 1500000);
     const ultimo = ranchoVacioLedger();
     const no = await applyRpcToLedger(ultimo, "fn_eliminar_ciclo", { p_id: ultimo.ciclo[0].id });
     assert.ok(no.result.error);

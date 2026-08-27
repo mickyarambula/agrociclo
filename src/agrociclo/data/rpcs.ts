@@ -846,6 +846,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       nombre,
       fecha_inicio: p.p_fecha_inicio ? String(p.p_fecha_inicio) : null,
       fecha_fin: p.p_fecha_fin ? String(p.p_fecha_fin) : null,
+      presupuesto: Math.max(0, Number(p.p_presupuesto) || 0),
     });
     return ok({ id, clave, nombre });
   },
@@ -864,6 +865,10 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       nombre,
       fecha_inicio: p.p_fecha_inicio != null && p.p_fecha_inicio !== "" ? String(p.p_fecha_inicio) : c.fecha_inicio,
       fecha_fin: p.p_fecha_fin != null && p.p_fecha_fin !== "" ? String(p.p_fecha_fin) : c.fecha_fin,
+      presupuesto:
+        p.p_presupuesto != null && p.p_presupuesto !== ""
+          ? Math.max(0, Number(p.p_presupuesto) || 0)
+          : Math.max(0, Number(c.presupuesto) || 0),
     });
     return ok({ id, clave, nombre });
   },
