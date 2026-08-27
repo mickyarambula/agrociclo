@@ -160,14 +160,14 @@ function LoginOperador() {
               Portal AgroCiclo
             </h1>
             <p className="text-xs" style={{ color: C.gris, margin: "6px 0 0" }}>
-              Administración de la herramienta. No es un rancho.
+              Administración de la herramienta. No es un predio.
             </p>
           </div>
         </div>
 
         <div className="rounded-2xl p-5" style={{ background: "#1A2216", border: "1px solid #2A3326" }}>
           <p className="mb-4 text-sm" style={{ color: "#B8C0B0", lineHeight: 1.5 }}>
-            Aquí ves ranchos, atención, fallas y uso. Los productores no entran por esta puerta.
+            Aquí ves predios, atención, fallas y uso. Los productores no entran por esta puerta.
           </p>
 
           {authEnabled ? (
@@ -283,7 +283,7 @@ function Consola({ sesion }: { sesion: SesionOperador }) {
             <div style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 18, lineHeight: 1 }}>
               Portal AgroCiclo
             </div>
-            <div className="hidden text-[11px] opacity-75 md:block">Administración de la herramienta. No es un rancho.</div>
+            <div className="hidden text-[11px] opacity-75 md:block">Administración de la herramienta. No es un predio.</div>
           </div>
         </div>
         <div className="flex items-center gap-2">
@@ -354,7 +354,7 @@ function TabResumen() {
   if (err) return <p className="text-sm font-semibold" style={{ color: C.rojo }}>{err}</p>;
   if (!d) return <p className="text-sm" style={{ color: C.gris }}>Cargando métricas…</p>;
   const kpis = [
-    { l: "Ranchos", v: d.ranchos, s: "agroempresas dadas de alta" },
+    { l: "Predios", v: d.predios, s: "agroempresas dadas de alta" },
     { l: "Cuentas", v: d.usuarios, s: `${d.dueños} Dueños vivos` },
     { l: "Entraron (7 días)", v: d.logins7, s: "personas distintas" },
     { l: "Atención abierta", v: d.ticketsAbiertos, s: `${d.ticketsNuevos} nuevas` },
@@ -387,14 +387,14 @@ function TabCuentas() {
   }, []);
   if (!rows) return <p className="text-sm" style={{ color: C.gris }}>Cargando cuentas…</p>;
   if (!Array.isArray(rows) || rows.length === 0) {
-    return <Card><p className="text-sm" style={{ color: C.gris }}>Todavía no hay ranchos.</p></Card>;
+    return <Card><p className="text-sm" style={{ color: C.gris }}>Todavía no hay predios.</p></Card>;
   }
   return (
     <Card className="overflow-x-auto p-0">
       <table className="w-full min-w-[640px] text-left text-sm">
         <thead>
           <tr style={{ borderBottom: `1px solid ${C.linea}`, color: C.gris, fontSize: 11, fontWeight: 700 }}>
-            {["Rancho", "Dueño", "Gente", "Lotes", "Uso", "Código"].map((h) => (
+            {["Predio", "Dueño", "Gente", "Lotes", "Uso", "Código"].map((h) => (
               <th key={h} className="px-4 py-3 font-semibold">{h}</th>
             ))}
           </tr>
@@ -526,7 +526,7 @@ function TabAtencion() {
             <div>
               <div className="text-sm font-semibold">{t.titulo}</div>
               <div className="mt-1 text-xs" style={{ color: C.gris }}>
-                {t.display_name || t.email || "cuenta"} · {t.org_nombre || "sin rancho"} · {t.tipo}
+                {t.display_name || t.email || "cuenta"} · {t.org_nombre || "sin predio"} · {t.tipo}
               </div>
             </div>
             <span
@@ -638,7 +638,7 @@ function TabFaq() {
         <textarea
           value={respuesta}
           onChange={(e) => setRespuesta(e.target.value)}
-          placeholder="Respuesta en español de rancho"
+          placeholder="Respuesta en español de predio"
           rows={4}
           className="w-full rounded-[10px] px-3 py-2 text-sm"
           style={{ border: `1px solid ${C.linea}`, fontSize: 16 }}

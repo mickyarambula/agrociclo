@@ -26,13 +26,13 @@ export function urlWhatsApp(e164: string, texto = ""): string {
 
 export function mensajeWhatsAppAtencion(p: {
   nombre?: string | null;
-  rancho?: string | null;
+  predio?: string | null;
   nota?: string | null;
 }): string {
   const quien = (p.nombre || "").trim() || "un productor";
-  const rancho = (p.rancho || "").trim();
+  const predio = (p.predio || "").trim();
   const nota = (p.nota || "").trim();
-  const de = rancho ? `${quien} del rancho ${rancho}` : quien;
+  const de = predio ? `${quien} del predio ${predio}` : quien;
   if (nota) return `Hola, soy ${de}. ${nota}`;
   return `Hola, soy ${de}. Necesito atención de AgroCiclo.`;
 }

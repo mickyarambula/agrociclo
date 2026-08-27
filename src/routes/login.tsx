@@ -158,8 +158,8 @@ function Login() {
         <div className="rounded-2xl p-5" style={{ background: C.blanco, border: `1px solid ${C.linea}` }}>
           <p className="mb-4 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
             {modo === "crear"
-              ? "Crea tu cuenta y abres tu rancho. Si te invitaron, escribe el código antes de continuar."
-              : "Entra a tu rancho. El Encargado o la oficina usan el código que les dio el Dueño."}
+              ? "Crea tu cuenta y abres tu predio. Si te invitaron, escribe el código antes de continuar."
+              : "Entra a tu predio. El Encargado o la oficina usan el código que les dio el Dueño."}
           </p>
 
           {authEnabled && import.meta.env.VITE_GROK_BROKER === "true" ? (
@@ -251,7 +251,7 @@ function Login() {
               </>
             )}
             <label className="text-xs font-semibold" style={{ color: C.gris }}>
-              Código de rancho (si te invitaron)
+              Código de predio (si te invitaron)
               <input
                 value={codigoRancho}
                 onChange={(e) => setCodigoRancho(e.target.value.toUpperCase())}

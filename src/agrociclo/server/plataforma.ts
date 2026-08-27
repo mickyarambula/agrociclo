@@ -78,7 +78,7 @@ const FAQ_INICIAL = [
   {
     pregunta: "¿Cómo entra mi Encargado o la oficina?",
     respuesta:
-      "En Ajustes copias el código del rancho. Ellos lo escriben al crear su cuenta (antes de Continuar con Google o correo). Tú les das rol: Oficina, Encargado de campo o Consulta.",
+      "En Ajustes copias el código del predio. Ellos lo escriben al crear su cuenta (antes de Continuar con Google o correo). Tú les das rol: Oficina, Encargado de campo o Consulta.",
   },
   {
     pregunta: "¿El Encargado ve el crédito y los montos?",
@@ -91,14 +91,14 @@ const FAQ_INICIAL = [
       "Captura → Labor, Raya, Boleta o Solicitud. Un toque. La oficina pone precio y flete después.",
   },
   {
-    pregunta: "Los 2,150 L de diésel, ¿son de mi rancho?",
+    pregunta: "Los 2,150 L de diésel, ¿son de mi predio?",
     respuesta:
       "No. Eran números de demostración. Tu ciclo de siembra arranca vacío. El almacén se llena con la primera compra.",
   },
   {
     pregunta: "Algo falló o no entiendo una pantalla",
     respuesta:
-      "Usa Ayuda. Puedes dejar el recado aquí o, si el operador puso su celular, escribirle por WhatsApp sin saber su nombre. Llega a quien arma AgroCiclo, no a otro rancho.",
+      "Usa Ayuda. Puedes dejar el recado aquí o, si el operador puso su celular, escribirle por WhatsApp sin saber su nombre. Llega a quien arma AgroCiclo, no a otro predio.",
   },
 ];
 
@@ -120,7 +120,7 @@ export type SesionOperador = {
 };
 
 /**
- * Sesión de la consola: no abre rancho ni ledger.
+ * Sesión de la consola: no abre predio ni ledger.
  * El primer usuario que entra por esta puerta queda como operador.
  */
 export const getSesionOperador = createServerFn({ method: "POST" })
@@ -254,7 +254,7 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
     await requirePlataforma(context.userId);
     await sembrarFaqSiVacio();
     const sql = await getSql();
-    const ranchos = await sql.query<{ n: number }>(`select count(*)::int as n from agrociclo_org`);
+    const predios = await sql.query<{ n: number }>(`select count(*)::int as n from agrociclo_org`);
     const usuarios = await sql.query<{ n: number }>(`select count(*)::int as n from usuario_rol`);
     const dueños = await sql.query<{ n: number }>(
       `select count(*)::int as n from usuario_rol r
@@ -285,7 +285,7 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
       solicitudes += u.solicitudes;
     }
     return {
-      ranchos: Number(ranchos[0]?.n ?? 0),
+      predios: Number(predios[0]?.n ?? 0),
       usuarios: Number(usuarios[0]?.n ?? 0),
       dueños: Number(dueños[0]?.n ?? 0),
       logins7: Number(logins7[0]?.n ?? 0),

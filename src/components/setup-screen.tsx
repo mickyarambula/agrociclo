@@ -18,7 +18,7 @@ export function SetupScreen() {
       </p>
       <h1 className="mt-3 font-display text-4xl font-semibold tracking-tight">AgroCiclo</h1>
       <p className="mt-3 text-pretty text-muted-foreground">
-        La libreta del rancho: captura gastos y ventas desde el celular y mira el costo por
+        La libreta del predio: captura gastos y ventas desde el celular y mira el costo por
         hectárea y el saldo del ciclo.
       </p>
 
@@ -35,12 +35,12 @@ export function SetupScreen() {
         }}
       >
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="rancho">Nombre del rancho</Label>
+          <Label htmlFor="predio">Nombre del predio</Label>
           <Input
-            id="rancho"
+            id="predio"
             value={nombre}
             onChange={(e) => setNombre(e.target.value)}
-            placeholder="Ej. Rancho Los Álamos"
+            placeholder="Ej. Predio Los Álamos"
             autoComplete="organization"
             required
           />
@@ -69,7 +69,7 @@ export function SetupScreen() {
         onClick={loadDemo}
         className="mt-6 text-center text-sm text-muted-foreground underline-offset-4 hover:underline"
       >
-        Ver el rancho de ejemplo (75 ha, Ahome)
+        Ver el predio de ejemplo (75 ha, Ahome)
       </button>
     </main>
   );

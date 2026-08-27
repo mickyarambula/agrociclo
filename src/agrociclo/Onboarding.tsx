@@ -15,7 +15,7 @@ const C = {
 
 const PASOS_DUENO = [
   {
-    titulo: "Este es tu rancho",
+    titulo: "Este es tu predio",
     cuerpo: "Aquí se lleva la siembra hasta la venta: lotes, labores, almacén, raya, boletas y cuentas. Los números de demostración no son de este ciclo.",
   },
   {
@@ -24,7 +24,7 @@ const PASOS_DUENO = [
   },
   {
     titulo: "Tu equipo entra con código",
-    cuerpo: "En Ajustes copias el código. El Encargado lo escribe al entrar. Tú le das rol y palomeas qué ve y qué edita. Sin código, esa persona abre su propio rancho.",
+    cuerpo: "En Ajustes copias el código. El Encargado lo escribe al entrar. Tú le das rol y palomeas qué ve y qué edita. Sin código, esa persona abre su propio predio.",
   },
   {
     titulo: "Cómo se trabaja el lote",

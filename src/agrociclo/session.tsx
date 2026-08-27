@@ -123,7 +123,7 @@ function EsperandoDueño({ orgNombre, dueñoEtiqueta }: { orgNombre: string; due
         Esperando al Dueño
       </p>
       <p className="mt-3 max-w-md text-sm" style={{ color: C.gris, lineHeight: 1.55 }}>
-        Ya entraste a {orgNombre}, pero el Dueño todavía no te da rol. Si abriste un rancho por error, sal y entra de
+        Ya entraste a {orgNombre}, pero el Dueño todavía no te da rol. Si abriste un predio por error, sal y entra de
         nuevo con el código que te pasaron.
       </p>
       {dueñoEtiqueta ? (
@@ -133,7 +133,7 @@ function EsperandoDueño({ orgNombre, dueñoEtiqueta }: { orgNombre: string; due
       ) : null}
       <p className="mt-2 max-w-md text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
         Si tú eres el Dueño, sal y entra con la cuenta que usaste primero. Si esa cuenta ya no existe, al volver a
-        entrar te asignamos el rancho.
+        entrar te asignamos el predio.
       </p>
       <button
         type="button"
@@ -366,7 +366,7 @@ export function RolesPanel() {
   return (
     <div>
       <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
-        Crea los puestos de tu rancho y palomea qué ve y qué edita cada uno. Dueño no se toca: ve y edita todo.
+        Crea los puestos de tu predio y palomea qué ve y qué edita cada uno. Dueño no se toca: ve y edita todo.
         Luego en Equipo le pones un rol a cada persona.
       </p>
       {err ? <p className="mb-2 text-xs font-semibold" style={{ color: "#B5482E" }}>{err}</p> : null}
@@ -528,7 +528,7 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
   const lista = (
     <>
       <p className="mb-3 text-sm" style={{ color: C.gris, lineHeight: 1.5 }}>
-        Quien entra con el código de este rancho queda en espera. Tú le das uno de los roles de arriba y, si hace falta,
+        Quien entra con el código de este predio queda en espera. Tú le das uno de los roles de arriba y, si hace falta,
         palomeas distinto por persona.
       </p>
       {err ? <p className="mb-2 text-xs font-semibold" style={{ color: "#B5482E" }}>{err}</p> : null}

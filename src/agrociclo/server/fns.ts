@@ -6,7 +6,7 @@ import type { Ledger, TableName } from "../data/types";
 import { serialize } from "../lib/serialize.mjs";
 import { applyRpcToLedger, applyTableToLedger } from "./apply";
 import { debePromoverADueño, etiquetaDueño, rolDeEntrada } from "./dueno";
-import { destinoAlta, generarCodigoInvitacion, nombreRanchoNuevo, normalizarCodigo } from "./alta-rancho";
+import { destinoAlta, generarCodigoInvitacion, nombreRanchoNuevo, normalizarCodigo } from "./alta-predio";
 import { asegurarEsquemaPlataforma } from "./plataforma";
 import {
   allowRpc,
@@ -71,7 +71,17 @@ const REDACT: (keyof Ledger)[] = [
   "prestamo_aplicacion",
   "dispersion",
   "gasto",
+  "compra",
+  "caja_movimiento",
 ];
+
+// Dinero que viaja dentro de tablas operativas que el Encargado SÍ necesita
+// (boletas para capturar, kardex para ver movimientos): se manda en 0.
+// La UI ya lo esconde, pero el dato no debe salir del servidor.
+const CAMPOS_DINERO: Partial<Record<keyof Ledger, string[]>> = {
+  boleta: ["precio_ton", "trilla", "flete", "otros"],
+  inventario_movimiento: ["costo_unitario", "costo_total", "monto", "importe"],
+};
 
 function parseLedger(raw: unknown): Ledger | null {
   if (!raw) return null;
@@ -90,6 +100,15 @@ function redact(ledger: Ledger, veFinanzas: boolean): Ledger {
   if (veFinanzas) return ledger;
   const next = structuredClone(ledger);
   for (const k of REDACT) next[k] = [];
+  for (const [tabla, campos] of Object.entries(CAMPOS_DINERO)) {
+    const rows = next[tabla as keyof Ledger];
+    if (!Array.isArray(rows)) continue;
+    for (const r of rows) {
+      for (const c of campos ?? []) {
+        if (c in r) (r as Record<string, unknown>)[c] = 0;
+      }
+    }
+  }
   return next;
 }
 
@@ -158,7 +177,7 @@ async function loadOrg(userId: string) {
   return rows[0] ?? null;
 }
 
-/** Dueño vivo de ESTE rancho. Un Dueño de otro rancho no cuenta. */
+/** Dueño vivo de ESTE predio. Un Dueño de otro predio no cuenta. */
 async function countLivingDueños(orgId: string): Promise<number> {
   const sql = await getSql();
   const rows = await sql.query<{ n: number }>(
@@ -188,22 +207,88 @@ async function loadDueñoEtiqueta(orgId: string): Promise<string | null> {
 }
 
 async function loadLedger(orgId: string): Promise<Ledger> {
-  const sql = await getSql();
-  const rows = await sql<{ payload: unknown }>`
-    select payload from agrociclo_ledger where organizacion_id = ${orgId} limit 1
-  `;
-  return parseLedger(rows[0]?.payload) ?? ranchoVacioLedger();
+  return (await loadLedgerConVersion(orgId)).ledger;
 }
 
+/** Carga el ledger junto con su número de versión (candado optimista). */
+async function loadLedgerConVersion(orgId: string): Promise<{ ledger: Ledger; version: number }> {
+  const sql = await getSql();
+  const rows = await sql<{ payload: unknown; version: unknown }>`
+    select payload, coalesce(version, 0) as version
+    from agrociclo_ledger where organizacion_id = ${orgId} limit 1
+  `;
+  return {
+    ledger: parseLedger(rows[0]?.payload) ?? ranchoVacioLedger(),
+    version: Number(rows[0]?.version) || 0,
+  };
+}
+
+/** Reemplazo total (crear, vaciar, demo). También sube la versión para que
+ *  cualquier escritura optimista en vuelo pierda limpiamente. */
 async function saveLedger(orgId: string, ledger: Ledger) {
   const sql = await getSql();
   const payload = JSON.stringify(ledger);
   await sql.query(
-    `insert into agrociclo_ledger (organizacion_id, payload, actualizado_en)
-     values ($1, $2::jsonb, now())
-     on conflict (organizacion_id) do update set payload = excluded.payload, actualizado_en = now()`,
+    `insert into agrociclo_ledger (organizacion_id, payload, version, actualizado_en)
+     values ($1, $2::jsonb, 1, now())
+     on conflict (organizacion_id) do update
+       set payload = excluded.payload,
+           version = agrociclo_ledger.version + 1,
+           actualizado_en = now()`,
     [orgId, payload],
   );
+}
+
+/** Guardado con candado: solo escribe si nadie más guardó desde que leímos.
+ *  Devuelve false cuando otra captura ganó — el caller recarga y reintenta. */
+async function saveLedgerSiVersion(orgId: string, ledger: Ledger, esperada: number): Promise<boolean> {
+  const sql = await getSql();
+  const payload = JSON.stringify(ledger);
+  const res = await sql.query<{ version: number }>(
+    `insert into agrociclo_ledger (organizacion_id, payload, version, actualizado_en)
+     values ($1, $2::jsonb, 1, now())
+     on conflict (organizacion_id) do update
+       set payload = excluded.payload,
+           version = agrociclo_ledger.version + 1,
+           actualizado_en = now()
+       where agrociclo_ledger.version = $3
+     returning version`,
+    [orgId, payload, esperada],
+  );
+  return res.length > 0;
+}
+
+/** Rastro de quién capturó qué. Nunca tumba la captura si falla. */
+async function auditar(
+  orgId: string,
+  userId: string | null,
+  email: string | null,
+  accion: string,
+  detalle: Record<string, unknown>,
+) {
+  try {
+    const sql = await getSql();
+    await sql.query(
+      `insert into agrociclo_auditoria (organizacion_id, user_id, email, accion, detalle)
+       values ($1, $2, $3, $4, $5::jsonb)`,
+      [orgId, userId, email, accion, JSON.stringify(detalle ?? {})],
+    );
+  } catch {
+    /* la auditoría es rastro, no candado */
+  }
+}
+
+/** Versión compacta y sin datos pesados de los parámetros, para la auditoría. */
+function resumenParams(params: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(params ?? {})) {
+    if (k === "p_org" || k === "p_organizacion_id") continue;
+    if (v === null || v === undefined) continue;
+    if (typeof v === "number" || typeof v === "boolean") out[k] = v;
+    else if (typeof v === "string") out[k] = v.length > 120 ? `${v.slice(0, 120)}…` : v;
+    else out[k] = "(objeto)";
+  }
+  return out;
 }
 
 async function codigoUnico(): Promise<string> {
@@ -278,7 +363,7 @@ async function unirseARancho(
   ]);
 }
 
-/** Baja Dueños huérfanos de este rancho para no dejar dos Dueños. */
+/** Baja Dueños huérfanos de este predio para no dejar dos Dueños. */
 async function limpiarDueñosHuérfanos(orgId: string) {
   const sql = await getSql();
   await sql.query(
@@ -320,7 +405,7 @@ async function bootstrap(
     return;
   }
   if (codigo && !orgInv) {
-    throw new Error("Ese código de rancho no existe. Revísalo o déjalo vacío para abrir el tuyo.");
+    throw new Error("Ese código de predio no existe. Revísalo o déjalo vacío para abrir el tuyo.");
   }
   await crearRancho(userId, email, displayName);
 }
@@ -467,12 +552,12 @@ export const getAgroSession = createServerFn({ method: "POST" })
         );
         row = await loadOrg(context.userId);
       }
-      if (!row) throw new Error("No se pudo abrir la sesión de rancho.");
+      if (!row) throw new Error("No se pudo abrir la sesión de predio.");
       if (debePromoverADueño(row.rol, await countLivingDueños(row.organizacion_id))) {
         await promoverADueño(context.userId, row.organizacion_id, data.email ?? row.email, data.displayName ?? row.display_name);
         row = await loadOrg(context.userId);
       }
-      if (!row) throw new Error("No se pudo abrir la sesión de rancho.");
+      if (!row) throw new Error("No se pudo abrir la sesión de predio.");
       await asegurarPlataformaAdmin(context.userId, data.email ?? row.email, data.displayName ?? row.display_name);
       const plataforma = await esPlataformaAdmin(context.userId);
       const codigoInvitacion = await asegurarCodigoOrg(row.organizacion_id, row.codigo_invitacion ?? null);
@@ -486,10 +571,13 @@ export const getAgroSession = createServerFn({ method: "POST" })
           ledger: null as Json | null,
         };
       }
-      let ledger = await loadLedger(row.organizacion_id);
+      const cargado = await loadLedgerConVersion(row.organizacion_id);
+      let ledger = cargado.ledger;
       if (esLedgerDemo(ledger)) {
-        ledger = ledgerListoParaProduccion(ledger);
-        await saveLedger(row.organizacion_id, ledger);
+        const limpio = ledgerListoParaProduccion(ledger);
+        // Con candado: si alguien capturó en este instante, la limpieza espera
+        // al siguiente login en vez de pisar su captura.
+        if (await saveLedgerSiVersion(row.organizacion_id, limpio, cargado.version)) ledger = limpio;
       }
       const ciclos = ciclosOf(ledger);
       const pref = await sql<{ ciclo_id: string }>`
@@ -523,14 +611,35 @@ export const runAgroRpc = createServerFn({ method: "POST" })
     };
     const denied = allowRpc(rol, data.name, flags);
     if (denied) return { error: { message: denied }, data: null as Json | null, ledger: null as Json | null };
-    const current = await loadLedger(row.organizacion_id);
     const params = { ...data.params, p_org: row.organizacion_id, p_organizacion_id: row.organizacion_id };
-    const { result, ledger } = await applyRpcToLedger(current, data.name, params);
-    if (!result.error) await saveLedger(row.organizacion_id, ledger);
+    // Candado optimista: si otra captura ganó entre leer y guardar, se recarga
+    // el ledger y se re-aplica el RPC (las validaciones de negocio —stock,
+    // saldos de crédito— se re-evalúan sobre el estado fresco).
+    const REINTENTOS = 4;
+    for (let intento = 0; intento < REINTENTOS; intento += 1) {
+      const { ledger: current, version } = await loadLedgerConVersion(row.organizacion_id);
+      const { result, ledger } = await applyRpcToLedger(current, data.name, params);
+      if (result.error) {
+        return {
+          error: result.error,
+          data: result.data == null ? null : asJson(result.data),
+          ledger: null as Json | null,
+        };
+      }
+      const guardado = await saveLedgerSiVersion(row.organizacion_id, ledger, version);
+      if (guardado) {
+        void auditar(row.organizacion_id, context.userId, row.email ?? null, `rpc:${data.name}`, resumenParams(data.params));
+        return {
+          error: null as { message: string } | null,
+          data: result.data == null ? null : asJson(result.data),
+          ledger: asJson(redact(ledger, flags.veFinanzas)),
+        };
+      }
+    }
     return {
-      error: result.error,
-      data: result.data == null ? null : asJson(result.data),
-      ledger: result.error ? null : asJson(redact(ledger, flags.veFinanzas)),
+      error: { message: "Otra persona guardó al mismo tiempo. Vuelve a intentar." },
+      data: null as Json | null,
+      ledger: null as Json | null,
     };
   });
 
@@ -557,13 +666,26 @@ export const runAgroTable = createServerFn({ method: "POST" })
     };
     const denied = allowTable(rol, data.table, flags);
     if (denied) return { error: { message: denied }, data: null as boolean | null, ledger: null as Json | null };
-    const current = await loadLedger(row.organizacion_id);
     const filters = data.filters.map((f) =>
       f.type === "in" ? { type: "in" as const, col: f.col, vals: f.vals ?? [] } : { type: f.type, col: f.col, val: f.val },
     );
-    const { ledger } = await applyTableToLedger(current, data.table, data.op, data.payload, filters);
-    await saveLedger(row.organizacion_id, ledger);
-    return { data: true, error: null as { message: string } | null, ledger: asJson(redact(ledger, flags.veFinanzas)) };
+    const REINTENTOS = 4;
+    for (let intento = 0; intento < REINTENTOS; intento += 1) {
+      const { ledger: current, version } = await loadLedgerConVersion(row.organizacion_id);
+      const { ledger } = await applyTableToLedger(current, data.table, data.op, data.payload, filters);
+      const guardado = await saveLedgerSiVersion(row.organizacion_id, ledger, version);
+      if (guardado) {
+        void auditar(row.organizacion_id, context.userId, row.email ?? null, `tabla:${data.table}.${data.op}`, {
+          filtros: filters as unknown as Record<string, unknown>[],
+        });
+        return { data: true, error: null as { message: string } | null, ledger: asJson(redact(ledger, flags.veFinanzas)) };
+      }
+    }
+    return {
+      error: { message: "Otra persona guardó al mismo tiempo. Vuelve a intentar." },
+      data: null as boolean | null,
+      ledger: null as Json | null,
+    };
   });
 
 export const setAgroCiclo = createServerFn({ method: "POST" })
@@ -626,7 +748,7 @@ export const asignarRol = createServerFn({ method: "POST" })
     if (data.userId === context.userId) throw new Error("No puedes cambiar tu propio rol.");
     const catalogo = parseConfig(row.config).roles;
     if (data.rol !== "pendiente" && !catalogo.some((r) => r.nombre === data.rol)) {
-      throw new Error("Ese rol no existe en este rancho. Créalo en Ajustes.");
+      throw new Error("Ese rol no existe en este predio. Créalo en Ajustes.");
     }
     const base = data.rol === "pendiente" ? presetPermisos("pendiente").matriz : matrizDeCatalogo(data.rol, catalogo);
     const matriz = data.rol === "pendiente" ? base : parseMatriz(data.permisos ?? base, data.rol);
@@ -655,7 +777,7 @@ export const vaciarRancho = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const row = await loadOrg(context.userId);
-    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño vacía el rancho.");
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño vacía el predio.");
     const ledger = ranchoVacioLedger(row.organizacion_id, row.nombre);
     await saveLedger(row.organizacion_id, ledger);
     const sql = await getSql();
@@ -672,7 +794,7 @@ export const setOrgConfig = createServerFn({ method: "POST" })
   .validator((p: { encargadoVePrecios?: boolean; nombre?: string }) => p)
   .handler(async ({ context, data }) => {
     const row = await loadOrg(context.userId);
-    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño cambia los ajustes del rancho.");
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño cambia los ajustes del predio.");
     const sql = await getSql();
     const cfg = { ...parseConfig(row.config) };
     if (typeof data.encargadoVePrecios === "boolean") cfg.encargadoVePrecios = data.encargadoVePrecios;
@@ -743,7 +865,7 @@ export const regenerarInvitacion = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
     const row = await loadOrg(context.userId);
-    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño administra el código del rancho.");
+    if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño administra el código del predio.");
     const sql = await getSql();
     const codigo = await codigoUnico();
     await sql.query(`update agrociclo_org set codigo_invitacion = $1 where id = $2`, [codigo, row.organizacion_id]);

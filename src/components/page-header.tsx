@@ -23,7 +23,7 @@ export function PageHeader({ title, kicker }: { title: string; kicker?: string }
       </div>
       {ranch.demo ? (
         <p className="mt-3 rounded-lg bg-accent px-3 py-2 text-xs text-accent-foreground">
-          Rancho de ejemplo del Valle del Fuerte. En Más puedes empezar tu propio ciclo.
+          Predio de ejemplo del Valle del Fuerte. En Más puedes empezar tu propio ciclo.
         </p>
       ) : null}
     </header>

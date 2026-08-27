@@ -4,7 +4,7 @@ import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
 const { destinoAlta, generarCodigoInvitacion, nombreRanchoNuevo, normalizarCodigo } = await jiti.import(
-  "../src/agrociclo/server/alta-rancho.ts",
+  "../src/agrociclo/server/alta-predio.ts",
 );
 const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
 
@@ -27,8 +27,8 @@ describe("Alta de rancho", () => {
     assert.match(c, /^[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]+$/);
   });
   it("nombre del rancho nuevo", () => {
-    assert.equal(nombreRanchoNuevo("Miguel Arambula"), "Rancho de Miguel");
-    assert.equal(nombreRanchoNuevo(""), "Mi rancho");
+    assert.equal(nombreRanchoNuevo("Miguel Arambula"), "Predio de Miguel");
+    assert.equal(nombreRanchoNuevo(""), "Mi predio");
   });
   it("dos ranchos vacíos no comparten organizacion_id", () => {
     const a = ranchoVacioLedger("org-a", "A");

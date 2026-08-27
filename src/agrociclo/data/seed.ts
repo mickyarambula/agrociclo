@@ -99,7 +99,7 @@ export function demoLedger(): Ledger {
 
   const insumos = [
     row(I.diesel, {
-      nombre: "Diésel · tanque del rancho",
+      nombre: "Diésel · tanque del predio",
       unidad: "L",
       categoria: "Diésel",
       costo_unitario_ref: 27,
@@ -480,7 +480,7 @@ export function demoLedger(): Ledger {
     row("compra-diesel", {
       ciclo_id: CICLO,
       insumo_id: I.diesel,
-      insumo_nombre: "Diésel · tanque del rancho",
+      insumo_nombre: "Diésel · tanque del predio",
       productor_id: null,
       cantidad: 3000,
       unidad: "L",
@@ -1060,7 +1060,7 @@ export function emptyLedger(): Ledger {
   return ranchoVacioLedger();
 }
 
-/** Rancho listo para la siembra: un ciclo vacío, sin números de prueba. */
+/** Predio listo para la siembra: un ciclo vacío, sin números de prueba. */
 export function ranchoVacioLedger(orgId: string = ORG, nombre = "Agroempresa Valle del Fuerte"): Ledger {
   const I = IDS;
   const stamp = (id: string, extra: Record<string, unknown>) => ({
@@ -1152,7 +1152,7 @@ export function stripDemoCiclo(ledger: Ledger): Ledger {
   return next;
 }
 
-/** Si el ledger es la demo sin siembra real, se reemplaza por el rancho vacío. */
+/** Si el ledger es la demo sin siembra real, se reemplaza por el predio vacío. */
 export function ledgerListoParaProduccion(ledger: Ledger): Ledger {
   const tieneDemo = (ledger.ciclo ?? []).some((c) => String(c.id) === IDS.ciclo);
   if (!tieneDemo) return ledger;

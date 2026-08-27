@@ -1369,12 +1369,13 @@ function AgroCicloApp() {
         p_tara: Number(f.tara) || 0,
         p_humedad: Number(f.humedad) || 0,
         p_impurezas: Number(f.impurezas) || 0,
-        p_humedad_std: Number(f.hStd) || 14,
-        p_impurezas_std: Number(f.iStd) || 2,
-        p_precio_ton: Number(f.precioTon) || 0,
-        p_trilla: Number(f.trilla) || 0,
-        p_flete: Number(f.flete) || 0,
-        p_otros: Number(f.otros) || 0,
+        p_humedad_std: veFinanzas ? (Number(f.hStd) || 14) : null,
+        p_impurezas_std: veFinanzas ? (Number(f.iStd) || 2) : null,
+        // Sin finanzas → null: el servidor conserva el precio/deducciones reales de la boleta.
+        p_precio_ton: veFinanzas ? (Number(f.precioTon) || 0) : null,
+        p_trilla: veFinanzas ? (Number(f.trilla) || 0) : null,
+        p_flete: veFinanzas ? (Number(f.flete) || 0) : null,
+        p_otros: veFinanzas ? (Number(f.otros) || 0) : null,
       });
       if (error) throw new Error(error.message);
     },
@@ -1883,7 +1884,7 @@ function AgroCicloApp() {
             <button
               type="button"
               onClick={() => { setVista("ajustes"); cerrar(); }}
-              title="Ajustes del rancho"
+              title="Ajustes del predio"
               aria-label="Ajustes"
               style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: vista === "ajustes" ? C.grano : "rgba(255,255,255,0.08)", color: vista === "ajustes" ? C.bosque : C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
@@ -2068,6 +2069,25 @@ function AgroCicloApp() {
                 </Tarjeta>
               ) : (
                 <>
+                  {/* ===== TIRA DE PLATA: el pulso del dinero en una franja ===== */}
+                  {veFinanzas && (
+                    <Tarjeta style={{ padding: "12px 16px", background: C.bosque }}>
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        {[
+                          { l: "Caja chica", v: money(cajaSaldo) },
+                          { l: "Crédito dispuesto", v: money(creditosT.reduce((s, cr) => s + dispuestoLinea(cr), 0)) },
+                          { l: "Vendido", v: money(ingresoRealTotal) },
+                          { l: "Presupuesto", v: presupuestoCiclo > 0 ? `${num((inversionTotal / presupuestoCiclo) * 100, 0)}% usado` : "Sin fijar" },
+                        ].map((k) => (
+                          <div key={k.l}>
+                            <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase", color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>{k.l}</div>
+                            <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17, color: C.blanco }}>{k.v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </Tarjeta>
+                  )}
+
                   {avisos.length > 0 && (
                     <Tarjeta style={{ padding: 16 }}>
                       <div className="flex items-center gap-2 mb-2">
@@ -2109,6 +2129,31 @@ function AgroCicloApp() {
                       </Tarjeta>
                     ))}
                   </div>
+
+                  {/* ===== La misma cuenta gorda del cierre, aquí en El ciclo ===== */}
+                  {veFinanzas && ingresoRealTotal > 0 && (
+                    <Tarjeta
+                      onClick={() => { setVista("cosecha"); cerrar(); }}
+                      style={{ padding: 18, borderTop: `3px solid ${ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo}`, cursor: "pointer" }}
+                    >
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>El cierre de la venta</span>
+                        <span style={{ fontSize: 12, color: C.gris }}>toca para ver por parcela</span>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 mt-3">
+                        {[
+                          { l: "Vendido", v: money(ingresoRealTotal) },
+                          { l: "Costó", v: money(inversionTotal) },
+                          { l: "Quedó", v: money(ingresoRealTotal - inversionTotal), c: ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo },
+                        ].map((k) => (
+                          <div key={k.l}>
+                            <Etiqueta>{k.l}</Etiqueta>
+                            <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </Tarjeta>
+                  )}
 
                   {veFinanzas && (
                     <Tarjeta style={{ padding: 18 }}>
@@ -2522,6 +2567,29 @@ function AgroCicloApp() {
               editando={!!form?.item}
               form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
 
+              {/* ===== EL CIERRE: la cuenta que el productor quiere ver ===== */}
+              {veFinanzas && boletasT.length > 0 && (
+                <Tarjeta style={{ padding: 20, borderTop: `4px solid ${ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo}` }}>
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17 }}>El cierre de la venta</span>
+                    <span style={{ fontSize: 12, color: C.gris }}>con lo entregado hasta hoy · todo el ciclo</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 mt-3">
+                    {[
+                      { l: "Vendido", v: money(ingresoRealTotal), s: `${num(Object.values(costosParcela).reduce((s, c) => s + c.tonReal, 0), 1)} ton entregadas` },
+                      { l: "Costó", v: money(inversionTotal), s: "labores + insumos + raya + renta + gastos + financiero" },
+                      { l: "Quedó", v: money(ingresoRealTotal - inversionTotal), c: ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo, s: ingresoRealTotal - inversionTotal >= 0 ? "hasta hoy vas arriba" : "aún no cubres el costo" },
+                    ].map((k) => (
+                      <div key={k.l}>
+                        <Etiqueta>{k.l}</Etiqueta>
+                        <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
+                        <div style={{ fontSize: 11, color: C.gris }}>{k.s}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Tarjeta>
+              )}
+
               <div className="grid md:grid-cols-3 gap-3">
                 {parcelasT.map(p => {
                   const c = costosParcela[p.id];
@@ -2537,8 +2605,9 @@ function AgroCicloApp() {
                       </div>
                       {veFinanzas && (
                         <div className="mt-2" style={{ fontSize: 12 }}>
-                          <Fila l="Ingreso neto" v={money(c.ingresoReal)} />
-                          <Fila l="Utilidad real parcial" v={money(c.utilidadReal)} resalta />
+                          <Fila l="Vendido" v={money(c.ingresoReal)} />
+                          <Fila l="Costó (todo el lote)" v={money(c.total)} />
+                          <Fila l="Quedó hasta hoy" v={money(c.utilidadReal)} resalta />
                         </div>
                       )}
                     </Tarjeta>
@@ -3265,7 +3334,7 @@ function AgroCicloApp() {
           {vista === "ajustes" && rol === "Dueño" && (
             <div className="flex flex-col gap-5">
               <div>
-                <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Ajustes del rancho</h1>
+                <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Ajustes del predio</h1>
                 <p style={{ margin: "6px 0 0", fontSize: 14, color: C.gris }}>
                   Equipo, permisos, ciclos y catálogo. Lo que vive el lote se captura en las otras secciones.
                 </p>
@@ -3280,11 +3349,11 @@ function AgroCicloApp() {
               </div>
 
               <Tarjeta style={{ padding: 18 }}>
-                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Rancho</div>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Predio</div>
                 <p style={{ margin: "8px 0 12px", fontSize: 12, color: C.gris }}>
                   Tú eres Dueño · {user?.primaryEmail || user?.displayName || "cuenta"}
                 </p>
-                <Campo label="Nombre del rancho">
+                <Campo label="Nombre del predio">
                   <input
                     defaultValue={profile.orgNombre}
                     style={estiloInput}
@@ -3299,7 +3368,7 @@ function AgroCicloApp() {
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Código para tu equipo</div>
                 <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
-                  El Encargado y la oficina lo escriben al entrar. Sin código abren su propio rancho, no el tuyo.
+                  El Encargado y la oficina lo escriben al entrar. Sin código abren su propio predio, no el tuyo.
                 </p>
                 <div className="flex flex-wrap items-center gap-2">
                   <div
@@ -3377,7 +3446,7 @@ function AgroCicloApp() {
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Catálogo de insumos</div>
                 <p style={{ margin: "6px 0 12px", fontSize: 13, color: C.gris }}>
-                  Nombres y unidades del rancho. El stock nace cuando registras una compra. Aquí no hay existencias inventadas.
+                  Nombres y unidades del predio. El stock nace cuando registras una compra. Aquí no hay existencias inventadas.
                 </p>
                 <CatalogoInsumos insumos={insumos} onGuardar={guardarInsumo} onEliminar={eliminarInsumo} />
               </Tarjeta>
@@ -3385,22 +3454,22 @@ function AgroCicloApp() {
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de prueba</div>
                 <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
-                  Este rancho debe quedar en ceros para la siembra que empieza. La demo OI 2025/26 (2,150 L, FIRA, productor 3567) no es información real.
+                  Este predio debe quedar en ceros para la siembra que empieza. La demo OI 2025/26 (2,150 L, FIRA, productor 3567) no es información real.
                 </p>
                 <div className="flex flex-wrap gap-2">
                   <Boton
                     onClick={() => {
-                      if (window.confirm("Vaciar el rancho: queda OI 2026/27 sin parcelas, sin almacén y sin crédito. Se pierde lo capturado.")) {
+                      if (window.confirm("Vaciar el predio: queda OI 2026/27 sin parcelas, sin almacén y sin crédito. Se pierde lo capturado.")) {
                         void vaciar().then(() => window.location.reload());
                       }
                     }}
                   >
-                    Dejar rancho en ceros
+                    Dejar predio en ceros
                   </Boton>
                   <Boton
                     secundario
                     onClick={() => {
-                      if (window.confirm("Esto carga números de PRUEBA (OI 2025/26). No son del rancho. ¿Seguro?")) {
+                      if (window.confirm("Esto carga números de PRUEBA (OI 2025/26). No son del predio. ¿Seguro?")) {
                         void restaurarDemo().then(() => window.location.reload());
                       }
                     }}

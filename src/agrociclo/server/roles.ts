@@ -22,7 +22,7 @@ export const FINANCIAL_RPC = new Set([
   "fn_eliminar_parcela",
 ]);
 
-/** Ciclos y catálogo del rancho: solo Dueño. */
+/** Ciclos y catálogo del predio: solo Dueño. */
 export const CICLO_ADMIN_RPC = new Set([
   "fn_abrir_ciclo",
   "fn_editar_ciclo",

@@ -27,7 +27,7 @@ describe("Celular de atención", () => {
     assert.match(urlWhatsApp("6681234567", "Hola"), /text=Hola/);
   });
   it("el mensaje no pide el nombre del operador", () => {
-    const m = mensajeWhatsAppAtencion({ nombre: "Juan", rancho: "El Álamo", nota: "No entra la captura" });
+    const m = mensajeWhatsAppAtencion({ nombre: "Juan", predio: "El Álamo", nota: "No entra la captura" });
     assert.match(m, /Juan/);
     assert.match(m, /Álamo/);
     assert.doesNotMatch(m, /Miguel|operador/i);

@@ -337,6 +337,11 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
   fn_guardar_boleta(p) {
     const id = String(p.p_boleta_id ?? "") || uid();
     const almId = p.p_bodega ? findOrCreate("almacenadora", String(p.p_bodega)) : null;
+    const prev = getById("boleta", id);
+    // Campos de dinero: si el parámetro viene null/ausente (rol que no ve finanzas),
+    // se CONSERVA el valor anterior. Antes se pisaba a 0 al editar sin ver precios.
+    const dineroONull = (v: unknown, anterior: unknown) =>
+      v === null || v === undefined ? (Number(anterior) || 0) : (Number(v) || 0);
     upsert("boleta", {
       id,
       organizacion_id: ORG_ID,
@@ -349,14 +354,18 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       tara: Number(p.p_tara) || 0,
       humedad: Number(p.p_humedad) || 0,
       impurezas: Number(p.p_impurezas) || 0,
-      humedad_std: Number(p.p_humedad_std) || 14,
-      impurezas_std: Number(p.p_impurezas_std) || 2,
-      precio_ton: Number(p.p_precio_ton) || 0,
-      trilla: Number(p.p_trilla) || 0,
-      flete: Number(p.p_flete) || 0,
-      otros: Number(p.p_otros) || 0,
+      humedad_std: p.p_humedad_std === null || p.p_humedad_std === undefined
+        ? (Number(prev?.humedad_std) || 14)
+        : (Number(p.p_humedad_std) || 14),
+      impurezas_std: p.p_impurezas_std === null || p.p_impurezas_std === undefined
+        ? (Number(prev?.impurezas_std) || 2)
+        : (Number(p.p_impurezas_std) || 2),
+      precio_ton: dineroONull(p.p_precio_ton, prev?.precio_ton),
+      trilla: dineroONull(p.p_trilla, prev?.trilla),
+      flete: dineroONull(p.p_flete, prev?.flete),
+      otros: dineroONull(p.p_otros, prev?.otros),
       eliminado_en: null,
-      creado_en: getById("boleta", id)?.creado_en ?? new Date().toISOString(),
+      creado_en: prev?.creado_en ?? new Date().toISOString(),
     });
     return ok(id);
   },
@@ -897,7 +906,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const id = String(p.p_id ?? "");
     const c = getById("ciclo", id);
     if (!c) return err("No encontré ese ciclo.");
-    if (live("ciclo").length <= 1) return err("No puedes dejar el rancho sin ciclo. Abre otro primero.");
+    if (live("ciclo").length <= 1) return err("No puedes dejar el predio sin ciclo. Abre otro primero.");
     const nParc = live("parcela").filter((r) => String(r.ciclo_id) === id).length;
     const nLab = live("labor").filter((r) => String(r.ciclo_id) === id).length;
     const nLin = live("linea_credito").filter((r) => String(r.ciclo_id) === id).length;

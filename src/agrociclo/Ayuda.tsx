@@ -74,7 +74,7 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
     if (!wa.listo) return;
     const texto = mensajeWhatsAppAtencion({
       nombre: profile.displayName || profile.email,
-      rancho: profile.orgNombre,
+      predio: profile.orgNombre,
       nota: cuerpo.trim() || titulo.trim(),
     });
     void crearTicket({

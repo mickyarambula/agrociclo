@@ -24,7 +24,7 @@ export const emptyRanch = (): PersistedRanch => ({
 export function demoRanch(): PersistedRanch {
   return {
     ranch: {
-      nombre: "Rancho El Tamarindo",
+      nombre: "Predio El Tamarindo",
       productor: "Productor demo",
       lugar: "Ahome, Valle del Fuerte",
       cicloNombre: "OI 26-27",

@@ -7,7 +7,7 @@ export function rolDeEntrada(dueñosVivos: number): "Dueño" | "pendiente" {
   return dueñosVivos > 0 ? "pendiente" : "Dueño";
 }
 
-/** Si el Dueño desapareció (cuenta borrada), quien abra sesión toma el rancho. */
+/** Si el Dueño desapareció (cuenta borrada), quien abra sesión toma el predio. */
 export function debePromoverADueño(rolActual: string, dueñosVivos: number): boolean {
   return rolActual !== "Dueño" && dueñosVivos === 0;
 }
