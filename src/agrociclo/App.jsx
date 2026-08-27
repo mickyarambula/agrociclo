@@ -351,6 +351,12 @@ function AgroCicloApp() {
   const veFinanzas = profile.veFinanzas;
   const puedeEditar = puedeEscribirModulo(rol, vista, matriz);
   const vePrecios = veFinanzas || profile.encargadoVePrecios;
+  // En Hoy el permiso que manda es el de labores (la Oficina tiene captura en
+  // "ver" pero sí registra labores); ordenar es de quien lleva los números.
+  const puedeLabores = puedeEscribirModulo(rol, "labores", matriz);
+  const puedeOrdenar = puedeLabores && veFinanzas;
+  // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
+  const [rapida, setRapida] = useState(null);
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
   // B2a: `id` ES EL UUID real (se eliminó el id sintético i+1 y el puente por fuente).
@@ -570,9 +576,17 @@ function AgroCicloApp() {
         costoInsumo: lOtra ? Number(lOtra.costo_total) : 0,
         litrosDiesel: lDiesel ? Number(lDiesel.cantidad) : null,
         costoDiesel: lDiesel ? Number(lDiesel.costo_total) : 0,
+        pendiente: r.estado === "pendiente",
+        planInsumoId: r.plan_insumo_id ?? null,
+        planCantidad: Number(r.plan_cantidad) || 0,
+        planLitrosDiesel: Number(r.plan_litros_diesel) || 0,
       };
     }).filter(Boolean);
   }, [laboresQ.data, idsParcelasT]);
+  /* Orden flaca: labor con estado='pendiente' (anotada, sin costo ni bodega).
+     Las hechas son la verdad de costos; las pendientes solo salen en "Por hacer". */
+  const ordenesLabor = useMemo(() => laboresT.filter(l => l.pendiente), [laboresT]);
+  const laboresHechas = useMemo(() => laboresT.filter(l => !l.pendiente), [laboresT]);
   /* NÓMINA (base de datos). jornal del ciclo, traducido a la forma del prototipo: parcela
      por uuid directo, `pago_diario`→`pago`.
      `id`/`_uuid` = uuid del jornal. Se filtran los jornales cuya parcela no está en parcelasT.
@@ -1078,6 +1092,29 @@ function AgroCicloApp() {
   });
   const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, { onSuccess: cerrar });
   const eliminarLabor = (l) => eliminarLaborMut.mutate(l);
+
+  /* Orden flaca: la oficina anota "hacer X en parcela Y"; no baja bodega ni
+     suma costo hasta que el de campo la marca hecha (mismo fn_registrar_labor). */
+  const guardarOrdenMut = useOrgWrite({
+    mutationFn: async ({ f, original }) => {
+      if (!f.parcelaId) throw new Error("Selecciona una parcela.");
+      const { error } = await supabase.rpc("fn_registrar_labor", {
+        p_labor_id: original?._uuid ?? null,
+        p_parcela_id: f.parcelaId,
+        p_fecha: original?.fecha || hoyStr,
+        p_tipo: f.tipo,
+        p_descripcion: f.desc || "",
+        p_estado: "pendiente",
+        p_plan_insumo_id: f.insumoId || null,
+        p_plan_cantidad: Number(f.cantidad) || 0,
+        p_plan_litros_diesel: Number(f.litrosDiesel) || 0,
+      });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["labores", CICLO_ID]],
+    successMsg: "Orden anotada",
+  });
+  const guardarOrden = (f, original, onListo) => guardarOrdenMut.mutate({ f, original }, { onSuccess: onListo });
 
   /* --- PARCELAS (base de datos) --- */
   const guardarParcelaMut = useOrgWrite({
@@ -1849,6 +1886,36 @@ function AgroCicloApp() {
     setForm(puedeEditar ? { tipo: tipoForm, item: null } : null);
   };
 
+  /* Tarjetas compartidas entre Hoy y Labores: el form corto (3 toques),
+     la orden flaca de la oficina y la lista Por hacer. */
+  const tarjetaRapida = rapida ? (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.bosque}` }}>
+      <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+        {rapida.orden ? `Cerrar orden: ${rapida.orden.tipo}` : "Labor de hoy"}
+      </div>
+      <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
+        onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, { onSuccess: () => setRapida(null) })}
+        onCancelar={() => setRapida(null)} />
+    </Tarjeta>
+  ) : null;
+  const tarjetaOrden = form?.tipo === "orden" ? (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.grano}` }}>
+      <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
+        {form.item ? "Editar orden" : "Ordenar labor"}
+      </div>
+      <FormOrdenLabor key={form.item?.id || "nueva"} inicial={form.item} parcelas={parcelasT} insumos={insumos}
+        onGuardar={(f) => guardarOrden(f, form.item, cerrar)} onCancelar={cerrar} />
+    </Tarjeta>
+  ) : null;
+  const tarjetaPorHacer = (
+    <PorHacerLabores ordenes={ordenesLabor} parcelas={parcelas} insumos={insumos}
+      puedeLabores={puedeLabores} puedeOrdenar={puedeOrdenar}
+      onHecha={(l) => { cerrar(); setRapida({ orden: l }); }}
+      onOrdenar={() => { setRapida(null); setForm({ tipo: "orden", item: null }); }}
+      onEditar={(l) => { setRapida(null); setForm({ tipo: "orden", item: l }); }}
+      onEliminar={eliminarLabor} />
+  );
+
   return (
     <div style={{ minHeight: "100vh", background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}>
       {guia ? <Onboarding forzar={profile.onboardingHecho} onCerrar={() => setGuia(false)} /> : null}
@@ -1874,7 +1941,7 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); }}
+          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); }}
             title="Ciclo de siembra"
             aria-label="Ciclo de siembra"
             style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
@@ -1960,16 +2027,19 @@ function AgroCicloApp() {
                 </Tarjeta>
               ) : (
                 <>
+                  {tarjetaRapida}
+                  {tarjetaOrden}
+                  {tarjetaPorHacer}
                   {(() => {
-                    const ordenes = solicitudesT.filter((s) => s.estado !== "recibido" && s.estado !== "cancelado");
-                    if (ordenes.length === 0) return null;
+                    const pedidos = solicitudesT.filter((s) => s.estado !== "recibido" && s.estado !== "cancelado");
+                    if (pedidos.length === 0) return null;
                     return (
                       <Tarjeta style={{ padding: 16 }}>
                         <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
-                          Órdenes abiertas · {ordenes.length}
+                          Pedidos de insumo · {pedidos.length}
                         </div>
-                        <p style={{ margin: "0 0 8px", fontSize: 12, color: C.gris }}>La oficina pidió o autorizó. Tú cierras en el lote.</p>
-                        {ordenes.slice(0, 6).map((s) => (
+                        <p style={{ margin: "0 0 8px", fontSize: 12, color: C.gris }}>Compras que la oficina pidió o autorizó. Se reciben en Solicitudes.</p>
+                        {pedidos.slice(0, 6).map((s) => (
                           <button
                             key={s.id}
                             type="button"
@@ -1988,7 +2058,7 @@ function AgroCicloApp() {
                     );
                   })()}
                   {(() => {
-                    const hoyLab = laboresT.filter((l) => l.fecha === hoyStr);
+                    const hoyLab = laboresHechas.filter((l) => l.fecha === hoyStr);
                     const hoyRay = nominaT.filter((n) => n.fecha === hoyStr);
                     const hoyBol = boletasT.filter((b) => b.fecha === hoyStr);
                     const n = hoyLab.length + hoyRay.length + hoyBol.length;
@@ -2023,7 +2093,10 @@ function AgroCicloApp() {
                         <button
                           key={a.id}
                           type="button"
-                          onClick={() => accionRapida(a.vista, a.id)}
+                          onClick={() => {
+                            if (a.id === "labor" && puedeLabores) { cerrar(); setRapida({ orden: null }); return; }
+                            accionRapida(a.vista, a.id);
+                          }}
                           className="text-left"
                           style={{
                             background: C.blanco, border: `1px solid ${C.linea}`, borderTop: `3px solid ${C.bosque}`,
@@ -2115,7 +2188,7 @@ function AgroCicloApp() {
                     ] : [
                       { l: "Diésel en tanque", v: `${num(dieselIns?.stock || 0, 0)} L`, s: "Toca para ver almacén", ir: "inventario" },
                       { l: "Raya por pagar", v: money(rayaPendiente), s: "Toca para el corte", ir: "cuadrillas", alerta: rayaPendiente > 0 },
-                      { l: "Labores registradas", v: num(laboresT.length, 0), s: "Toca para ver o capturar", ir: "labores" },
+                      { l: "Labores registradas", v: num(laboresHechas.length, 0), s: "Toca para ver o capturar", ir: "labores" },
                       { l: "Entregas a bodega", v: num(boletasT.length, 0), s: "Toca para registrar boleta", ir: "cosecha" },
                     ]).map((k, i) => (
                       <Tarjeta key={i} onClick={() => { setVista(k.ir); cerrar(); }}
@@ -2341,7 +2414,7 @@ function AgroCicloApp() {
                         </div>
                       ) : (
                         <div className="mt-3" style={{ fontSize: 13, color: C.gris }}>
-                          {laboresT.filter(l => l.parcelaId === p.id).length} labores registradas · {num(c.tonReal, 1)} ton entregadas
+                          {laboresHechas.filter(l => l.parcelaId === p.id).length} labores registradas · {num(c.tonReal, 1)} ton entregadas
                         </div>
                       )}
                       {veFinanzas && p.tenencia === "Rentada" && p.rentaOrigen === "externo" && !p.fechaPagoRenta && (
@@ -2376,10 +2449,14 @@ function AgroCicloApp() {
 
               <TareasWhatsApp labores={laboresT} parcelas={parcelas} insumos={insumos} />
 
-              {laboresT.length === 0 && <Vacio texto="Aún no hay labores registradas en esta temporada." />}
-              {laboresT.length > 0 && (
+              {tarjetaRapida}
+              {tarjetaOrden}
+              {tarjetaPorHacer}
+
+              {laboresHechas.length === 0 && <Vacio texto="Aún no hay labores registradas en esta temporada." />}
+              {laboresHechas.length > 0 && (
                 <Tarjeta>
-                  {laboresT.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {
+                  {laboresHechas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {
                     const p = parcelas.find(x => x.id === l.parcelaId);
                     const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
                     return (
@@ -3323,7 +3400,7 @@ function AgroCicloApp() {
 
               <Simulador parcelasT={parcelasT} costosParcela={costosParcela} inversionTotal={inversionTotal} ingresoTotal={ingresoTotal} />
 
-              <Reportes parcelasT={parcelasT} laboresT={laboresT} nominaT={nominaT} insumos={insumos} gastosT={gastosT}
+              <Reportes parcelasT={parcelasT} laboresT={laboresHechas} nominaT={nominaT} insumos={insumos} gastosT={gastosT}
                 apsProductivas={apsProductivas} prestamosT={prestamosT} productores={productores}
                 costoFinTotal={costoFinTotal} inversionTotal={inversionTotal} costoDirectoTotal={costoDirectoTotal}
                 gastosIndTotal={gastosIndTotal} ingresoTotal={ingresoTotal} ingresoRealTotal={ingresoRealTotal}
@@ -4388,6 +4465,179 @@ function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true })
       )}
       <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton></div>
     </div>
+  );
+}
+
+/* ---------- Hoy: form corto y órdenes flacas ---------- */
+
+function ChipsTipoLabor({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {TIPOS_LABOR.map((t) => {
+        const on = value === t;
+        return (
+          <button key={t} type="button" onClick={() => onChange(t)}
+            style={{
+              minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
+              fontFamily: fuente.cuerpo,
+              border: `1.5px solid ${on ? C.bosque : C.linea}`,
+              background: on ? C.bosque : C.blanco,
+              color: on ? C.blanco : C.tinta,
+            }}>
+            {t}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Captura de lo que YA se hizo, en 3 toques: parcela, tipo, y si bajó algo de
+   bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
+   form completo de Labores). Si el plan pide más de lo que hay, no niega en
+   seco: dice cuánto hay y lo pone en un toque. */
+function FormLaborRapida({ orden, parcelas, insumos, onGuardar, onCancelar }) {
+  const [f, set, setF] = useForm({
+    parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
+    tipo: orden?.tipo || "",
+    litrosDiesel: orden?.planLitrosDiesel || "",
+    insumoId: orden?.planInsumoId || "",
+    cantidad: orden?.planCantidad || "",
+  });
+  const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
+  const diesel = insumos.find(i => i.categoria === "Diésel");
+  const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
+  const cantNum = Number(f.cantidad) || 0;
+  const litrosNum = Number(f.litrosDiesel) || 0;
+  const dispInsumo = insSel ? insSel.stock : 0;
+  const dispDiesel = diesel?.stock || 0;
+  const faltaInsumo = !!insSel && cantNum > dispInsumo;
+  const faltaDiesel = litrosNum > dispDiesel;
+  const listo = f.parcelaId && f.tipo && !faltaInsumo && !faltaDiesel;
+  return (
+    <div className="flex flex-col gap-3">
+      <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
+      <Campo label="Qué se hizo"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Campo label={`Diésel (L) · hay ${num(dispDiesel, 0)}`}>
+          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        </Campo>
+        <Campo label="Insumo de bodega">
+          <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+            <option value="">— Ninguno —</option>
+            {noDiesel.map((i) => <option key={i.id} value={i.id}>{i.nombre} · {num(i.stock, 1)} {i.unidad}</option>)}
+          </select>
+        </Campo>
+        {f.insumoId && (
+          <Campo label={`Cantidad usada · hay ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
+            <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+          </Campo>
+        )}
+      </div>
+      {faltaDiesel && (
+        <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
+        </div>
+      )}
+      {faltaInsumo && (
+        <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <Boton deshabilitado={!listo} onClick={() => onGuardar({
+          fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
+          desc: orden?.desc || "", costoOp: 0,
+          insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
+        })}>{orden ? "Hecha, guardar" : "Guardar labor"}</Boton>
+        <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
+      </div>
+    </div>
+  );
+}
+
+/* La orden flaca de la oficina: qué hacer y dónde. El insumo/diésel es
+   sugerencia — la bodega no baja hasta que el de campo la marque hecha. */
+function FormOrdenLabor({ inicial, parcelas, insumos, onGuardar, onCancelar }) {
+  const [f, set, setF] = useForm({
+    parcelaId: inicial?.parcelaId || "",
+    tipo: inicial?.tipo || "",
+    desc: inicial?.desc || "",
+    insumoId: inicial?.planInsumoId || "",
+    cantidad: inicial?.planCantidad || "",
+    litrosDiesel: inicial?.planLitrosDiesel || "",
+  });
+  const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
+  return (
+    <div className="flex flex-col gap-3">
+      <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
+      <Campo label="Qué hacer"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Campo label="Nota (opcional)"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
+        <Campo label="Insumo sugerido (opcional)">
+          <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+            <option value="">— Ninguno —</option>
+            {noDiesel.map((i) => <option key={i.id} value={i.id}>{i.nombre} · {num(i.stock, 1)} {i.unidad}</option>)}
+          </select>
+        </Campo>
+        {f.insumoId && (
+          <Campo label="Cantidad sugerida">
+            <input type="number" inputMode="decimal" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+          </Campo>
+        )}
+        <Campo label="Diésel sugerido (L, opcional)">
+          <input type="number" inputMode="decimal" style={estiloInput} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        </Campo>
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        La bodega no baja todavía: baja cuando el de campo la marque hecha, con lo que de verdad se usó.
+      </p>
+      <div className="flex items-center gap-2">
+        <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar orden"}</Boton>
+        <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
+      </div>
+    </div>
+  );
+}
+
+function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, puedeOrdenar, onHecha, onOrdenar, onEditar, onEliminar }) {
+  if (ordenes.length === 0 && !puedeOrdenar) return null;
+  return (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.grano}` }}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Por hacer · {ordenes.length}</div>
+        {puedeOrdenar && <Boton chico secundario onClick={onOrdenar}><Plus size={13} /> Ordenar labor</Boton>}
+      </div>
+      {ordenes.length === 0 ? (
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: C.gris }}>Nada pendiente. Anota qué hacer y el de campo la cierra en el lote.</p>
+      ) : (
+        ordenes.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map((l) => {
+          const p = parcelas.find((x) => x.id === l.parcelaId);
+          const ins = l.planInsumoId ? insumos.find((i) => i.id === l.planInsumoId) : null;
+          const d = diasEntre(l.fecha, hoyStr);
+          const desde = d === 0 ? "desde hoy" : d === 1 ? "desde ayer" : `desde hace ${d} días`;
+          return (
+            <div key={l.id} className="flex justify-between items-center gap-3 flex-wrap" style={{ padding: "10px 0", borderTop: `1px solid ${C.linea}`, marginTop: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{l.tipo} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.nombre || "parcela"}</span></div>
+                <div style={{ fontSize: 12, color: C.gris }}>
+                  {l.desc ? `${l.desc} · ` : ""}
+                  {ins ? `${num(l.planCantidad, 1)} ${ins.unidad} ${ins.nombre} · ` : ""}
+                  {l.planLitrosDiesel ? `${num(l.planLitrosDiesel, 0)} L diésel · ` : ""}
+                  <span style={{ fontWeight: 700, color: d >= 3 ? C.rojo : C.barrial }}>{desde}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {puedeLabores && <Boton chico onClick={() => onHecha(l)}>Hecha</Boton>}
+                {puedeOrdenar && <Acciones onEditar={() => onEditar(l)} onEliminar={() => onEliminar(l)} />}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </Tarjeta>
   );
 }
 

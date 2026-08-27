@@ -121,6 +121,34 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const isEdit = !!p.p_labor_id;
     const cicloLabor = cicloDe(p, parcela);
 
+    /* Orden flaca: "hacer X en parcela Y". Vive en la misma fila de labor con
+       estado='pendiente' y el plan sugerido aparte (plan_*). No baja bodega ni
+       suma costo hasta que alguien la marca hecha (mismo RPC, sin p_estado). */
+    if (p.p_estado === "pendiente") {
+      upsert("labor", {
+        id: laborId,
+        organizacion_id: ORG_ID,
+        ciclo_id: cicloLabor,
+        parcela_id: parcela,
+        fecha: p.p_fecha,
+        tipo: p.p_tipo,
+        descripcion: p.p_descripcion ?? "",
+        costo_operacion: 0,
+        estado: "pendiente",
+        plan_insumo_id: p.p_plan_insumo_id ?? null,
+        plan_cantidad: Number(p.p_plan_cantidad) || 0,
+        plan_litros_diesel: Number(p.p_plan_litros_diesel) || 0,
+        eliminado_en: null,
+        creado_en: new Date().toISOString(),
+      });
+      mutate((db) => ({
+        ...db,
+        labor_insumo: (db.labor_insumo as Row[]).filter((li) => li.labor_id !== laborId),
+      }));
+      replaceInvOrigen("labor", laborId, []);
+      return ok(laborId);
+    }
+
     // Return stock of previous labor before validating
     const prev = isEdit ? live("labor_insumo").filter((li) => li.labor_id === laborId) : [];
     for (const li of lineas) {
@@ -145,6 +173,10 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       tipo: p.p_tipo,
       descripcion: p.p_descripcion ?? "",
       costo_operacion: Number(p.p_costo_operacion) || 0,
+      estado: "hecha",
+      plan_insumo_id: null,
+      plan_cantidad: 0,
+      plan_litros_diesel: 0,
       eliminado_en: null,
       creado_en: new Date().toISOString(),
     });

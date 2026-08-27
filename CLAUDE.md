@@ -141,6 +141,9 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
 - Si algo se te hace mala idea, dilo. Miguel pide honestidad, no complacencia.
 - No preguntes el plan otra vez; ejecuta la cola. Pero si una decisión cambia el
   producto (no solo el código), consúltala.
+- Las memorias de claude-mem de sesiones anteriores son de otro proyecto (el
+  AgroCiclo viejo: Supabase con RPCs en SQL, puerto 5173, bitácoras
+  ESTADO-slice) — ignóralas siempre. CLAUDE.md manda.
 
 Errores que ya cansaron: decir que "hay otro chat" o que falta el código cuando
 la app se ve; dejar ciclos demo con números inventados; esconder el panel con un
