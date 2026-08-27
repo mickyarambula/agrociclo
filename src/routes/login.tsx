@@ -162,7 +162,7 @@ function Login() {
               : "Entra a tu rancho. El Encargado o la oficina usan el código que les dio el Dueño."}
           </p>
 
-          {authEnabled ? (
+          {authEnabled && import.meta.env.VITE_GROK_BROKER === "true" ? (
             <div className="flex flex-col gap-2">
               {GROK_PROVIDERS.map((p) => (
                 <button
@@ -187,17 +187,20 @@ function Login() {
                 </button>
               ))}
             </div>
-          ) : (
+          ) : null}
+          {!authEnabled ? (
             <p className="text-sm" style={{ color: C.gris }}>
               El acceso está desactivado.
             </p>
-          )}
+          ) : null}
 
-          <div className="my-4 flex items-center gap-3 text-xs" style={{ color: C.gris }}>
-            <span className="h-px flex-1" style={{ background: C.linea }} />
-            correo
-            <span className="h-px flex-1" style={{ background: C.linea }} />
-          </div>
+          {authEnabled && import.meta.env.VITE_GROK_BROKER === "true" ? (
+            <div className="my-4 flex items-center gap-3 text-xs" style={{ color: C.gris }}>
+              <span className="h-px flex-1" style={{ background: C.linea }} />
+              correo
+              <span className="h-px flex-1" style={{ background: C.linea }} />
+            </div>
+          ) : null}
 
           <form onSubmit={(e) => void onEmail(e)} className="flex flex-col gap-2">
             {modo === "crear" && (

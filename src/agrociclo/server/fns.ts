@@ -348,8 +348,23 @@ async function esPlataformaAdmin(userId: string): Promise<boolean> {
   }
 }
 
+/** Lista blanca del operador. Solo estos correos pueden auto-registrarse como
+ *  admin de plataforma cuando la tabla está vacía. Configurable con
+ *  PLATAFORMA_ADMIN_EMAILS (separados por coma); default: el correo de Miguel.
+ *  Cierra el hoyo "el primero que entra al despliegue es el operador". */
+function correosOperador(): Set<string> {
+  const raw = process.env.PLATAFORMA_ADMIN_EMAILS ?? "miguelarambulam@gmail.com";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
 async function asegurarPlataformaAdmin(userId: string, email: string | null, displayName: string | null) {
   if ((await countPlataformaAdmin()) > 0) return;
+  if (!email || !correosOperador().has(email.trim().toLowerCase())) return;
   const sql = await getSql();
   await sql.query(
     `insert into plataforma_admin (user_id, email, display_name) values ($1, $2, $3)
