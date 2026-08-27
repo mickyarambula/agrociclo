@@ -297,6 +297,10 @@ export function attachEmbeds(table: string, rows: Row[], columns?: string): Row[
       const ins = getById("insumo", String(r.insumo_id ?? ""));
       out.insumo = ins ? { nombre: ins.nombre } : null;
     }
+    if (table === "inventario_movimiento" && want("insumo")) {
+      const ins = getById("insumo", String(r.insumo_id ?? ""));
+      out.insumo = ins ? { nombre: ins.nombre, unidad: ins.unidad, categoria: ins.categoria } : null;
+    }
     if (want("proveedor")) {
       const p = getById("proveedor", String(r.proveedor_id ?? ""));
       out.proveedor = p ? { nombre: p.nombre } : null;

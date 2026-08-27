@@ -85,6 +85,15 @@ function stockOf(insumoId: string, cicloId?: string): number {
   return s;
 }
 
+/** Último precio de compra del ciclo; si no hay, el de catálogo. */
+function costoRefInsumo(insumoId: string, cicloId?: string): number {
+  const compras = live("compra")
+    .filter((c) => String(c.insumo_id) === insumoId && (!cicloId || String(c.ciclo_id) === cicloId))
+    .sort((a, b) => String(b.fecha ?? "").localeCompare(String(a.fecha ?? "")));
+  if (compras[0] && Number(compras[0].costo_unitario) > 0) return Number(compras[0].costo_unitario);
+  return Number(getById("insumo", insumoId)?.costo_unitario_ref) || 0;
+}
+
 function replaceInvOrigen(origen_tipo: string, origen_id: string, next: Row[]) {
   mutate((db) => ({
     ...db,
@@ -148,13 +157,14 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     for (const li of lineas) {
       const cant = Number(li.cantidad) || 0;
       if (cant <= 0) continue;
+      const cu = Number(li.costo_unitario) > 0 ? Number(li.costo_unitario) : costoRefInsumo(li.insumo_id, cicloLabor);
       insertRow("labor_insumo", {
         id: uid(),
         labor_id: laborId,
         insumo_id: li.insumo_id,
         cantidad: cant,
-        costo_unitario: Number(li.costo_unitario) || 0,
-        costo_total: cant * (Number(li.costo_unitario) || 0),
+        costo_unitario: cu,
+        costo_total: cant * cu,
         organizacion_id: ORG_ID,
         eliminado_en: null,
       });
@@ -245,9 +255,14 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       insumoId = findOrCreate("insumo", insumoNombre);
       patchWhere("insumo", (r) => r.id === insumoId, {
         unidad: p.p_unidad ?? "u",
-        categoria: "Otro",
+        categoria: String(p.p_categoria || "Otro"),
         costo_unitario_ref: Number(p.p_costo_unitario) || 0,
         activo: true,
+      });
+    } else if (insumoId && (Number(p.p_costo_unitario) || 0) > 0) {
+      patchWhere("insumo", (r) => r.id === insumoId, {
+        costo_unitario_ref: Number(p.p_costo_unitario) || 0,
+        unidad: p.p_unidad ?? getById("insumo", insumoId)?.unidad,
       });
     }
     const proveedorId = p.p_proveedor_nombre
@@ -685,6 +700,11 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       creado_en: new Date().toISOString(),
     });
     if (insumoId) {
+      patchWhere("insumo", (r) => r.id === insumoId, {
+        costo_unitario_ref: Number(cot.costo_unitario) || 0,
+        unidad: sol.unidad ?? getById("insumo", insumoId)?.unidad,
+        activo: true,
+      });
       insertRow("inventario_movimiento", {
         id: uid(),
         organizacion_id: ORG_ID,

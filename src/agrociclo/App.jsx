@@ -519,6 +519,10 @@ function AgroCicloApp() {
   const stockQ = useOrgRead(["inventario-stock", CICLO_ID], "v_inventario_stock", {
     build: (q) => q.eq("ciclo_id", CICLO_ID),
   });
+  const movInvQ = useOrgRead(["inventario-mov", CICLO_ID], "inventario_movimiento", {
+    columns: "id, fecha, tipo, cantidad, insumo_id, origen_tipo, origen_id, insumo ( nombre, unidad, categoria )",
+    build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha", { ascending: false }),
+  });
   const insumosT = useMemo(() => {
     const stockPorUuid = Object.fromEntries((stockQ.data ?? []).map(s => [s.insumo_id, Number(s.stock) || 0]));
     return (insumosCatQ.data ?? [])
@@ -1061,7 +1065,7 @@ function AgroCicloApp() {
       });
       if (error) throw new Error(error.message);
     },
-    invalidate: [["labores", CICLO_ID], ["inventario-stock"], ["insumos"]],
+    invalidate: [["labores", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"]],
     successMsg: "Labor guardada",
   });
   const eliminarLaborMut = useOrgWrite({
@@ -1069,7 +1073,7 @@ function AgroCicloApp() {
       const { error } = await supabase.rpc("fn_eliminar_labor", { p_labor_id: l._uuid, p_org: ORG_ID });
       if (error) throw new Error(error.message);
     },
-    invalidate: [["labores", CICLO_ID], ["inventario-stock"], ["insumos"]],
+    invalidate: [["labores", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"]],
     successMsg: "Labor eliminada",
   });
   const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, { onSuccess: cerrar });
@@ -1174,10 +1178,11 @@ function AgroCicloApp() {
         p_tasa_externa: origen === "externo" ? (Number(f.tasa) || 0) : 0,
         p_fecha_pago_externo: origen === "externo" ? (original?.fechaPago || null) : null,
         p_solicitud_id: null,
+        p_categoria: esNuevo ? (f.categoria || "Otro") : null,
       });
       if (error) throw new Error(error.message);
     },
-    invalidate: [["compras", CICLO_ID], ["inventario-stock"], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
+    invalidate: [["compras", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
     successMsg: "Compra guardada",
   });
   const guardarCompra = (f, original) => guardarCompraMut.mutate({ f, original }, { onSuccess: cerrar });
@@ -1187,7 +1192,7 @@ function AgroCicloApp() {
       const { error } = await supabase.rpc("fn_eliminar_compra", { p_compra_id: c._uuid, p_org: ORG_ID });
       if (error) throw new Error(error.message);
     },
-    invalidate: [["compras", CICLO_ID], ["inventario-stock"], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
+    invalidate: [["compras", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
     successMsg: "Compra eliminada",
   });
   const eliminarCompra = (c) => eliminarCompraMut.mutate(c);
@@ -1726,7 +1731,7 @@ function AgroCicloApp() {
       });
       if (error) throw new Error(error.message);
     },
-    invalidate: [["solicitudes", CICLO_ID], ["compras", CICLO_ID], ["inventario-stock"], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
+    invalidate: [["solicitudes", CICLO_ID], ["compras", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"], ["cuenta-productor", CICLO_ID], ["mov-cuenta-productor", CICLO_ID]],
     successMsg: "Solicitud recibida · compra registrada",
   });
   const recibirSolicitud = (sol) => recibirSolicitudMut.mutate(sol);
@@ -2343,7 +2348,11 @@ function AgroCicloApp() {
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
-                          {veFinanzas && <div style={{ fontWeight: 700, fontSize: 14 }}>{money(costoLabor(l))}</div>}
+                          {veFinanzas && (
+                            <div style={{ fontWeight: 700, fontSize: 14, color: costoLabor(l) > 0 ? C.tinta : C.barrial }}>
+                              {costoLabor(l) > 0 ? money(costoLabor(l)) : "sin costo"}
+                            </div>
+                          )}
                           {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "labor", item: l })} onEliminar={() => eliminarLabor(l)} />}
                         </div>
                       </div>
@@ -2362,7 +2371,7 @@ function AgroCicloApp() {
               form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
               {(stockQ.data ?? []).length === 0 ? (
-                <Vacio texto="Este ciclo no tiene movimientos de almacén. El catálogo (diésel, fertilizante…) se usa al registrar la primera compra o el inventario inicial. Los números de demostración viven en OI 2025/26." />
+                <Vacio texto="Bodega vacía. La compra entra aquí; la labor lo baja. Empieza con “Registrar compra”." />
               ) : (
               <div className="grid md:grid-cols-2 gap-3">
                 {insumosAlmacen.map(ins => (
@@ -2387,6 +2396,33 @@ function AgroCicloApp() {
                   </Tarjeta>
                 ))}
               </div>
+              )}
+
+              {(movInvQ.data ?? []).length > 0 && (
+                <>
+                  <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginTop: 8 }}>Movimientos · compra entra, labor sale</div>
+                  <Tarjeta>
+                    {(movInvQ.data ?? []).slice(0, 20).map((m, i) => {
+                      const ins = Array.isArray(m.insumo) ? m.insumo[0] : m.insumo;
+                      const nombre = ins?.nombre || "Insumo";
+                      const unidad = ins?.unidad || "";
+                      const entra = m.tipo !== "salida";
+                      const origen = m.origen_tipo === "labor" ? "labor" : m.origen_tipo === "compra" ? "compra" : (m.origen_tipo || "");
+                      return (
+                        <div key={m.id} className="flex justify-between items-center gap-3 px-4 py-2.5" style={{ borderTop: i ? `1px solid ${C.linea}` : "none", fontSize: 13 }}>
+                          <div>
+                            <span style={{ fontWeight: 700, color: entra ? C.bosque : C.barrial }}>{entra ? "Entró" : "Salió"}</span>
+                            {" · "}{nombre}
+                            <span style={{ color: C.gris }}> · {origen} · {m.fecha}</span>
+                          </div>
+                          <div style={{ fontWeight: 700, color: entra ? C.bosque : C.barrial }}>
+                            {entra ? "+" : "−"}{num(Number(m.cantidad) || 0, 1)} {unidad}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </Tarjeta>
+                </>
               )}
 
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginTop: 8 }}>Historial de compras</div>
@@ -4232,6 +4268,11 @@ function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true })
   const dispDiesel = diesel ? diesel.stock + (inicial?.litrosDiesel || 0) : 0;
   const faltaInsumo = insSel && cantNum > dispInsumo;
   const faltaDiesel = litrosNum > dispDiesel;
+  const costoPrev =
+    (Number(f.costoOp) || 0) +
+    litrosNum * (diesel?.costoUnitario || 0) +
+    cantNum * (insSel?.costoUnitario || 0);
+  const bajaBodega = litrosNum > 0 || cantNum > 0;
   const bloqueado = !f.parcelaId || faltaInsumo || faltaDiesel;
 
   return (
@@ -4241,16 +4282,32 @@ function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true })
       <Campo label="Tipo de labor"><select style={estiloInput} value={f.tipo} onChange={set("tipo")}>{TIPOS_LABOR.map(t => <option key={t}>{t}</option>)}</select></Campo>
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
       {veFinanzas && (
-        <Campo label="Costo de operación (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, renta, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
+        <Campo label="Costo de operación / máquina (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
       )}
-      <Campo label={`Diésel del tanque (L) · disponible ${num(dispDiesel, 0)}`}>
+      <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`}>
         <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
       </Campo>
-      <Campo label="Insumo usado (opcional)"><select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}><option value="">— Ninguno —</option>{noDiesel.map(i => <option key={i.id} value={i.id}>{i.nombre}</option>)}</select></Campo>
+      <Campo label="Insumo que baja de bodega">
+        <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+          <option value="">— Ninguno —</option>
+          {noDiesel.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.nombre} · {num(i.stock, 1)} {i.unidad}
+            </option>
+          ))}
+        </select>
+      </Campo>
       {f.insumoId && (
-        <Campo label={`Cantidad usada · disponible ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
+        <Campo label={`Cantidad usada · hay ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
           <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
         </Campo>
+      )}
+      {veFinanzas && (costoPrev > 0 || bajaBodega) && (
+        <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>
+          Al lote: <strong>{money(costoPrev)}</strong>
+          {bajaBodega ? " · se descuenta de bodega al guardar" : ""}
+          {costoPrev === 0 ? " · sin costo todavía (pon diésel, insumo o operación)" : ""}
+        </div>
       )}
       {(faltaInsumo || faltaDiesel) && (
         <div className="md:col-span-3 flex items-center gap-2" style={{ background: "#FBEEE9", border: `1px solid ${C.rojo}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.rojo, fontWeight: 600 }}>
@@ -4357,7 +4414,12 @@ function FormCompra({ inicial, insumos, productores, creditos, onGuardar }) {
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
         creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22" />
-      <div className="flex items-end gap-3">
+      <div className="flex items-end gap-3 md:col-span-3 flex-wrap">
+        {monto > 0 && (
+          <div style={{ fontSize: 13, color: C.bosque, paddingBottom: 8 }}>
+            Entra a bodega: <strong>{num(Number(f.cantidad) || 0, 1)} {f.unidad || ""}</strong> · {money(monto)}
+          </div>
+        )}
         <Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar({ ...f, insumoId: esNuevo ? "" : f.insumoId })}>
           {inicial ? "Guardar cambios" : `Registrar compra${monto ? ` · ${money(monto)}` : ""}`}
         </Boton>
