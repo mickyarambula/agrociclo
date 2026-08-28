@@ -54,7 +54,11 @@ organización. No hay tablas por entidad. Las tablas reales son solo: `user`,
 `agrociclo_ledger`, `agrociclo_auditoria` y las `plataforma_*`.
 
 Archivos clave:
-- `src/agrociclo/App.jsx` (~5,300 líneas) — casi toda la UI. Ya pide partirse por módulo.
+- `src/agrociclo/App.jsx` (~1,900 líneas) — capa de datos y navegación: sesión,
+  lecturas, mutaciones, derivados (`costosParcela`, totales, avisos). La UI vive
+  partida: `base.js` (cálculos puros y constantes), `ui.jsx` (componentes base),
+  `forms/` (formularios por módulo), `vistas/` (una vista por pantalla),
+  `reportes.jsx`. Las vistas reciben todo por props; el estado no baja de App.
 - `src/agrociclo/data/rpcs.ts` — reglas de negocio (`fn_guardar_compra`, `fn_registrar_labor`,
   `fn_guardar_boleta`, `fn_liquidar_disposicion`, ciclos, solicitudes, caja).
 - `src/agrociclo/data/db.ts` — vistas derivadas: `v_inventario_stock`, interés de
@@ -109,32 +113,53 @@ Costo financiero, Reportes). Header: selector de ciclo · Ajustes · Ayuda · no
 
 ## Cola de trabajo
 
-1. **Hoy en 3 toques + orden flaca** ← SIGUIENTE.
-   Form corto en Hoy: parcela, tipo de labor, litros/insumo → `fn_registrar_labor`.
-   Orden flaca: Oficina/Dueño anota "hacer X en parcela Y"; el Encargado pulsa
-   "Hecha" → misma labor + baja de bodega. **No hagas tabla nueva de "órdenes"**
-   si se puede colgar de labor (campo estado pendiente/hecha). Solicitudes
-   siguen siendo de COMPRA, no se mezclan.
-   *Por qué importa*: si capturar una labor cuesta más de 30 segundos, la app se
-   abandona en dos semanas — y sin captura completa, el costo real es mentira.
-   Este es el riesgo #1 de adopción.
-2. **Estado vacío de El ciclo que guíe** (hoy solo dice "no tienes parcelas";
-   debería llevar de la mano: parcelas → presupuesto → capturar).
-3. **Partir `App.jsx`** por módulo, sin cambiar comportamiento.
-4. **Panel de Miguel**: métricas de uso desde `plataforma_evento` y
+Hecho (agosto 2026): Hoy en 3 toques + orden flaca (estado pendiente/hecha en
+la fila de labor, sin tabla nueva) · guía de arranque de El ciclo (3 pasos
+derivados, ocultable por sesión) · App.jsx partido por módulo (base/ui/forms/
+vistas; App = datos + navegación) · precios por unidad con centavos (`moneyU`) ·
+catálogos de tipos de labor, actividades de raya y cultivos (con "+ Nuevo" y
+anti-duplicados) · renta con dueño (catálogo `rentero` aparte de Productores) ·
+"Guardar y repetir en otra parcela" · esperados vacíos = sin proyección ("—",
+avisos apagados, enlace para llenarlos en la tarjeta) · fecha de corte de la
+vista ("Ver el ciclo al…" con banda de aviso e interés proyectado).
+
+1. **Panel de Miguel** ← SIGUIENTE. Métricas de uso desde `plataforma_evento` y
    `agrociclo_auditoria` (activos por semana, quién dejó de capturar = alerta de
    soporte, módulos que nadie usa), vista de soporte por predio, tickets, FAQ.
-5. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
+2. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
    su parafinanciera.
+3. **Kardex con costo por movimiento**: hoy los movimientos solo traen
+   cantidades; el productor no tiene dónde ver a qué costo salió cada labor.
+4. **Umbral de stock bajo con unidad**: el aviso usa ≤2 fijo sin unidad (2 ton
+   de urea ≠ 2 bolsas) y regaña por insumos que simplemente se acabaron según
+   plan a fin de ciclo.
 
 No hacer ahora: PDF, presupuesto por parcela, módulo Tesorería, clima, mapa.
 Offline tampoco por ahora — pero va a llegar a la mesa en cuanto haya un productor
 real, porque en las parcelas del valle la señal es la que es. No lo entierres.
 
+## Criterios de producto (decididos, no los deshagas)
+
+- **Catálogos en vez de texto libre** para todo lo que alimenta reportes (tipos
+  de labor, actividades de raya, cultivos): base fija + "+ Nuevo" del predio,
+  con anti-duplicados sin acentos ni mayúsculas. Que "Deshierbe" y "desierbe"
+  no partan un reporte.
+- **Tablas separadas para cosas distintas**: los renteros no son productores;
+  un rentero jamás aparece en la cuenta corriente ni en el consolidado del
+  grupo. Ante la duda, tabla aparte con la puerta abierta al cruce (el select
+  de rentero también ofrece productores, para el caso prestanombre).
+- **Un valor ausente se muestra "—", nunca cero.** Esperados vacíos = "sin
+  proyección": los avisos serios no se paran sobre números inventados, y el
+  empujón para llenar un dato va donde duele su ausencia, no en el onboarding.
+- **Los avisos resuelven, no solo niegan**: "hay X, guarda con lo que sí se
+  usó" con botón de un toque, en vez de un bloqueo seco.
+- **Precios por unidad con centavos solo cuando existen** (`moneyU`); totales y
+  derivados en pesos enteros.
+
 ## Cómo trabajar
 
 - **Verifica siempre antes de entregar**: `npm run typecheck` y
-  `node --test scripts/agrociclo-*.test.mjs` (31 tests, deben pasar todos).
+  `node --test scripts/agrociclo-*.test.mjs` (38 tests, deben pasar todos).
   Levanta la app (`npm run dev`, puerto 8080) y **mira la pantalla** que tocaste.
 - Al terminar un cambio: di **en qué menú se ve** y **4 pasos para probarlo**.
   Miguel no lee commits ni diffs.
