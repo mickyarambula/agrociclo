@@ -28,6 +28,7 @@ export interface Ledger {
   linea_credito: Row[];
   disposicion: Row[];
   pago_disposicion: Row[];
+  tipo_trabajo: Row[];
 }
 
 export type TableName = keyof Ledger;

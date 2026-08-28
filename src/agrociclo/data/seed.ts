@@ -1053,6 +1053,7 @@ export function demoLedger(): Ledger {
       disp(dPrestamo, "prestamo", "pre-3567-120k", 120000, "2025-12-15"),
     ],
     pago_disposicion: [],
+    tipo_trabajo: [],
   };
 }
 
@@ -1105,6 +1106,7 @@ export function ranchoVacioLedger(orgId: string = ORG, nombre = "Agroempresa Val
     linea_credito: [],
     disposicion: [],
     pago_disposicion: [],
+    tipo_trabajo: [],
   };
 }
 

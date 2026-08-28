@@ -4,14 +4,14 @@ import { fuente, Tarjeta, Boton, Acciones, Seccion, Vacio } from "../ui";
 import { FormNomina } from "../forms/venta";
 import { CheckCircle2 } from "lucide-react";
 
-export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina }) {
+export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya }) {
   return (
     <>
           {vista === "cuadrillas" && (
             <Seccion titulo="Cuadrillas y operadores · lista de raya" accion="Registrar trabajo" puedeEditar={puedeEditar}
               abierto={form?.tipo === "nomina"} onAbrir={() => setForm({ tipo: "nomina", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormNomina key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} directorio={directorio} onGuardar={(f) => guardarNomina(f, form?.item)} />}>
+              form={<FormNomina key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} directorio={directorio} actividades={actividadesRaya} onAgregarActividad={agregarActividadRaya} onGuardar={(f) => guardarNomina(f, form?.item)} />}>
 
               {rayaPorPersona.length > 0 && (
                 <Tarjeta style={{ padding: 18, borderTop: `3px solid ${C.grano}` }}>

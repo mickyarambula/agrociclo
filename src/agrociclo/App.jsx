@@ -19,7 +19,7 @@ import {
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
   interesCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
-  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR,
+  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -880,6 +880,31 @@ function AgroCicloApp() {
   });
   const guardarOrden = (f, original, onListo) => guardarOrdenMut.mutate({ f, original }, { onSuccess: onListo });
 
+  /* Catálogo de tipos de labor y actividades de raya: la base fija + lo que el
+     predio agrega (tabla tipo_trabajo). Así "Deshierbe" y "desierbe" no parten
+     el reporte entre dos capturistas. */
+  const tiposQ = useOrgRead(["tipos-trabajo"], "tipo_trabajo", { build: (q) => q.is("eliminado_en", null).order("nombre") });
+  const tiposLabor = useMemo(() => {
+    const extra = (tiposQ.data ?? []).filter((t) => t.ambito === "labor").map((t) => String(t.nombre));
+    return [...TIPOS_LABOR.filter((t) => t !== "Otro"), ...extra, "Otro"];
+  }, [tiposQ.data]);
+  const actividadesRaya = useMemo(() => {
+    const extra = (tiposQ.data ?? []).filter((t) => t.ambito === "raya").map((t) => String(t.nombre));
+    return [...ACTIVIDADES_RAYA, ...extra];
+  }, [tiposQ.data]);
+  const agregarTipoMut = useOrgWrite({
+    mutationFn: async ({ ambito, nombre }) => {
+      const n = String(nombre || "").trim();
+      if (!n) throw new Error("Escribe el nombre.");
+      const { error } = await supabase.from("tipo_trabajo").insert({ organizacion_id: ORG_ID, ambito, nombre: n });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["tipos-trabajo"]],
+    successMsg: "Agregado al catálogo",
+  });
+  const agregarTipoLabor = (nombre) => agregarTipoMut.mutate({ ambito: "labor", nombre });
+  const agregarActividadRaya = (nombre) => agregarTipoMut.mutate({ ambito: "raya", nombre });
+
   /* --- PARCELAS (base de datos) --- */
   const guardarParcelaMut = useOrgWrite({
     mutationFn: async ({ f, original }) => {
@@ -1658,6 +1683,7 @@ function AgroCicloApp() {
         {rapida.orden ? `Cerrar orden: ${rapida.orden.tipo}` : "Labor de hoy"}
       </div>
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
+        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor}
         onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, { onSuccess: () => setRapida(null) })}
         onCancelar={() => setRapida(null)} />
     </Tarjeta>
@@ -1668,6 +1694,7 @@ function AgroCicloApp() {
         {form.item ? "Editar orden" : "Ordenar labor"}
       </div>
       <FormOrdenLabor key={form.item?.id || "nueva"} inicial={form.item} parcelas={parcelasT} insumos={insumos}
+        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor}
         onGuardar={(f) => guardarOrden(f, form.item, cerrar)} onCancelar={cerrar} />
     </Tarjeta>
   ) : null;
@@ -1812,13 +1839,13 @@ function AgroCicloApp() {
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar }} />
 
           {/* ===== LABORES ===== */}
-          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor }} />
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor }} />
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
-          <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina }} />
+          <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya }} />
 
           {/* ===== COSECHA ===== */}
           <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costosParcela, parcelas, eliminarBoleta }} />

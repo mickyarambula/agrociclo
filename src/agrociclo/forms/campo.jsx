@@ -71,11 +71,12 @@ export function TareasWhatsApp({ labores, parcelas, insumos }) {
   );
 }
 
-export function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true }) {
+export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, veFinanzas = true }) {
   const [f, set] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
-    tipo: inicial?.tipo || TIPOS_LABOR[0],
+    tipo: inicial?.tipo || (tipos || TIPOS_LABOR)[0],
+    tipoNuevo: "",
     desc: inicial?.desc || "",
     costoOp: inicial?.costoOp ?? "",
     insumoId: inicial?.insumoId || "",
@@ -97,13 +98,21 @@ export function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = 
     litrosNum * (diesel?.costoUnitario || 0) +
     cantNum * (insSel?.costoUnitario || 0);
   const bajaBodega = litrosNum > 0 || cantNum > 0;
-  const bloqueado = !f.parcelaId || faltaInsumo || faltaDiesel;
+  const bloqueado = !f.parcelaId || faltaInsumo || faltaDiesel || (f.tipo === "__nuevo" && !f.tipoNuevo.trim());
 
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
-      <Campo label="Tipo de labor"><select style={estiloInput} value={f.tipo} onChange={set("tipo")}>{TIPOS_LABOR.map(t => <option key={t}>{t}</option>)}</select></Campo>
+      <Campo label="Tipo de labor">
+        <select style={estiloInput} value={f.tipo} onChange={set("tipo")}>
+          {(tipos || TIPOS_LABOR).map(t => <option key={t}>{t}</option>)}
+          <option value="__nuevo">+ Nuevo tipo…</option>
+        </select>
+      </Campo>
+      {f.tipo === "__nuevo" && (
+        <Campo label="Nombre del nuevo tipo"><input style={estiloInput} placeholder="Ej. Fertirriego" value={f.tipoNuevo} onChange={set("tipoNuevo")} /></Campo>
+      )}
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
       {veFinanzas && (
         <Campo label="Costo de operación / máquina (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
@@ -141,17 +150,37 @@ export function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = 
           Registra primero la compra en Insumos.
         </div>
       )}
-      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton></div>
+      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => {
+        const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
+        if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
+        onGuardar({ ...f, tipo });
+      }}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton></div>
     </div>
   );
 }
 
 /* ---------- Hoy: form corto y órdenes flacas ---------- */
 
-export function ChipsTipoLabor({ value, onChange }) {
+/* Quita acentos y mayúsculas para comparar: "Fertirriego" == "fertirriego". */
+function claveTipo(n) {
+  return String(n || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+export function ChipsTipoLabor({ tipos, value, onChange, onAgregar }) {
+  const [nuevoAbierto, setNuevoAbierto] = useState(false);
+  const [nuevoNombre, setNuevoNombre] = useState("");
+  const lista = tipos || TIPOS_LABOR;
+  const agregar = () => {
+    const n = nuevoNombre.trim();
+    if (!n) return;
+    const existente = lista.find((t) => claveTipo(t) === claveTipo(n));
+    if (existente) { onChange(existente); }
+    else { onChange(n); onAgregar && onAgregar(n); }
+    setNuevoNombre(""); setNuevoAbierto(false);
+  };
   return (
-    <div className="flex flex-wrap gap-2">
-      {TIPOS_LABOR.map((t) => {
+    <div className="flex flex-wrap gap-2 items-center">
+      {lista.map((t) => {
         const on = value === t;
         return (
           <button key={t} type="button" onClick={() => onChange(t)}
@@ -166,6 +195,24 @@ export function ChipsTipoLabor({ value, onChange }) {
           </button>
         );
       })}
+      {onAgregar && !nuevoAbierto && (
+        <button type="button" onClick={() => setNuevoAbierto(true)}
+          style={{
+            minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
+            fontFamily: fuente.cuerpo, border: `1.5px dashed ${C.gris}`, background: C.blanco, color: C.gris,
+          }}>
+          + Nuevo
+        </button>
+      )}
+      {onAgregar && nuevoAbierto && (
+        <span className="flex items-center gap-2">
+          <input autoFocus style={{ ...estiloInput, width: 180 }} placeholder="Ej. Fertirriego"
+            value={nuevoNombre} onChange={(e) => setNuevoNombre(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") agregar(); }} />
+          <Boton chico onClick={agregar}>Agregar</Boton>
+          <Boton chico secundario onClick={() => { setNuevoAbierto(false); setNuevoNombre(""); }}>Cancelar</Boton>
+        </span>
+      )}
     </div>
   );
 }
@@ -174,7 +221,7 @@ export function ChipsTipoLabor({ value, onChange }) {
    bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
    form completo de Labores). Si el plan pide más de lo que hay, no niega en
    seco: dice cuánto hay y lo pone en un toque. */
-export function FormLaborRapida({ orden, parcelas, insumos, onGuardar, onCancelar }) {
+export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onCancelar }) {
   const [f, set, setF] = useForm({
     parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
     tipo: orden?.tipo || "",
@@ -195,7 +242,7 @@ export function FormLaborRapida({ orden, parcelas, insumos, onGuardar, onCancela
   return (
     <div className="flex flex-col gap-3">
       <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
-      <Campo label="Qué se hizo"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <Campo label="Qué se hizo"><ChipsTipoLabor tipos={tipos} onAgregar={onAgregarTipo} value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
       <div className="grid md:grid-cols-3 gap-3">
         <Campo label={`Diésel (L) · hay ${num(dispDiesel, 0)}`}>
           <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
@@ -238,7 +285,7 @@ export function FormLaborRapida({ orden, parcelas, insumos, onGuardar, onCancela
 
 /* La orden flaca de la oficina: qué hacer y dónde. El insumo/diésel es
    sugerencia — la bodega no baja hasta que el de campo la marque hecha. */
-export function FormOrdenLabor({ inicial, parcelas, insumos, onGuardar, onCancelar }) {
+export function FormOrdenLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onCancelar }) {
   const [f, set, setF] = useForm({
     parcelaId: inicial?.parcelaId || "",
     tipo: inicial?.tipo || "",
@@ -251,7 +298,7 @@ export function FormOrdenLabor({ inicial, parcelas, insumos, onGuardar, onCancel
   return (
     <div className="flex flex-col gap-3">
       <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
-      <Campo label="Qué hacer"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <Campo label="Qué hacer"><ChipsTipoLabor tipos={tipos} onAgregar={onAgregarTipo} value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
       <div className="grid md:grid-cols-3 gap-3">
         <Campo label="Nota (opcional)"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
         <Campo label="Insumo sugerido (opcional)">

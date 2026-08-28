@@ -62,18 +62,18 @@ export function replaceLedger(next: Ledger): void {
 }
 
 export function live<T extends Row>(table: TableName): T[] {
-  return (tables[table] as T[]).filter((r) => !r.eliminado_en);
+  return ((tables[table] ?? []) as T[]).filter((r) => !r.eliminado_en);
 }
 
 export function getById<T extends Row>(table: TableName, id: string | null | undefined): T | undefined {
   if (!id) return undefined;
-  return (tables[table] as T[]).find((r) => r.id === id);
+  return ((tables[table] ?? []) as T[]).find((r) => r.id === id);
 }
 
 export function softDelete(table: TableName, id: string): void {
   mutate((db) => ({
     ...db,
-    [table]: (db[table] as Row[]).map((r) =>
+    [table]: ((db[table] ?? []) as Row[]).map((r) =>
       r.id === id ? { ...r, eliminado_en: new Date().toISOString() } : r,
     ),
   }));
@@ -81,7 +81,7 @@ export function softDelete(table: TableName, id: string): void {
 
 export function upsert(table: TableName, row: Row): void {
   mutate((db) => {
-    const list = db[table] as Row[];
+    const list = (db[table] ?? []) as Row[];
     const i = list.findIndex((r) => r.id === row.id);
     const next = i >= 0 ? list.map((r, idx) => (idx === i ? { ...r, ...row } : r)) : [...list, row];
     return { ...db, [table]: next };
@@ -89,14 +89,14 @@ export function upsert(table: TableName, row: Row): void {
 }
 
 export function insertRow(table: TableName, row: Row): void {
-  mutate((db) => ({ ...db, [table]: [...(db[table] as Row[]), row] }));
+  mutate((db) => ({ ...db, [table]: [...((db[table] ?? []) as Row[]), row] }));
 }
 
 export function patchWhere(table: TableName, pred: (r: Row) => boolean, patch: Partial<Row>): number {
   let n = 0;
   mutate((db) => ({
     ...db,
-    [table]: (db[table] as Row[]).map((r) => {
+    [table]: ((db[table] ?? []) as Row[]).map((r) => {
       if (!pred(r)) return r;
       n += 1;
       return { ...r, ...patch };

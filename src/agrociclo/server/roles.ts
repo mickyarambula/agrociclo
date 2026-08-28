@@ -40,7 +40,7 @@ export const ENCARGADO_RPC = new Set([
   "fn_hoy_mochis",
 ]);
 
-export const ENCARGADO_TABLES = new Set(["jornal"]);
+export const ENCARGADO_TABLES = new Set(["jornal", "tipo_trabajo"]);
 
 export type AccionModulo = "oculto" | "ver" | "editar";
 
@@ -104,6 +104,7 @@ const TABLE_MODULO: Record<string, ModuloId> = {
   insumo: "inventario",
   inventario_movimiento: "inventario",
   labor: "labores",
+  tipo_trabajo: "labores",
   boleta: "cosecha",
   gasto: "gastos",
   linea_credito: "credito",

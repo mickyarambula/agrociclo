@@ -3,10 +3,10 @@
 import { C, money, num, hoyStr, calcBoleta } from "../base";
 import { estiloInput, Boton, Campo, PickerParcela, useForm } from "../ui";
 
-export function FormNomina({ inicial, parcelas, directorio, onGuardar }) {
+export function FormNomina({ inicial, parcelas, directorio, actividades, onAgregarActividad, onGuardar }) {
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr, tipo: inicial?.tipo || "Cuadrilla",
-    cuadrilla: inicial?.cuadrilla || "", actividad: inicial?.actividad || "",
+    cuadrilla: inicial?.cuadrilla || "", actividad: inicial?.actividad || "", actividadNueva: "",
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
     personas: inicial?.personas ?? "", dias: inicial?.dias ?? "", pago: inicial?.pago ?? "",
     seleccion: inicial ? "manual" : "",
@@ -45,7 +45,16 @@ export function FormNomina({ inicial, parcelas, directorio, onGuardar }) {
           </Campo>
         </>
       )}
-      <Campo label="Actividad"><input style={estiloInput} placeholder="Ej. Rastreo / deshierbe" value={f.actividad} onChange={set("actividad")} /></Campo>
+      <Campo label="Actividad">
+        <select style={estiloInput} value={f.actividad} onChange={set("actividad")}>
+          <option value="">— Elige —</option>
+          {(actividades || []).concat(f.actividad && !(actividades || []).includes(f.actividad) && f.actividad !== "__nueva" ? [f.actividad] : []).map(a => <option key={a}>{a}</option>)}
+          <option value="__nueva">+ Nueva actividad…</option>
+        </select>
+      </Campo>
+      {f.actividad === "__nueva" && (
+        <Campo label="Nombre de la actividad"><input style={estiloInput} placeholder="Ej. Desahije" value={f.actividadNueva} onChange={set("actividadNueva")} /></Campo>
+      )}
       <div className="md:col-span-3"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Personas"><input type="number" style={estiloInput} placeholder={f.tipo === "Operador" ? "1" : "Ej. 6"} value={f.personas} onChange={set("personas")} /></Campo>
       <Campo label="Días trabajados"><input type="number" style={estiloInput} placeholder="Ej. 5" value={f.dias} onChange={set("dias")} /></Campo>
@@ -54,7 +63,11 @@ export function FormNomina({ inicial, parcelas, directorio, onGuardar }) {
         <div style={{ fontSize: 13, color: C.gris, paddingBottom: 8 }}>
           = <strong style={{ color: C.tinta }}>{jornales} jornales</strong>{total > 0 ? <> · a pagar en raya: <strong style={{ color: C.tinta }}>{money(total)}</strong></> : null}
         </div>
-        <Boton onClick={() => f.cuadrilla && f.parcelaId && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar trabajo"}</Boton>
+        <Boton deshabilitado={!f.cuadrilla || !f.parcelaId || (f.actividad === "__nueva" && !f.actividadNueva.trim())} onClick={() => {
+          const actividad = f.actividad === "__nueva" ? f.actividadNueva.trim() : f.actividad;
+          if (f.actividad === "__nueva" && onAgregarActividad) onAgregarActividad(actividad);
+          onGuardar({ ...f, actividad });
+        }}>{inicial ? "Guardar cambios" : "Guardar trabajo"}</Boton>
       </div>
     </div>
   );
