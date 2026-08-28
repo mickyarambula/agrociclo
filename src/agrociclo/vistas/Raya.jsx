@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { C, money } from "../base";
+import { C, money, moneyU } from "../base";
 import { fuente, Tarjeta, Boton, Acciones, Seccion, Vacio } from "../ui";
 import { FormNomina } from "../forms/venta";
 import { CheckCircle2 } from "lucide-react";
@@ -49,7 +49,7 @@ export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT
                               : <span style={{ background: "#E8F1E6", color: C.bosque, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>Pagado {n.fechaPago || ""}</span>}
                           </div>
                           <div style={{ fontSize: 12, color: C.gris }}>
-                            {n.fecha} · {n.actividad} · {p?.cultivo} ({p?.nombre}) · {n.personas} × {n.dias} día(s) = {jornales} jornales × {money(n.pago)}
+                            {n.fecha} · {n.actividad} · {p?.cultivo} ({p?.nombre}) · {n.personas} × {n.dias} día(s) = {jornales} jornales × {moneyU(n.pago)}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

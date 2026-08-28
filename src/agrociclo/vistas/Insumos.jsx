@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { C, money, num, interesCompra } from "../base";
+import { C, money, num, interesCompra, moneyU } from "../base";
 import { fuente, Tarjeta, Boton, Acciones, Seccion, Vacio } from "../ui";
 import { FormCompra } from "../forms/almacen";
 import { AlertTriangle, Fuel, CheckCircle2 } from "lucide-react";
@@ -24,7 +24,7 @@ export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, ce
                         <div className="flex items-center gap-1.5" style={{ fontWeight: 600, fontSize: 14 }}>
                           {ins.categoria === "Diésel" && <Fuel size={14} color={C.barrial} />}{ins.nombre}
                         </div>
-                        <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {money(ins.costoUnitario)} / {ins.unidad}</div>
+                        <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {moneyU(ins.costoUnitario)} / {ins.unidad}</div>
                       </div>
                       <div className="text-right">
                         <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, color: ins.stock <= 2 ? C.rojo : C.bosque }}>{num(ins.stock, 1)}</div>

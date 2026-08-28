@@ -17,6 +17,15 @@ export const money = (n) =>
 /** @param {number | null | undefined} n  @param {number} [d] */
 export const num = (n, d = 1) =>
   new Intl.NumberFormat("es-MX", { maximumFractionDigits: d }).format(n || 0);
+/* Precio por unidad: enseña los centavos solo cuando existen ($24.50, pero $24
+   y $20,000 quedan en pesos enteros). Para precios finos capturados, no para
+   totales ni derivados. */
+/** @param {number | null | undefined} n */
+export const moneyU = (n) => {
+  const v = n || 0;
+  const dec = Number.isInteger(v) ? 0 : 2;
+  return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
+};
 
 const hoy = new Date();
 export const hoyStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mazatlan" }).format(hoy);

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { C, money, num, calcBoleta } from "../base";
+import { C, money, num, calcBoleta, moneyU } from "../base";
 import { fuente, Tarjeta, Etiqueta, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormBoleta } from "../forms/venta";
 
@@ -75,7 +75,7 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
                             </div>
                             <div style={{ fontSize: 12, color: C.gris }}>
                               {b.fecha} · Neto {num(c.neto, 0)} kg · Hum {num(b.humedad, 1)}% (−{num(c.descH, 0)} kg) · Imp {num(b.impurezas, 1)}% (−{num(c.descI, 0)} kg) → <strong style={{ color: C.tinta }}>{num(c.pagable, 0)} kg</strong>
-                              {veFinanzas ? <> × {money(b.precioTon)}/ton</> : null}
+                              {veFinanzas ? <> × {moneyU(b.precioTon)}/ton</> : null}
                             </div>
                           </div>
                           <div className="flex items-center gap-2">

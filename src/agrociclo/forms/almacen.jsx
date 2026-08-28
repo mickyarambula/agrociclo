@@ -3,7 +3,7 @@
    solicitud de compra (cotizar / autorizar / recibir). */
 import { useState } from "react";
 import { Plus, Pencil, Trash2, CheckCircle2, PackageCheck } from "lucide-react";
-import { C, money, num, hoyStr, ESTADOS_SOLICITUD } from "../base";
+import { C, money, num, hoyStr, ESTADOS_SOLICITUD, moneyU } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, Vacio, useForm } from "../ui";
 import { CampoProductor, CampoFinanciamiento } from "./comunes";
 
@@ -17,7 +17,7 @@ export function CatalogoInsumos({ insumos, onGuardar, onEliminar }) {
         <div key={ins.id} className="flex items-center justify-between gap-2 py-2 border-t" style={{ borderColor: C.linea }}>
           <div className="min-w-0">
             <div style={{ fontWeight: 600, fontSize: 14 }}>{ins.nombre}</div>
-            <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {ins.unidad}{ins.costoUnitario ? ` · ref. ${money(ins.costoUnitario)}` : ""}</div>
+            <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {ins.unidad}{ins.costoUnitario ? ` · ref. ${moneyU(ins.costoUnitario)}` : ""}</div>
           </div>
           <div className="flex gap-1">
             <button type="button" aria-label="Editar" onClick={() => { setAlta(false); setEdit(ins); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.bosque }}><Pencil size={15} /></button>
@@ -231,7 +231,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
                   <span className="flex items-center gap-2">
                     {vePrecios ? (
                       <>
-                        <span style={{ fontWeight: 700 }}>{money(c.costoUnitario)}/{sol.unidad}</span>
+                        <span style={{ fontWeight: 700 }}>{moneyU(c.costoUnitario)}/{sol.unidad}</span>
                         <span style={{ color: C.gris }}>= {money((Number(c.costoUnitario) || 0) * (Number(sol.cantidad) || 0))}</span>
                       </>
                     ) : (
@@ -269,7 +269,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
             {sol.cotizaciones.map(c => (
               <label key={c.id} className="flex items-center gap-2" style={{ fontSize: 13, cursor: "pointer" }}>
                 <input type="radio" name={`aut-${sol.id}`} checked={aut.cotizacionElegidaId === String(c.id)} onChange={() => setAut({ ...aut, cotizacionElegidaId: String(c.id) })} />
-                <span><strong>{c.proveedor}</strong> · {money(c.costoUnitario)}/{sol.unidad} = {money((Number(c.costoUnitario) || 0) * (Number(sol.cantidad) || 0))}</span>
+                <span><strong>{c.proveedor}</strong> · {moneyU(c.costoUnitario)}/{sol.unidad} = {money((Number(c.costoUnitario) || 0) * (Number(sol.cantidad) || 0))}</span>
               </label>
             ))}
           </div>
