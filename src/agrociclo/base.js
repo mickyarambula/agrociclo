@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* Base compartida del ERP: paleta, formato, fechas de negocio y cálculos
    puros (crédito, rentas, boletas) + constantes de catálogo. Sin React. */
 
@@ -9,43 +8,62 @@ export const C = {
   blanco: "#FFFFFF", rojo: "#B5482E", azul: "#5B7A9A",
 };
 
+/* Las filas del ledger llegan sin tipo (JSONB); los cálculos las reciben así. */
+/** @typedef {Record<string, any>} Fila */
+
+/** @param {number | null | undefined} n */
 export const money = (n) =>
   new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", maximumFractionDigits: 0 }).format(n || 0);
+/** @param {number | null | undefined} n  @param {number} [d] */
 export const num = (n, d = 1) =>
   new Intl.NumberFormat("es-MX", { maximumFractionDigits: d }).format(n || 0);
 
 const hoy = new Date();
 export const hoyStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mazatlan" }).format(hoy);
-export const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b + "T00:00:00") - new Date(a + "T00:00:00")) / 86400000));
-export const diasHasta = (f) => Math.round((new Date(f + "T00:00:00") - new Date(hoyStr + "T00:00:00")) / 86400000);
+/** @param {string} a  @param {string} b */
+export const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000));
+/** @param {string} f */
+export const diasHasta = (f) => Math.round((new Date(f + "T00:00:00").getTime() - new Date(hoyStr + "T00:00:00").getTime()) / 86400000);
 
 /* --- costo financiero ---
    Interés: TIIE + spread, devenga diario sobre días transcurridos.
    FEGA: cobro ÚNICO = monto × %anual × (plazo contratado / 365). Se aplica al registro de la garantía.
    Comisión por apertura: cobro ÚNICO sobre el monto solicitado (se liquida a cosecha, pero es costo fijo desde el día 1). */
+/** @param {Fila} cr */
 export const tasaCredito = (cr) => (Number(cr.tiie) || 0) + (Number(cr.spread) || 0);
+/** @param {Fila} cr */
 export const interesCredito = (cr) => (cr.monto * tasaCredito(cr) / 100 / 365) * diasEntre(cr.fechaInicio, hoyStr);
+/** @param {Fila} cr */
 export const plazoDias = (cr) => cr.fechaVencimiento ? diasEntre(cr.fechaInicio, cr.fechaVencimiento) : 365;
+/** @param {Fila} cr */
 export const fegaCredito = (cr) => cr.monto * (Number(cr.fega) || 0) / 100 * (plazoDias(cr) / 365);
+/** @param {Fila} cr */
 export const comisionCredito = (cr) => cr.monto * (Number(cr.comision) || 0) / 100;
+/** @param {Fila} cr */
 export const costoFinCredito = (cr) => interesCredito(cr) + fegaCredito(cr) + comisionCredito(cr);
 /* Interés propio SOLO cuando el origen es "externo" (crédito de proveedor / financiamiento aparte).
    Si el origen es "linea", el interés ya lo devenga la línea registrada — no se cuenta dos veces.
    Si es "propio", no hay interés. */
+/** @param {Fila} cp */
 export const interesCompra = (cp) =>
   cp.origen === "externo" ? (cp.monto * ((Number(cp.tasa) || 0) / 100) / 365) * diasEntre(cp.fecha, cp.fechaPago || hoyStr) : 0;
+/** @param {Fila} g */
 export const interesGasto = (g) =>
   g.origen === "externo" ? (g.monto * ((Number(g.tasa) || 0) / 100) / 365) * diasEntre(g.fecha, g.fechaPago || hoyStr) : 0;
+/** @param {Fila} l */
 export const costoLabor = (l) => (l.costoOp || 0) + (l.costoInsumo || 0) + (l.costoDiesel || 0);
 
 /* --- rentas --- */
+/** @param {Fila} p */
 export const rentaMonto = (p) => p.tenencia === "Rentada" ? p.ha * (Number(p.rentaPorHa) || 0) : 0;
+/** @param {Fila} p */
 export const rentaInteres = (p) =>
   p.tenencia === "Rentada" && p.rentaOrigen === "externo"
     ? (rentaMonto(p) * (Number(p.tasaRenta) || 0) / 100 / 365) * diasEntre(p.fechaRenta || hoyStr, p.fechaPagoRenta || hoyStr)
     : 0;
 
 /* --- boletas --- */
+/** @param {Fila} b */
 export const calcBoleta = (b) => {
   const neto = Math.max(0, (Number(b.pesoBruto) || 0) - (Number(b.tara) || 0));
   const hStd = Number(b.hStd) || 14, iStd = Number(b.iStd) || 2;
