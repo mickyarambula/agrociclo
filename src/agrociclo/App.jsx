@@ -855,6 +855,9 @@ function AgroCicloApp() {
     successMsg: "Labor eliminada",
   });
   const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, { onSuccess: cerrar });
+  /* "Guardar y repetir": guarda la labor y deja el form abierto para el
+     siguiente lote (el form vacía parcela y cantidades por su cuenta). */
+  const guardarLaborRepetir = (f, listo) => guardarLaborMut.mutate({ f, original: null }, { onSuccess: listo });
   const eliminarLabor = (l) => eliminarLaborMut.mutate(l);
 
   /* Orden flaca: la oficina anota "hacer X en parcela Y"; no baja bodega ni
@@ -1703,6 +1706,7 @@ function AgroCicloApp() {
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
         tipos={tiposLabor} onAgregarTipo={agregarTipoLabor}
         onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, { onSuccess: () => setRapida(null) })}
+        onGuardarRepetir={guardarLaborRepetir}
         onCancelar={() => setRapida(null)} />
     </Tarjeta>
   ) : null;
@@ -1857,7 +1861,7 @@ function AgroCicloApp() {
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo }} />
 
           {/* ===== LABORES ===== */}
-          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor }} />
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir }} />
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }} />

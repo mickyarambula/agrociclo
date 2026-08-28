@@ -71,8 +71,8 @@ export function TareasWhatsApp({ labores, parcelas, insumos }) {
   );
 }
 
-export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, veFinanzas = true }) {
-  const [f, set] = useForm({
+export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true }) {
+  const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
     tipo: inicial?.tipo || (tipos || TIPOS_LABOR)[0],
@@ -142,19 +142,33 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
           {costoPrev === 0 ? " · sin costo todavía (pon diésel, insumo o operación)" : ""}
         </div>
       )}
-      {(faltaInsumo || faltaDiesel) && (
-        <div className="md:col-span-3 flex items-center gap-2" style={{ background: "#FBEEE9", border: `1px solid ${C.rojo}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.rojo, fontWeight: 600 }}>
-          <AlertTriangle size={15} />
-          {faltaDiesel ? `No hay suficiente diésel (disponible: ${num(dispDiesel, 0)} L). ` : ""}
-          {faltaInsumo ? `No hay suficiente ${insSel.nombre} (disponible: ${num(dispInsumo, 1)} ${insSel.unidad}). ` : ""}
-          Registra primero la compra en Insumos.
+      {faltaDiesel && (
+        <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó, o registra la compra en Insumos.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
         </div>
       )}
-      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => {
-        const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
-        if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
-        onGuardar({ ...f, tipo });
-      }}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton></div>
+      {faltaInsumo && (
+        <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó, o registra la compra en Insumos.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
+        </div>
+      )}
+      <div className="flex items-end gap-2 flex-wrap">
+        <Boton deshabilitado={bloqueado} onClick={() => {
+          const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
+          if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
+          onGuardar({ ...f, tipo });
+        }}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton>
+        {!inicial && onGuardarRepetir && (
+          <Boton secundario deshabilitado={bloqueado} onClick={() => {
+            const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
+            if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
+            onGuardarRepetir({ ...f, tipo }, () =>
+              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "" })));
+          }}>Guardar y repetir en otra parcela</Boton>
+        )}
+      </div>
     </div>
   );
 }
@@ -221,7 +235,7 @@ export function ChipsTipoLabor({ tipos, value, onChange, onAgregar }) {
    bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
    form completo de Labores). Si el plan pide más de lo que hay, no niega en
    seco: dice cuánto hay y lo pone en un toque. */
-export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onCancelar }) {
+export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, onCancelar }) {
   const [f, set, setF] = useForm({
     parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
     tipo: orden?.tipo || "",
@@ -271,12 +285,19 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
         </div>
       )}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-2 flex-wrap">
         <Boton deshabilitado={!listo} onClick={() => onGuardar({
           fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
           desc: orden?.desc || "", costoOp: 0,
           insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
         })}>{orden ? "Hecha, guardar" : "Guardar labor"}</Boton>
+        {!orden && onGuardarRepetir && (
+          <Boton secundario deshabilitado={!listo} onClick={() => onGuardarRepetir({
+            fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
+            desc: "", costoOp: 0,
+            insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
+          }, () => setF(prev => ({ ...prev, parcelaId: "", litrosDiesel: "", cantidad: "" })))}>Guardar y repetir</Boton>
+        )}
         <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
       </div>
     </div>
