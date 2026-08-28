@@ -21,6 +21,7 @@ export function FormCredito({ inicial, productores, onGuardar }) {
   });
   const tasa = (Number(f.tiie) || 0) + (Number(f.spread) || 0);
   const plazo = f.fechaVencimiento ? diasEntre(f.fechaInicio, f.fechaVencimiento) : 0;
+  const falta = [!f.fuente && "la fuente", !f.monto && "el monto", !f.fechaVencimiento && "la fecha de vencimiento"].filter(Boolean);
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Tipo de financiamiento">
@@ -41,7 +42,12 @@ export function FormCredito({ inicial, productores, onGuardar }) {
       <Campo label="Fecha de vencimiento"><input type="date" style={estiloInput} value={f.fechaVencimiento} onChange={set("fechaVencimiento")} /></Campo>
       <div className="flex items-end md:col-span-2 gap-3 flex-wrap">
         {tasa > 0 && <div style={{ fontSize: 13, color: C.gris, paddingBottom: 8 }}>Tasa: <strong style={{ color: C.tinta }}>{num(tasa, 2)}%</strong>{plazo > 0 ? <> · plazo <strong style={{ color: C.tinta }}>{plazo} días</strong></> : null}</div>}
-        <Boton onClick={() => f.fuente && f.monto && f.fechaVencimiento && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar crédito"}</Boton>
+        {falta.length > 0 && (
+          <div style={{ fontSize: 13, color: C.barrial, fontWeight: 600, paddingBottom: 8 }}>
+            Falta {falta.length === 1 ? falta[0] : `${falta.slice(0, -1).join(", ")} y ${falta[falta.length - 1]}`} para guardar.
+          </div>
+        )}
+        <Boton deshabilitado={falta.length > 0} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar crédito"}</Boton>
       </div>
     </div>
   );
