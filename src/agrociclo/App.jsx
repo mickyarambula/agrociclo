@@ -21,154 +21,11 @@ import {
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
   ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR,
 } from "./base";
-
-/* ---------- UI básicos ---------- */
-const fuente = {
-  display: "'Bricolage Grotesque', system-ui, sans-serif",
-  cuerpo: "'IBM Plex Sans', system-ui, sans-serif",
-};
-
-function Tarjeta({ children, style, onClick, className }) {
-  return (
-    <div onClick={onClick} className={className}
-      style={{ background: C.blanco, border: `1px solid ${C.linea}`, borderRadius: 14, cursor: onClick ? "pointer" : "default", ...style }}>
-      {children}
-    </div>
-  );
-}
-function Etiqueta({ children }) {
-  return <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gris, fontWeight: 600 }}>{children}</div>;
-}
-function Boton({ children, onClick, secundario, chico, deshabilitado }) {
-  return (
-    <button onClick={deshabilitado ? undefined : onClick}
-      className="flex items-center gap-1.5 transition-opacity hover:opacity-85"
-      style={{
-        background: deshabilitado ? C.linea : secundario ? C.blanco : C.bosque,
-        color: deshabilitado ? C.gris : secundario ? C.bosque : C.blanco,
-        border: `1px solid ${deshabilitado ? C.linea : secundario ? C.linea : C.bosque}`, borderRadius: 10,
-        padding: chico ? "5px 10px" : "8px 14px", fontSize: chico ? 12 : 13, fontWeight: 600,
-        fontFamily: fuente.cuerpo, cursor: deshabilitado ? "not-allowed" : "pointer",
-      }}>
-      {children}
-    </button>
-  );
-}
-function Campo({ label, children }) {
-  return (
-    <label className="flex flex-col gap-1" style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>
-      {label}{children}
-    </label>
-  );
-}
-function PickerParcela({ parcelas, value, onChange, opcional }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {opcional && (
-        <button
-          type="button"
-          onClick={() => onChange({ target: { value: "" } })}
-          style={{
-            minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
-            fontFamily: fuente.cuerpo,
-            border: `1.5px solid ${!value ? C.bosque : C.linea}`,
-            background: !value ? C.bosque : C.blanco,
-            color: !value ? C.blanco : C.tinta,
-          }}
-        >
-          Sin asignar
-        </button>
-      )}
-      {parcelas.map((p) => {
-        const on = String(value) === String(p.id);
-        return (
-          <button
-            key={p.id}
-            type="button"
-            onClick={() => onChange({ target: { value: p.id } })}
-            style={{
-              minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
-              fontFamily: fuente.cuerpo, textAlign: "left",
-              border: `1.5px solid ${on ? C.bosque : C.linea}`,
-              background: on ? C.bosque : C.blanco,
-              color: on ? C.blanco : C.tinta,
-            }}
-          >
-            {p.cultivo} · {p.nombre}
-          </button>
-        );
-      })}
-    </div>
-  );
-}
-const estiloInput = {
-  border: `1px solid ${C.linea}`, borderRadius: 8, padding: "8px 10px",
-  fontSize: 14, color: C.tinta, fontFamily: fuente.cuerpo, background: C.blanco, fontWeight: 400, width: "100%",
-};
-
-function etiquetaCiclo(t, compacto) {
-  if (!t) return "Ciclo";
-  if (!compacto) return t.nombre || t.clave || "Ciclo";
-  const k = String(t.clave || "").toUpperCase();
-  const m = k.match(/^([A-Z]+)(\d{2})(\d{2})$/);
-  if (m) return `${m[1]} ${m[2]}/${m[3]}`;
-  return t.clave || t.nombre || "Ciclo";
-}
-
-
-function Acciones({ onEditar, onEliminar }) {
-  const [confirmar, setConfirmar] = useState(false);
-  return (
-    <div className="flex items-center gap-1">
-      {onEditar && (
-        <button onClick={onEditar} title="Editar" aria-label="Editar"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, padding: 5 }}>
-          <Pencil size={15} />
-        </button>
-      )}
-      {confirmar ? (
-        <button onClick={() => { onEliminar(); setConfirmar(false); }}
-          style={{ border: `1px solid ${C.rojo}`, background: "#FBEEE9", color: C.rojo, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: fuente.cuerpo }}>
-          ¿Eliminar?
-        </button>
-      ) : (
-        <button onClick={() => { setConfirmar(true); setTimeout(() => setConfirmar(false), 3500); }} title="Eliminar" aria-label="Eliminar"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, padding: 5 }}>
-          <Trash2 size={15} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-/* ---------- Error Boundary ---------- */
-class ErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { error: null }; }
-  static getDerivedStateFromError(e) { return { error: e }; }
-  componentDidCatch(e, info) { console.error("AgroCiclo error:", e, info?.componentStack); }
-  render() {
-    if (!this.state.error) return this.props.children;
-    return (
-      <div style={{ minHeight: "100vh", background: "#F7F8F3", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "'IBM Plex Sans', system-ui, sans-serif", padding: 24 }}>
-        <div style={{ background: "#fff", border: "1px solid #DEE4D8", borderRadius: 14, padding: 32, maxWidth: 520, width: "100%" }}>
-          <div style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 800, fontSize: 20, color: "#1E4429", marginBottom: 8 }}>
-            Algo salió mal
-          </div>
-          <p style={{ fontSize: 13, color: "#6B7466", marginBottom: 16 }}>
-            Ocurrió un error inesperado. Puedes intentar recargar la página; tus datos locales se conservan.
-          </p>
-          <div style={{ background: "#FBF4E3", borderRadius: 8, padding: "10px 12px", fontSize: 12, color: "#7A5230", fontFamily: "monospace", wordBreak: "break-all", marginBottom: 20 }}>
-            {this.state.error?.message || String(this.state.error)}
-          </div>
-          <button onClick={() => this.setState({ error: null })}
-            style={{ background: "#1E4429", color: "#fff", border: "none", borderRadius: 10, padding: "9px 18px", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>
-            Intentar de nuevo
-          </button>
-        </div>
-      </div>
-    );
-  }
-}
+import {
+  fuente, estiloInput, etiquetaCiclo,
+  Tarjeta, Etiqueta, Boton, Campo, PickerParcela, Acciones, ErrorBoundary,
+  BarraLista, Seccion, Fila, Vacio, useForm,
+} from "./ui";
 
 /* ---------- App ---------- */
 function AgroCicloApp() {
@@ -4019,66 +3876,6 @@ function TareasWhatsApp({ labores, parcelas, insumos }) {
 }
 
 /* ---------- Reportes ---------- */
-function BarraLista({ datos }) {
-  const [abierto, setAbierto] = useState(null); // nombre del concepto expandido
-  const max = Math.max(...datos.map(d => d.valor), 1);
-  return (
-    <div className="flex flex-col gap-1">
-      {datos.filter(d => d.valor > 0).sort((a, b) => b.valor - a.valor).map(d => (
-        <div key={d.nombre}>
-          {/* Barra-botón */}
-          <button
-            onClick={() => setAbierto(abierto === d.nombre ? null : d.nombre)}
-            style={{ width: "100%", border: "none", background: "transparent", cursor: "pointer", padding: "6px 0", textAlign: "left" }}>
-            <div className="flex justify-between items-center" style={{ fontSize: 13 }}>
-              <span style={{ fontWeight: 600, color: C.tinta }}>{d.nombre}</span>
-              <span style={{ color: C.gris }}>
-                {money(d.valor)}
-                <span style={{ fontSize: 11, marginLeft: 4 }}>({num(d.pct, 1)}%)</span>
-                <span style={{ fontSize: 11, marginLeft: 6, color: abierto === d.nombre ? C.bosque : C.gris }}>
-                  {abierto === d.nombre ? "▲" : "▼"}
-                </span>
-              </span>
-            </div>
-            <div style={{ height: 10, borderRadius: 5, background: C.papel, border: `1px solid ${C.linea}`, marginTop: 3 }}>
-              <div style={{ width: `${(d.valor / max) * 100}%`, height: "100%", borderRadius: 5, background: d.color || C.hoja }} />
-            </div>
-          </button>
-          {/* Desglose expandido */}
-          {abierto === d.nombre && d.movimientos && d.movimientos.length > 0 && (
-            <div style={{ background: C.papel, borderRadius: 8, padding: "8px 12px", marginTop: 2, marginBottom: 4 }}>
-              <table style={{ width: "100%", fontSize: 12, borderCollapse: "collapse" }}>
-                <thead>
-                  <tr style={{ color: C.gris }}>
-                    <th style={{ textAlign: "left", paddingBottom: 4, fontWeight: 600 }}>Fecha</th>
-                    <th style={{ textAlign: "left", paddingBottom: 4, fontWeight: 600 }}>Descripción</th>
-                    <th style={{ textAlign: "left", paddingBottom: 4, fontWeight: 600 }}>Parcela</th>
-                    <th style={{ textAlign: "right", paddingBottom: 4, fontWeight: 600 }}>Monto</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {d.movimientos.map((m, i) => (
-                    <tr key={i} style={{ borderTop: `1px solid ${C.linea}` }}>
-                      <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap", color: C.gris }}>{m.fecha}</td>
-                      <td style={{ padding: "4px 8px 4px 0" }}>{m.desc}</td>
-                      <td style={{ padding: "4px 8px 4px 0", color: C.gris }}>{m.parcela || "—"}</td>
-                      <td style={{ padding: "4px 0", textAlign: "right", fontWeight: 600 }}>{money(m.monto)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-          {abierto === d.nombre && (!d.movimientos || d.movimientos.length === 0) && (
-            <div style={{ fontSize: 12, color: C.gris, padding: "6px 12px 8px", fontStyle: "italic" }}>
-              Sin movimientos detallados disponibles para este concepto.
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
 
 function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsProductivas = [], prestamosT = [], productores = [], costoFinTotal, inversionTotal, costoDirectoTotal, gastosIndTotal, ingresoTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, costosParcela }) {
   const nominaTotal = nominaT.reduce((s, n) => s + n.personas * n.dias * n.pago, 0);
@@ -4248,60 +4045,6 @@ function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsProductiv
   );
 }
 
-/* ---------- Componentes de apoyo ---------- */
-function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true }) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 24, margin: 0 }}>{titulo}</h1>
-        {!abierto && puedeEditar && <Boton onClick={onAbrir}><Plus size={15} /> {accion}</Boton>}
-      </div>
-      {abierto && puedeEditar && (
-        <>
-          <div
-            className="md:hidden fixed inset-0 z-50 flex flex-col"
-            style={{ background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}
-          >
-            <div className="flex items-center justify-between px-4 py-3" style={{ background: C.bosque, color: C.blanco }}>
-              <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>{editando ? "Editar registro" : accion}</span>
-              <button type="button" onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.blanco, minWidth: 44, minHeight: 44 }} aria-label="Cerrar formulario">
-                <X size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-y-auto p-4 pb-10">{form}</div>
-          </div>
-          <Tarjeta className="hidden md:block" style={{ padding: 18, borderLeft: `3px solid ${C.hoja}` }}>
-            <div className="flex justify-between items-center mb-3">
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{editando ? "Editar registro" : accion}</span>
-              <button onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar formulario"><X size={17} /></button>
-            </div>
-            {form}
-          </Tarjeta>
-        </>
-      )}
-      {children}
-    </div>
-  );
-}
-
-function Fila({ l, v, resalta }) {
-  return (
-    <div className="flex justify-between" style={{ borderBottom: `1px dashed ${C.linea}`, paddingBottom: 3 }}>
-      <span style={{ color: C.gris }}>{l}</span>
-      <span style={{ fontWeight: 700, color: resalta ? C.barrial : C.tinta }}>{v}</span>
-    </div>
-  );
-}
-
-function Vacio({ texto }) {
-  return <Tarjeta style={{ padding: 24, textAlign: "center", color: C.gris, fontSize: 14 }}>{texto}</Tarjeta>;
-}
-
-function useForm(inicial) {
-  const [f, setF] = useState(inicial);
-  const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
-  return [f, set, setF];
-}
 
 /* ---------- Formularios ---------- */
 function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true }) {
@@ -5584,4 +5327,5 @@ function PrestamoCard({ pp, productor, linea, parcelas, sinLiquidar, puedeEditar
     </Tarjeta>
   );
 }
+
 
