@@ -3,6 +3,8 @@ import { useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { attachEmbeds, readTable, subscribe } from "./db";
 import type { Row } from "./types";
+import { reportarError } from "../server/plataforma";
+import { mensajeParaPortal } from "../server/soporte";
 
 let version = 0;
 subscribe(() => {
@@ -82,6 +84,10 @@ export function useOrgWrite(opts: {
   mutationFn: (vars: never) => Promise<unknown>;
   invalidate?: unknown;
   successMsg?: string;
+  /** Identifica la operación para el portal de soporte ("rpc:fn_x" / "tabla:x"),
+   * igual que `auditar()` en el servidor. Nunca lleva datos capturados: el
+   * portal ve salud de uso, no contabilidad. */
+  op?: string;
 }) {
   const mutate = useCallback(
     async (vars: unknown, extra?: { onSuccess?: () => void; onError?: (e: Error) => void }) => {
@@ -92,6 +98,12 @@ export function useOrgWrite(opts: {
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
         toast.error(err.message);
+        if (opts.op) {
+          const mensaje = mensajeParaPortal(opts.op, err.message);
+          reportarError({ data: { mensaje, donde: opts.op } }).catch(() => {
+            /* si ni el aviso de la falla se pudo mandar, no hay nada más que hacer aquí */
+          });
+        }
         extra?.onError?.(err);
       }
     },

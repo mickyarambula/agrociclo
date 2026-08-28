@@ -3,6 +3,7 @@
 import { useState, Component } from "react";
 import { Pencil, Trash2, Plus, X } from "lucide-react";
 import { C, money, num } from "./base";
+import { reportarError } from "./server/plataforma";
 
 /* ---------- UI básicos ---------- */
 export const fuente = {
@@ -137,7 +138,13 @@ export class ErrorBoundary extends Component {
   /** @param {any} e */
   static getDerivedStateFromError(e) { return { error: e }; }
   /** @param {any} e  @param {any} info */
-  componentDidCatch(e, info) { console.error("AgroCiclo error:", e, info?.componentStack); }
+  componentDidCatch(e, info) {
+    console.error("AgroCiclo error:", e, info?.componentStack);
+    // Solo el mensaje y en qué componente truena — nunca lo que el productor
+    // estaba capturando. El portal ve salud de uso, no contabilidad.
+    const primerComponente = String(info?.componentStack || "").trim().split("\n")[0]?.trim();
+    reportarError({ data: { mensaje: String(e?.message || e), donde: `react:${primerComponente || "?"}` } }).catch(() => {});
+  }
   render() {
     if (!this.state.error) return this.props.children;
     return (

@@ -846,6 +846,7 @@ function AgroCicloApp() {
      en la base (valida stock antes de descontar; si no alcanza, rechaza todo). Escritura
      PESIMISTA: invalida labores + stock + catálogo y refetchea la verdad. */
   const guardarLaborMut = useOrgWrite({
+    op: "rpc:fn_registrar_labor",
     mutationFn: async ({ f, original }) => {
       const parcelaUuid = f.parcelaId || null;
       if (!parcelaUuid) throw new Error("Selecciona una parcela.");
@@ -877,6 +878,7 @@ function AgroCicloApp() {
     successMsg: "Labor guardada",
   });
   const eliminarLaborMut = useOrgWrite({
+    op: "rpc:fn_eliminar_labor",
     mutationFn: async (l) => {
       const { error } = await supabase.rpc("fn_eliminar_labor", { p_labor_id: l._uuid, p_org: ORG_ID });
       if (error) throw new Error(error.message);
@@ -893,6 +895,7 @@ function AgroCicloApp() {
   /* Orden flaca: la oficina anota "hacer X en parcela Y"; no baja bodega ni
      suma costo hasta que el de campo la marca hecha (mismo fn_registrar_labor). */
   const guardarOrdenMut = useOrgWrite({
+    op: "rpc:fn_registrar_labor",
     mutationFn: async ({ f, original }) => {
       if (!f.parcelaId) throw new Error("Selecciona una parcela.");
       const { error } = await supabase.rpc("fn_registrar_labor", {
@@ -926,6 +929,7 @@ function AgroCicloApp() {
     return [...ACTIVIDADES_RAYA, ...extra];
   }, [tiposQ.data]);
   const agregarTipoMut = useOrgWrite({
+    op: "tabla:tipo_trabajo",
     mutationFn: async ({ ambito, nombre }) => {
       const n = String(nombre || "").trim();
       if (!n) throw new Error("Escribe el nombre.");
@@ -945,6 +949,7 @@ function AgroCicloApp() {
     return [...CULTIVOS_VALLE, ...extra];
   }, [cultivosQ.data]);
   const agregarCultivoMut = useOrgWrite({
+    op: "tabla:cultivo",
     mutationFn: async (nombre) => {
       const n = String(nombre || "").trim();
       if (!n) throw new Error("Escribe el nombre.");
@@ -961,6 +966,7 @@ function AgroCicloApp() {
   const renterosQ = useOrgRead(["renteros"], "rentero", { build: (q) => q.is("eliminado_en", null).order("nombre") });
   const renteros = renterosQ.data ?? [];
   const agregarRenteroMut = useOrgWrite({
+    op: "tabla:rentero",
     mutationFn: async ({ id, nombre }) => {
       const { error } = await supabase.from("rentero").insert({ id, organizacion_id: ORG_ID, nombre });
       if (error) throw new Error(error.message);
@@ -985,6 +991,7 @@ function AgroCicloApp() {
 
   /* --- PARCELAS (base de datos) --- */
   const guardarParcelaMut = useOrgWrite({
+    op: "rpc:fn_guardar_parcela",
     mutationFn: async ({ f, original }) => {
       const esRentada = f.tenencia === "Rentada";
       const rentaOrigen = esRentada ? (f.rentaOrigen || "propio") : null;
@@ -1021,6 +1028,7 @@ function AgroCicloApp() {
     successMsg: "Parcela guardada",
   });
   const eliminarParcelaMut = useOrgWrite({
+    op: "rpc:fn_eliminar_parcela",
     mutationFn: async (p) => {
       const { error } = await supabase.rpc("fn_eliminar_parcela", { p_id: p._uuid, p_organizacion_id: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1030,6 +1038,7 @@ function AgroCicloApp() {
     successMsg: "Parcela dada de baja",
   });
   const pagarRentaMut = useOrgWrite({
+    op: "tabla:parcela",
     mutationFn: async (p) => {
       const { error } = await supabase.from("parcela")
         .update({ fecha_pago_renta: hoyStr }).eq("id", p._uuid).eq("organizacion_id", ORG_ID);
@@ -1050,6 +1059,7 @@ function AgroCicloApp() {
      Traducciones front→base: insumoId YA es el uuid del insumo (slice INSUMOS); creditoId YA es el uuid de
      la línea (B2a, puente eliminado); productorId ya es uuid. */
   const guardarCompraMut = useOrgWrite({
+    op: "rpc:fn_guardar_compra",
     mutationFn: async ({ f, original }) => {
       const origen = f.origen || "propio";
       const esNuevo = !f.insumoId;
@@ -1093,6 +1103,7 @@ function AgroCicloApp() {
   const guardarCompra = (f, original) => guardarCompraMut.mutate({ f, original }, { onSuccess: cerrar });
 
   const eliminarCompraMut = useOrgWrite({
+    op: "rpc:fn_eliminar_compra",
     mutationFn: async (c) => {
       const { error } = await supabase.rpc("fn_eliminar_compra", { p_compra_id: c._uuid, p_org: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1103,6 +1114,7 @@ function AgroCicloApp() {
   const eliminarCompra = (c) => eliminarCompraMut.mutate(c);
 
   const marcarPagadaMut = useOrgWrite({
+    op: "tabla:compra",
     mutationFn: async (c) => {
       const { error } = await supabase.from("compra").update({ fecha_pago_externo: hoyStr }).eq("id", c._uuid).eq("organizacion_id", ORG_ID);
       if (error) throw new Error(error.message);
@@ -1116,6 +1128,7 @@ function AgroCicloApp() {
   /* --- NÓMINA --- */
   /* --- NÓMINA / RAYA (base de datos) --- */
   const guardarNominaMut = useOrgWrite({
+    op: "tabla:jornal",
     mutationFn: async ({ f, original }) => {
       const parcelaUuid = f.parcelaId || null;
       if (!parcelaUuid) throw new Error("Selecciona una parcela.");
@@ -1138,6 +1151,7 @@ function AgroCicloApp() {
     successMsg: "Trabajo guardado",
   });
   const eliminarNominaMut = useOrgWrite({
+    op: "tabla:jornal",
     mutationFn: async (n) => {
       const { error } = await supabase.from("jornal")
         .update({ eliminado_en: new Date().toISOString() })
@@ -1148,6 +1162,7 @@ function AgroCicloApp() {
     successMsg: "Jornal eliminado",
   });
   const pagarRayaMut = useOrgWrite({
+    op: "tabla:jornal",
     mutationFn: async (nombre) => {
       const ids = nominaT.filter(n => !n.pagado && n.cuadrilla === nombre).map(n => n._uuid);
       if (!ids.length) return;
@@ -1188,6 +1203,7 @@ function AgroCicloApp() {
     ["dispersiones", CICLO_ID], ["parcelas", CICLO_ID], ["gastos", CICLO_ID],
     ["compras", CICLO_ID], ["prestamos", CICLO_ID], ["caja-movs", CICLO_ID]];
   const guardarCreditoMut = useOrgWrite({
+    op: "rpc:fn_guardar_linea_credito",
     mutationFn: async ({ f, original }) => {
       const { error } = await supabase.rpc("fn_guardar_linea_credito", {
         p_id: original?._uuid ?? null,
@@ -1211,6 +1227,7 @@ function AgroCicloApp() {
     successMsg: "Crédito guardado",
   });
   const eliminarCreditoMut = useOrgWrite({
+    op: "rpc:fn_eliminar_linea_credito",
     mutationFn: async (cr) => {
       const { error } = await supabase.rpc("fn_eliminar_linea_credito", { p_id: cr._uuid, p_organizacion_id: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1226,6 +1243,7 @@ function AgroCicloApp() {
      Invalida la vista de líneas, los 6 reads operativos, el freeze y la lista de abonos. */
   const LIQUIDAR_INVALIDATE = [...CREDITO_INVALIDATE, ["disp-interes", CICLO_ID], ["pagos-disp"]];
   const liquidarDisposicionMut = useOrgWrite({
+    op: "rpc:fn_liquidar_disposicion",
     mutationFn: async ({ dispId, fecha, monto }) => {
       if (!dispId) throw new Error("Esta disposición todavía no existe en la base.");
       const { error } = await supabase.rpc("fn_liquidar_disposicion", {
@@ -1241,6 +1259,7 @@ function AgroCicloApp() {
     successMsg: "Abono registrado",
   });
   const revertirLiquidacionMut = useOrgWrite({
+    op: "rpc:fn_revertir_liquidacion",
     mutationFn: async ({ dispId, pagoId }) => {
       if (!dispId) throw new Error("Esta disposición todavía no existe en la base.");
       const { error } = await supabase.rpc("fn_revertir_liquidacion", {
@@ -1260,6 +1279,7 @@ function AgroCicloApp() {
 
   /* --- BOLETAS (base de datos) --- */
   const guardarBoletaMut = useOrgWrite({
+    op: "rpc:fn_guardar_boleta",
     mutationFn: async ({ f, original }) => {
       const parcelaUuid = f.parcelaId || null;
       if (!parcelaUuid) throw new Error("Selecciona una parcela.");
@@ -1289,6 +1309,7 @@ function AgroCicloApp() {
     successMsg: "Boleta guardada",
   });
   const eliminarBoletaMut = useOrgWrite({
+    op: "tabla:boleta",
     mutationFn: async (b) => {
       const { error } = await supabase.from("boleta")
         .update({ eliminado_en: new Date().toISOString() })
@@ -1303,6 +1324,7 @@ function AgroCicloApp() {
 
   /* --- GASTOS (base de datos) --- */
   const guardarGastoMut = useOrgWrite({
+    op: "rpc:fn_guardar_gasto",
     mutationFn: async ({ f, original }) => {
       const origen = f.origen || "propio";
       let lineaUuid = null;
@@ -1339,6 +1361,7 @@ function AgroCicloApp() {
   const guardarGasto = (f, original) => guardarGastoMut.mutate({ f, original }, { onSuccess: cerrar });
 
   const eliminarGastoMut = useOrgWrite({
+    op: "rpc:fn_eliminar_gasto",
     mutationFn: async (g) => {
       const { error } = await supabase.rpc("fn_eliminar_gasto", { p_id: g._uuid, p_organizacion_id: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1350,6 +1373,7 @@ function AgroCicloApp() {
 
   /* --- PRODUCTORES / DISPERSIONES --- */
   const altaProductorMut = useOrgWrite({
+    op: "tabla:productor",
     mutationFn: async ({ reg, original }) => {
       if (original) {
         const { error } = await supabase.from("productor").update(reg).eq("id", original.id).eq("organizacion_id", ORG_ID);
@@ -1363,6 +1387,7 @@ function AgroCicloApp() {
     successMsg: "Productor guardado",
   });
   const bajaProductorMut = useOrgWrite({
+    op: "tabla:productor",
     mutationFn: async (pr) => {
       const { error } = await supabase.from("productor").update({ activo: false }).eq("id", pr.id).eq("organizacion_id", ORG_ID);
       if (error) throw new Error(error.message);
@@ -1376,6 +1401,7 @@ function AgroCicloApp() {
   };
   const eliminarProductor = (pr) => bajaProductorMut.mutate(pr);
   const guardarInsumoMut = useOrgWrite({
+    op: "tabla:insumo",
     mutationFn: async ({ reg, original }) => {
       if (original) {
         const { error } = await supabase.from("insumo").update(reg).eq("id", original.id).eq("organizacion_id", ORG_ID);
@@ -1389,6 +1415,7 @@ function AgroCicloApp() {
     successMsg: "Insumo guardado",
   });
   const bajaInsumoMut = useOrgWrite({
+    op: "tabla:insumo",
     mutationFn: async (ins) => {
       const { error } = await supabase.from("insumo").update({ activo: false }).eq("id", ins.id).eq("organizacion_id", ORG_ID);
       if (error) throw new Error(error.message);
@@ -1407,6 +1434,7 @@ function AgroCicloApp() {
   };
   const eliminarInsumo = (ins) => bajaInsumoMut.mutate(ins);
   const guardarDispersionMut = useOrgWrite({
+    op: "rpc:fn_guardar_dispersion",
     mutationFn: async ({ f, original }) => {
       let lineaUuid = null;
       if (f.origen === "linea") {
@@ -1431,6 +1459,7 @@ function AgroCicloApp() {
     successMsg: "Dispersión guardada",
   });
   const eliminarDispersionMut = useOrgWrite({
+    op: "rpc:fn_eliminar_dispersion",
     mutationFn: async (id) => {
       const { error } = await supabase.rpc("fn_eliminar_dispersion", { p_id: id, p_organizacion_id: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1443,6 +1472,7 @@ function AgroCicloApp() {
 
   /* --- PRÉSTAMOS EN EFECTIVO (base de datos) --- */
   const guardarPrestamoMut = useOrgWrite({
+    op: "rpc:fn_guardar_prestamo",
     mutationFn: async ({ f, original }) => {
       let lineaUuid = null;
       if (f.origen === "linea") {
@@ -1466,6 +1496,7 @@ function AgroCicloApp() {
     successMsg: "Préstamo guardado",
   });
   const eliminarPrestamoMut = useOrgWrite({
+    op: "rpc:fn_eliminar_prestamo",
     mutationFn: async (pp) => {
       const { error } = await supabase.rpc("fn_eliminar_prestamo", { p_id: pp.id, p_organizacion_id: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1474,6 +1505,7 @@ function AgroCicloApp() {
     successMsg: "Préstamo eliminado",
   });
   const liquidarPrestamoMut = useOrgWrite({
+    op: "tabla:prestamo",
     mutationFn: async (pp) => {
       const { error } = await supabase.from("prestamo")
         .update({ fecha_pago: hoyStr }).eq("id", pp.id).eq("organizacion_id", ORG_ID);
@@ -1485,6 +1517,7 @@ function AgroCicloApp() {
     successMsg: "Préstamo marcado como liquidado",
   });
   const agregarAplicacionMut = useOrgWrite({
+    op: "tabla:prestamo_aplicacion",
     mutationFn: async ({ prestamoId, f }) => {
       let parcelaUuid = null;
       if (f.tipo === "productivo" && f.destino === "parcela") {
@@ -1509,6 +1542,7 @@ function AgroCicloApp() {
     successMsg: "Aplicación registrada",
   });
   const eliminarAplicacionMut = useOrgWrite({
+    op: "tabla:prestamo_aplicacion",
     mutationFn: async (apId) => {
       const { error } = await supabase.from("prestamo_aplicacion")
         .update({ eliminado_en: new Date().toISOString() }).eq("id", apId).eq("organizacion_id", ORG_ID);
@@ -1535,6 +1569,7 @@ function AgroCicloApp() {
 
   // Alta / edición → fn_guardar_solicitud (p_id null = nueva; uuid = edición)
   const guardarSolicitudMut = useOrgWrite({
+    op: "rpc:fn_guardar_solicitud",
     mutationFn: async ({ f, original }) => {
       const insumoId = f.insumoId && f.insumoId !== "nuevo" ? f.insumoId : null;
       const insumoNombre = insumoId ? (insumos.find((i) => i.id === insumoId)?.nombre || "") : (f.insumoNuevo || "");
@@ -1561,6 +1596,7 @@ function AgroCicloApp() {
 
   // Eliminar (soft-delete) → fn_eliminar_solicitud
   const eliminarSolicitudMut = useOrgWrite({
+    op: "rpc:fn_eliminar_solicitud",
     mutationFn: async (sol) => {
       const { error } = await supabase.rpc("fn_eliminar_solicitud", { p_id: sol.id, p_org: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1572,6 +1608,7 @@ function AgroCicloApp() {
 
   // Agregar cotización (+ sube a "cotizado") → fn_agregar_cotizacion
   const agregarCotizacionMut = useOrgWrite({
+    op: "rpc:fn_agregar_cotizacion",
     mutationFn: async ({ sol, cot }) => {
       const { error } = await supabase.rpc("fn_agregar_cotizacion", {
         p_solicitud_id: sol.id,
@@ -1590,6 +1627,7 @@ function AgroCicloApp() {
 
   // Quitar cotización → fn_eliminar_cotizacion
   const eliminarCotizacionMut = useOrgWrite({
+    op: "rpc:fn_eliminar_cotizacion",
     mutationFn: async (cotId) => {
       const { error } = await supabase.rpc("fn_eliminar_cotizacion", { p_cotizacion_id: cotId, p_org: ORG_ID });
       if (error) throw new Error(error.message);
@@ -1602,6 +1640,7 @@ function AgroCicloApp() {
   // Autorizar (SOLO autoriza; la compra se crea al recibir) → fn_autorizar_solicitud.
   // datos.cotizacionElegidaId y datos.creditoId YA son uuid (B2a + cotización en base).
   const autorizarSolicitudMut = useOrgWrite({
+    op: "rpc:fn_autorizar_solicitud",
     mutationFn: async ({ sol, datos }) => {
       const origen = datos.origen || "propio";
       const { error } = await supabase.rpc("fn_autorizar_solicitud", {
@@ -1628,6 +1667,7 @@ function AgroCicloApp() {
      atómico. El candado anti-duplicado vive en la RPC: re-recibir truena con mensaje
      claro en vez de duplicar la compra (mata el footgun del p_solicitud_id: null). */
   const recibirSolicitudMut = useOrgWrite({
+    op: "rpc:fn_recibir_solicitud",
     mutationFn: async (sol) => {
       const { error } = await supabase.rpc("fn_recibir_solicitud", {
         p_solicitud_id: sol.id,
@@ -1644,6 +1684,7 @@ function AgroCicloApp() {
 
   /* --- CAJA CHICA (base de datos) --- */
   const guardarCajaFondeoMut = useOrgWrite({
+    op: "rpc:fn_guardar_caja_fondeo",
     mutationFn: async ({ f, original }) => {
       const origen = f.origen || "propio";
       let lineaUuid = null;
@@ -1669,6 +1710,7 @@ function AgroCicloApp() {
   const guardarCajaFondeo = (f, original) => guardarCajaFondeoMut.mutate({ f, original }, { onSuccess: cerrar });
 
   const guardarCajaSalidaMut = useOrgWrite({
+    op: "rpc:fn_guardar_caja_salida",
     mutationFn: async ({ f, original }) => {
       let parcelaUuid = null;
       if (f.destino === "parcela") {
@@ -1695,6 +1737,7 @@ function AgroCicloApp() {
   const guardarCajaSalida = (f, original) => guardarCajaSalidaMut.mutate({ f, original }, { onSuccess: cerrar });
 
   const autorizarCajaSalidaMut = useOrgWrite({
+    op: "rpc:fn_autorizar_caja_salida",
     mutationFn: async (mov) => {
       const { error } = await supabase.rpc("fn_autorizar_caja_salida", {
         p_id: mov._uuid,
@@ -1710,6 +1753,7 @@ function AgroCicloApp() {
   const autorizarCajaSalida = (mov) => autorizarCajaSalidaMut.mutate(mov);
 
   const eliminarCajaMovMut = useOrgWrite({
+    op: "rpc:fn_eliminar_caja_mov",
     mutationFn: async (mov) => {
       const { error } = await supabase.rpc("fn_eliminar_caja_mov", { p_id: mov._uuid, p_org: ORG_ID });
       if (error) throw new Error(error.message);

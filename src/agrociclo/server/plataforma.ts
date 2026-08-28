@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { etiquetaTelefonoMx, normalizarTelefonoMx } from "./contacto";
+import { ciclosDePayload, etiquetaAccion, parcelasVivas } from "./soporte";
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -248,6 +249,11 @@ function usoDePayload(payload: unknown): { labores: number; boletas: number; sol
   };
 }
 
+/** Umbral de "dejó de capturar": llevaba ritmo y se detuvo. */
+const DIAS_INACTIVO = 5;
+/** Umbral de "predio a medias": alta vieja, cero parcelas, cero captura. */
+const DIAS_A_MEDIAS = 7;
+
 export const getPlataformaResumen = createServerFn({ method: "GET" })
   .middleware([authMiddleware])
   .handler(async ({ context }) => {
@@ -264,6 +270,12 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
       `select count(distinct user_id)::int as n from plataforma_evento
         where tipo = 'login' and creado_en > now() - interval '7 days'`,
     );
+    // "Activo" es quien CAPTURÓ (escribió), no quien solo abrió la app —
+    // el login se registra en cada carga de página y es mucho más ruidoso.
+    const activosSemana = await sql.query<{ n: number }>(
+      `select count(distinct organizacion_id)::int as n from agrociclo_auditoria
+        where creado_en > now() - interval '7 days'`,
+    );
     const ticketsAbiertos = await sql.query<{ n: number }>(
       `select count(*)::int as n from plataforma_ticket where estado <> 'resuelta'`,
     );
@@ -274,20 +286,79 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
     const ticketsNuevos = await sql.query<{ n: number }>(
       `select count(*)::int as n from plataforma_ticket where estado = 'nueva'`,
     );
-    const ledgers = await sql.query<{ payload: unknown }>(`select payload from agrociclo_ledger`);
+
+    // Última captura de cada predio (una fila por organizacion_id, la más reciente).
+    const ultimaPorPredio = await sql.query<{ organizacion_id: string; accion: string; creado_en: string; nombre: string }>(
+      `select distinct on (a.organizacion_id) a.organizacion_id, a.accion, a.creado_en, o.nombre
+         from agrociclo_auditoria a
+         join agrociclo_org o on o.id = a.organizacion_id
+        order by a.organizacion_id, a.creado_en desc`,
+    );
+    const orgsConCaptura = new Set(ultimaPorPredio.map((r) => r.organizacion_id));
+    const ahora = Date.now();
+    const dejaronDeCapturar = ultimaPorPredio
+      .map((r) => ({
+        organizacionId: r.organizacion_id,
+        nombre: r.nombre,
+        ultimaAccion: etiquetaAccion(r.accion),
+        diasSinCapturar: Math.floor((ahora - new Date(r.creado_en).getTime()) / 86400000),
+      }))
+      .filter((r) => r.diasSinCapturar >= DIAS_INACTIVO)
+      .sort((a, b) => b.diasSinCapturar - a.diasSinCapturar);
+
+    // Predios con alta vieja que nunca capturaron nada: candidato a "la app no se explicó sola".
+    const orgsViejas = await sql.query<{ id: string; nombre: string; creado_en: string }>(
+      `select id, nombre, creado_en from agrociclo_org where creado_en < now() - interval '${DIAS_A_MEDIAS} days'`,
+    );
+
+    const ledgers = await sql.query<{ organizacion_id: string; payload: unknown }>(
+      `select organizacion_id, payload from agrociclo_ledger`,
+    );
     let labores = 0;
     let boletas = 0;
     let solicitudes = 0;
+    let haTotal = 0;
+    const parcelasActivasPorOrg = new Map<string, number>();
+    const cultivos = new Map<string, { parcelas: number; ha: number }>();
     for (const row of ledgers) {
       const u = usoDePayload(row.payload);
       labores += u.labores;
       boletas += u.boletas;
       solicitudes += u.solicitudes;
+      const vivas = parcelasVivas(row.payload);
+      parcelasActivasPorOrg.set(row.organizacion_id, vivas.length);
+      for (const pa of vivas) {
+        const ha = Number(pa.ha) || 0;
+        haTotal += ha;
+        const nombreCultivo = String(pa.cultivo || "").trim() || "Sin especificar";
+        const c = cultivos.get(nombreCultivo) ?? { parcelas: 0, ha: 0 };
+        c.parcelas += 1;
+        c.ha += ha;
+        cultivos.set(nombreCultivo, c);
+      }
     }
+    const aMedias = orgsViejas
+      .filter((o) => !orgsConCaptura.has(o.id) && (parcelasActivasPorOrg.get(o.id) ?? 0) === 0)
+      .map((o) => ({
+        organizacionId: o.id,
+        nombre: o.nombre,
+        diasDesdeAlta: Math.floor((ahora - new Date(o.creado_en).getTime()) / 86400000),
+      }))
+      .sort((a, b) => b.diasDesdeAlta - a.diasDesdeAlta);
+    const listaCultivos = Array.from(cultivos.entries())
+      .map(([nombre, v]) => ({ nombre, parcelas: v.parcelas, ha: Math.round(v.ha * 10) / 10 }))
+      .sort((a, b) => b.ha - a.ha);
+
     return {
       predios: Number(predios[0]?.n ?? 0),
+      activosSemana: Number(activosSemana[0]?.n ?? 0),
+      haTotal: Math.round(haTotal * 10) / 10,
+      cultivos: listaCultivos,
       usuarios: Number(usuarios[0]?.n ?? 0),
       dueños: Number(dueños[0]?.n ?? 0),
+      usuariosPromedio: predios[0]?.n ? Math.round((Number(usuarios[0]?.n ?? 0) / Number(predios[0].n)) * 10) / 10 : 0,
+      dejaronDeCapturar,
+      aMedias,
       logins7: Number(logins7[0]?.n ?? 0),
       ticketsAbiertos: Number(ticketsAbiertos[0]?.n ?? 0),
       ticketsNuevos: Number(ticketsNuevos[0]?.n ?? 0),
@@ -348,6 +419,117 @@ export const listPlataformaCuentas = createServerFn({ method: "GET" })
         };
       }),
     );
+  });
+
+/** El detalle de un predio para atenderlo: qué tiene armado, quién lo usa,
+ * cuándo capturó por última vez y qué le ha fallado. Cero pesos, cero saldos —
+ * salud de uso, igual que el resto del portal. */
+export const getSoportePredio = createServerFn({ method: "GET" })
+  .middleware([authMiddleware])
+  .validator((p: { orgId: string }) => p)
+  .handler(async ({ context, data }) => {
+    await requirePlataforma(context.userId);
+    const sql = await getSql();
+    const orgRows = await sql.query<{ id: string; nombre: string; creado_en: string; codigo_invitacion: string | null }>(
+      `select id, nombre, creado_en, codigo_invitacion from agrociclo_org where id = $1`,
+      [data.orgId],
+    );
+    const org = orgRows[0];
+    if (!org) throw new Error("Ese predio ya no existe.");
+
+    const ledgerRows = await sql.query<{ payload: unknown }>(
+      `select payload from agrociclo_ledger where organizacion_id = $1`,
+      [data.orgId],
+    );
+    const payload = ledgerRows[0]?.payload ?? null;
+    const parcelas = parcelasVivas(payload);
+    const ciclos = ciclosDePayload(payload).map((c) => ({
+      id: String(c.id ?? ""),
+      nombre: String(c.nombre || c.clave || "Ciclo"),
+      fechaInicio: c.fecha_inicio ?? null,
+      fechaFin: c.fecha_fin ?? null,
+      parcelas: parcelas.filter((p) => p.ciclo_id === c.id).length,
+    }));
+
+    const usuariosRows = await sql.query<{
+      user_id: string;
+      email: string | null;
+      display_name: string | null;
+      rol: string;
+      ve_finanzas: boolean;
+      creado_en: string;
+    }>(
+      `select user_id, email, display_name, rol, ve_finanzas, creado_en
+         from usuario_rol where organizacion_id = $1 order by creado_en`,
+      [data.orgId],
+    );
+    const loginsRows = await sql.query<{ user_id: string; ultimo: string }>(
+      `select user_id, max(creado_en) as ultimo from plataforma_evento
+        where tipo = 'login' and organizacion_id = $1
+        group by user_id`,
+      [data.orgId],
+    );
+    const loginPorUsuario = new Map(loginsRows.map((r) => [r.user_id, r.ultimo]));
+
+    const auditoriaRows = await sql.query<{ email: string | null; accion: string; creado_en: string }>(
+      `select email, accion, creado_en from agrociclo_auditoria
+        where organizacion_id = $1 order by creado_en desc limit 20`,
+      [data.orgId],
+    );
+
+    const ticketsRows = await sql.query<{
+      id: string;
+      tipo: string;
+      titulo: string;
+      cuerpo: string;
+      estado: string;
+      respuesta: string | null;
+      email: string | null;
+      display_name: string | null;
+      creado_en: string;
+    }>(
+      `select id, tipo, titulo, cuerpo, estado, respuesta, email, display_name, creado_en
+         from plataforma_ticket where organizacion_id = $1 order by creado_en desc`,
+      [data.orgId],
+    );
+
+    const erroresRows = await sql.query<{ detalle: unknown; creado_en: string }>(
+      `select detalle, creado_en from plataforma_evento
+        where tipo = 'error' and organizacion_id = $1
+        order by creado_en desc limit 10`,
+      [data.orgId],
+    );
+
+    return asJson({
+      org: { id: org.id, nombre: org.nombre, creadoEn: org.creado_en, codigo: org.codigo_invitacion },
+      ciclos,
+      parcelas: parcelas.map((p) => ({
+        nombre: p.nombre ?? "",
+        cultivo: p.cultivo ?? "",
+        ha: Number(p.ha) || 0,
+        cicloId: p.ciclo_id ?? "",
+      })),
+      usuarios: usuariosRows.map((u) => ({
+        userId: u.user_id,
+        email: u.email,
+        nombre: u.display_name,
+        rol: u.rol,
+        veFinanzas: u.ve_finanzas,
+        creadoEn: u.creado_en,
+        ultimoLogin: loginPorUsuario.get(u.user_id) ?? null,
+      })),
+      auditoria: auditoriaRows.map((a) => ({
+        email: a.email,
+        accion: etiquetaAccion(a.accion),
+        creadoEn: a.creado_en,
+      })),
+      tickets: ticketsRows,
+      usoWhatsapp: ticketsRows.some((t) => t.tipo === "whatsapp"),
+      errores: erroresRows.map((e) => {
+        const d = (e.detalle && typeof e.detalle === "object" ? e.detalle : {}) as { mensaje?: string; donde?: string };
+        return { mensaje: d.mensaje || "", donde: etiquetaAccion(d.donde), creadoEn: e.creado_en };
+      }),
+    });
   });
 
 export const listPlataformaTickets = createServerFn({ method: "GET" })

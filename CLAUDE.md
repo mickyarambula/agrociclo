@@ -121,16 +121,21 @@ catálogos de tipos de labor, actividades de raya y cultivos (con "+ Nuevo" y
 anti-duplicados) · renta con dueño (catálogo `rentero` aparte de Productores) ·
 "Guardar y repetir en otra parcela" · esperados vacíos = sin proyección ("—",
 avisos apagados, enlace para llenarlos en la tarjeta) · fecha de corte de la
-vista ("Ver el ciclo al…" con banda de aviso e interés proyectado).
+vista ("Ver el ciclo al…" con banda de aviso e interés proyectado) · **Panel de
+Miguel profundizado** (agosto 2026): pestaña Soporte con detalle por predio
+(última entrada, ciclo y parcelas, gente y roles, auditoría, tickets, uso de
+WhatsApp, fallas recientes); Pulso con predios activos por semana, hectáreas
+totales, cultivos en uso, y las dos listas-termómetro "quién dejó de capturar"
+(5 días sin auditoría) y "predios a medias" (cuenta abierta ≥7 días, cero
+parcelas); Errores conectado de punta a punta — `useOrgWrite` y el
+`ErrorBoundary` mandan cada falla a `reportarError` y aparece en la pestaña
+Salud y en el detalle de Soporte del predio afectado.
 
-1. **Panel de Miguel** ← SIGUIENTE. Métricas de uso desde `plataforma_evento` y
-   `agrociclo_auditoria` (activos por semana, quién dejó de capturar = alerta de
-   soporte, módulos que nadie usa), vista de soporte por predio, tickets, FAQ.
-2. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
+1. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
    su parafinanciera.
-3. **Kardex con costo por movimiento**: hoy los movimientos solo traen
+2. **Kardex con costo por movimiento**: hoy los movimientos solo traen
    cantidades; el productor no tiene dónde ver a qué costo salió cada labor.
-4. **Umbral de stock bajo con unidad**: el aviso usa ≤2 fijo sin unidad (2 ton
+3. **Umbral de stock bajo con unidad**: el aviso usa ≤2 fijo sin unidad (2 ton
    de urea ≠ 2 bolsas) y regaña por insumos que simplemente se acabaron según
    plan a fin de ciclo.
 
@@ -155,11 +160,29 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
   usó" con botón de un toque, en vez de un bloqueo seco.
 - **Precios por unidad con centavos solo cuando existen** (`moneyU`); totales y
   derivados en pesos enteros.
+- **El portal (`/portal`) ve salud de uso, nunca contabilidad.** Criterio firme
+  de Miguel (agosto 2026), no se deshace sin que él lo pida:
+  - Cero link desde la app del productor al portal (`Ayuda.tsx` y compañía no
+    lo mencionan).
+  - El portal no muestra montos, precios ni saldos de ningún predio — solo
+    fechas, conteos, hectáreas, roles y mensajes de error.
+  - Los errores que llegan al portal (`useOrgWrite` → `reportarError`, y el
+    `ErrorBoundary` de React) llevan solo: qué RPC/tabla falló, el mensaje de
+    error, el predio y la hora. Nunca el contenido que el productor estaba
+    capturando (si falla una boleta, se reporta que falló
+    `fn_guardar_boleta`, no el precio que traía).
+  - No se agrega captura de teléfono/WhatsApp al productor para esto — es
+    decisión aparte de Ajustes. El detalle de Soporte solo lee si el predio
+    *ya* usó el canal de WhatsApp en sus tickets existentes.
+  - Umbrales del termómetro de uso: **5 días** sin auditoría = "dejó de
+    capturar"; **7 días** desde el alta sin ninguna parcela = "a medias" (3
+    días marcaba como perdido a quien solo no había vuelto desde el fin de
+    semana).
 
 ## Cómo trabajar
 
 - **Verifica siempre antes de entregar**: `npm run typecheck` y
-  `node --test scripts/agrociclo-*.test.mjs` (38 tests, deben pasar todos).
+  `node --test scripts/agrociclo-*.test.mjs` (42 tests, deben pasar todos).
   Levanta la app (`npm run dev`, puerto 8080) y **mira la pantalla** que tocaste.
 - Al terminar un cambio: di **en qué menú se ve** y **4 pasos para probarlo**.
   Miguel no lee commits ni diffs.

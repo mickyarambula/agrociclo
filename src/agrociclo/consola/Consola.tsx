@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode } from "react";
 import {
   Gauge,
   Building2,
@@ -17,6 +17,7 @@ import {
   getPlataformaResumen,
   getSesionOperador,
   getContactoAtencion,
+  getSoportePredio,
   guardarContactoAtencion,
   listFaqAdmin,
   listPlataformaCuentas,
@@ -46,12 +47,25 @@ const C = {
 type Tab = "resumen" | "cuentas" | "atencion" | "faq" | "salud";
 
 const TABS: { id: Tab; nombre: string; icono: typeof Gauge }[] = [
-  { id: "resumen", nombre: "Resumen", icono: Gauge },
-  { id: "cuentas", nombre: "Cuentas", icono: Building2 },
+  { id: "resumen", nombre: "Pulso", icono: Gauge },
+  { id: "cuentas", nombre: "Soporte", icono: Building2 },
   { id: "atencion", nombre: "Atención", icono: LifeBuoy },
   { id: "faq", nombre: "FAQ", icono: BookOpen },
   { id: "salud", nombre: "Salud", icono: Activity },
 ];
+
+/** "2026-08-20T13:05:00Z" -> "2026-08-20 13:05". Sin librería, todo el portal usa esto. */
+function fecha(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  return String(iso).slice(0, 16).replace("T", " ");
+}
+
+/** "hace 6 días" / "hoy" — para que el termómetro de actividad se lea de un vistazo. */
+function hace(dias: number): string {
+  if (dias <= 0) return "hoy";
+  if (dias === 1) return "hace 1 día";
+  return `hace ${dias} días`;
+}
 
 export function OperadorGate() {
   const { user, isPending } = useCurrentUserState();
@@ -269,6 +283,11 @@ function LoginOperador() {
 
 function Consola({ sesion }: { sesion: SesionOperador }) {
   const [tab, setTab] = useState<Tab>("resumen");
+  const [predioAbierto, setPredioAbierto] = useState<string | null>(null);
+  const abrirSoporte = (orgId: string) => {
+    setPredioAbierto(orgId);
+    setTab("cuentas");
+  };
   return (
     <div className="min-h-dvh" style={{ background: C.papel, color: C.tinta, fontFamily: "IBM Plex Sans, system-ui, sans-serif" }}>
       <header
@@ -324,8 +343,14 @@ function Consola({ sesion }: { sesion: SesionOperador }) {
           })}
         </nav>
         <main className="min-w-0 flex-1">
-          {tab === "resumen" && <TabResumen />}
-          {tab === "cuentas" && <TabCuentas />}
+          {tab === "resumen" && <TabResumen onAbrirPredio={abrirSoporte} />}
+          {tab === "cuentas" && (
+            <TabSoporte
+              predioAbierto={predioAbierto}
+              onAbrirPredio={setPredioAbierto}
+              onCerrar={() => setPredioAbierto(null)}
+            />
+          )}
           {tab === "atencion" && <TabAtencion />}
           {tab === "faq" && <TabFaq />}
           {tab === "salud" && <TabSalud />}
@@ -335,15 +360,23 @@ function Consola({ sesion }: { sesion: SesionOperador }) {
   );
 }
 
-function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
+function Card({
+  children,
+  className = "",
+  style,
+}: {
+  children: ReactNode;
+  className?: string;
+  style?: CSSProperties;
+}) {
   return (
-    <div className={`rounded-[14px] p-4 ${className}`} style={{ background: C.blanco, border: `1px solid ${C.linea}` }}>
+    <div className={`rounded-[14px] p-4 ${className}`} style={{ background: C.blanco, border: `1px solid ${C.linea}`, ...style }}>
       {children}
     </div>
   );
 }
 
-function TabResumen() {
+function TabResumen({ onAbrirPredio }: { onAbrirPredio: (orgId: string) => void }) {
   const [d, setD] = useState<Awaited<ReturnType<typeof getPlataformaResumen>> | null>(null);
   const [err, setErr] = useState<string | null>(null);
   useEffect(() => {
@@ -355,37 +388,116 @@ function TabResumen() {
   if (!d) return <p className="text-sm" style={{ color: C.gris }}>Cargando métricas…</p>;
   const kpis = [
     { l: "Predios", v: d.predios, s: "agroempresas dadas de alta" },
-    { l: "Cuentas", v: d.usuarios, s: `${d.dueños} Dueños vivos` },
-    { l: "Entraron (7 días)", v: d.logins7, s: "personas distintas" },
+    { l: "Activos (7 días)", v: d.activosSemana, s: "capturaron algo esta semana" },
+    { l: "Hectáreas gestionadas", v: d.haTotal, s: "suma de parcelas vivas" },
+    { l: "Usuarios por predio", v: d.usuariosPromedio, s: `${d.usuarios} cuentas · ${d.dueños} Dueños` },
     { l: "Atención abierta", v: d.ticketsAbiertos, s: `${d.ticketsNuevos} nuevas` },
     { l: "Errores (7 días)", v: d.errores7, s: "fallas técnicas reportadas" },
-    { l: "Uso capturado", v: d.labores + d.boletas + d.solicitudes, s: `${d.labores} labores · ${d.boletas} boletas · ${d.solicitudes} solicitudes` },
   ];
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
-      {kpis.map((k) => (
-        <Card key={k.l}>
-          <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.gris }}>
-            {k.l}
-          </div>
-          <div className="mt-1 tabular-nums" style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 28 }}>
-            {k.v}
-          </div>
-          <div className="mt-1 text-xs" style={{ color: C.gris }}>
-            {k.s}
+    <div className="flex flex-col gap-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3">
+        {kpis.map((k) => (
+          <Card key={k.l}>
+            <div className="text-xs font-semibold uppercase tracking-wide" style={{ color: C.gris }}>
+              {k.l}
+            </div>
+            <div className="mt-1 tabular-nums" style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 28 }}>
+              {k.v}
+            </div>
+            <div className="mt-1 text-xs" style={{ color: C.gris }}>
+              {k.s}
+            </div>
+          </Card>
+        ))}
+      </div>
+
+      {d.cultivos.length > 0 && (
+        <Card>
+          <div className="mb-2 text-sm font-semibold">Cultivos en uso</div>
+          <div className="flex flex-col gap-1.5">
+            {d.cultivos.map((c) => (
+              <div key={c.nombre} className="flex items-center justify-between text-sm">
+                <span>{c.nombre}</span>
+                <span style={{ color: C.gris }}>
+                  {c.ha} ha · {c.parcelas} parcela{c.parcelas === 1 ? "" : "s"}
+                </span>
+              </div>
+            ))}
           </div>
         </Card>
-      ))}
+      )}
+
+      <Card style={{ borderLeft: `3px solid ${C.grano}` }}>
+        <div className="text-sm font-semibold">Quién dejó de capturar</div>
+        <p className="mb-2 mt-1 text-xs" style={{ color: C.gris }}>
+          Llevaban ritmo y llevan 5 días o más sin capturar nada. Es el cliente que se te está yendo.
+        </p>
+        {d.dejaronDeCapturar.length === 0 ? (
+          <p className="text-sm" style={{ color: C.gris }}>Nadie se ha quedado callado. Bien.</p>
+        ) : (
+          d.dejaronDeCapturar.map((p) => (
+            <button
+              key={p.organizacionId}
+              type="button"
+              onClick={() => onAbrirPredio(p.organizacionId)}
+              className="flex min-h-11 w-full items-center justify-between gap-2 border-t py-2 text-left text-sm"
+              style={{ borderColor: C.linea, background: "none", cursor: "pointer" }}
+            >
+              <span className="font-semibold">{p.nombre}</span>
+              <span style={{ color: C.barrial, fontWeight: 700 }}>
+                {p.ultimaAccion} · {hace(p.diasSinCapturar)}
+              </span>
+            </button>
+          ))
+        )}
+      </Card>
+
+      <Card>
+        <div className="text-sm font-semibold">Predios a medias</div>
+        <p className="mb-2 mt-1 text-xs" style={{ color: C.gris }}>
+          Abrieron cuenta hace más de una semana, nunca dieron de alta una parcela y no volvieron.
+        </p>
+        {d.aMedias.length === 0 ? (
+          <p className="text-sm" style={{ color: C.gris }}>Ninguno por ahora.</p>
+        ) : (
+          d.aMedias.map((p) => (
+            <button
+              key={p.organizacionId}
+              type="button"
+              onClick={() => onAbrirPredio(p.organizacionId)}
+              className="flex min-h-11 w-full items-center justify-between gap-2 border-t py-2 text-left text-sm"
+              style={{ borderColor: C.linea, background: "none", cursor: "pointer" }}
+            >
+              <span className="font-semibold">{p.nombre}</span>
+              <span style={{ color: C.gris }}>alta {hace(p.diasDesdeAlta)}</span>
+            </button>
+          ))
+        )}
+      </Card>
     </div>
   );
 }
 
-function TabCuentas() {
+function TabSoporte({
+  predioAbierto,
+  onAbrirPredio,
+  onCerrar,
+}: {
+  predioAbierto: string | null;
+  onAbrirPredio: (orgId: string) => void;
+  onCerrar: () => void;
+}) {
+  if (predioAbierto) return <DetalleSoporte orgId={predioAbierto} onCerrar={onCerrar} />;
+  return <ListaPredios onAbrirPredio={onAbrirPredio} />;
+}
+
+function ListaPredios({ onAbrirPredio }: { onAbrirPredio: (orgId: string) => void }) {
   const [rows, setRows] = useState<Awaited<ReturnType<typeof listPlataformaCuentas>> | null>(null);
   useEffect(() => {
     void listPlataformaCuentas().then(setRows);
   }, []);
-  if (!rows) return <p className="text-sm" style={{ color: C.gris }}>Cargando cuentas…</p>;
+  if (!rows) return <p className="text-sm" style={{ color: C.gris }}>Cargando predios…</p>;
   if (!Array.isArray(rows) || rows.length === 0) {
     return <Card><p className="text-sm" style={{ color: C.gris }}>Todavía no hay predios.</p></Card>;
   }
@@ -401,7 +513,11 @@ function TabCuentas() {
         </thead>
         <tbody>
           {(rows as { id: string; nombre: string; dueño: string; usuarios: number; parcelas: number; labores: number; boletas: number; codigo: string | null }[]).map((r) => (
-            <tr key={r.id} style={{ borderTop: `1px solid ${C.linea}` }}>
+            <tr
+              key={r.id}
+              onClick={() => onAbrirPredio(r.id)}
+              style={{ borderTop: `1px solid ${C.linea}`, cursor: "pointer" }}
+            >
               <td className="px-4 py-3 font-semibold">{r.nombre}</td>
               <td className="px-4 py-3" style={{ color: C.gris }}>{r.dueño}</td>
               <td className="px-4 py-3 tabular-nums">{r.usuarios}</td>
@@ -415,6 +531,182 @@ function TabCuentas() {
         </tbody>
       </table>
     </Card>
+  );
+}
+
+type SoporteDetalle = {
+  org: { id: string; nombre: string; creadoEn: string; codigo: string | null };
+  ciclos: { id: string; nombre: string; fechaInicio: string | null; fechaFin: string | null; parcelas: number }[];
+  parcelas: { nombre: string; cultivo: string; ha: number; cicloId: string }[];
+  usuarios: { userId: string; email: string | null; nombre: string | null; rol: string; veFinanzas: boolean; creadoEn: string; ultimoLogin: string | null }[];
+  auditoria: { email: string | null; accion: string; creadoEn: string }[];
+  tickets: { id: string; tipo: string; titulo: string; estado: string; creado_en: string }[];
+  usoWhatsapp: boolean;
+  errores: { mensaje: string; donde: string; creadoEn: string }[];
+};
+
+function DetalleSoporte({ orgId, onCerrar }: { orgId: string; onCerrar: () => void }) {
+  const [d, setD] = useState<SoporteDetalle | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  useEffect(() => {
+    setD(null);
+    setErr(null);
+    void getSoportePredio({ data: { orgId } })
+      .then((r) => setD(r as unknown as SoporteDetalle))
+      .catch((e: Error) => setErr(e.message));
+  }, [orgId]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <button
+        type="button"
+        onClick={onCerrar}
+        className="min-h-11 self-start text-sm font-semibold"
+        style={{ background: "none", border: "none", color: C.hoja, cursor: "pointer" }}
+      >
+        ← Todos los predios
+      </button>
+      {err && <Card><p className="text-sm font-semibold" style={{ color: C.rojo }}>{err}</p></Card>}
+      {!d && !err && <p className="text-sm" style={{ color: C.gris }}>Abriendo predio…</p>}
+      {d && (
+        <>
+          <Card>
+            <div style={{ fontFamily: "Bricolage Grotesque, system-ui, sans-serif", fontWeight: 800, fontSize: 20 }}>
+              {d.org.nombre}
+            </div>
+            <div className="mt-1 text-xs" style={{ color: C.gris }}>
+              Alta {fecha(d.org.creadoEn)} · Código {d.org.codigo || "—"}
+            </div>
+          </Card>
+
+          <Card>
+            <div className="mb-2 text-sm font-semibold">Ciclo y parcelas</div>
+            {d.ciclos.length === 0 ? (
+              <p className="text-sm" style={{ color: C.gris }}>Sin ciclo armado todavía.</p>
+            ) : (
+              d.ciclos.map((c) => (
+                <div key={c.id} className="text-sm">
+                  <span className="font-semibold">{c.nombre}</span>{" "}
+                  <span style={{ color: C.gris }}>
+                    · {c.fechaInicio || "?"} → {c.fechaFin || "?"} · {c.parcelas} parcela{c.parcelas === 1 ? "" : "s"}
+                  </span>
+                </div>
+              ))
+            )}
+            {d.parcelas.length > 0 ? (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {d.parcelas.map((p, i) => (
+                  <span
+                    key={i}
+                    className="rounded-full px-2 py-1 text-[11px]"
+                    style={{ background: C.papel, border: `1px solid ${C.linea}` }}
+                  >
+                    {p.cultivo || "sin cultivo"} · {p.nombre || "sin nombre"} · {p.ha} ha
+                  </span>
+                ))}
+              </div>
+            ) : (
+              <p className="mt-2 text-sm" style={{ color: C.gris }}>Sin parcelas dadas de alta.</p>
+            )}
+          </Card>
+
+          <Card className="overflow-x-auto p-0">
+            <div className="p-4 pb-2 text-sm font-semibold">Gente y roles</div>
+            {d.usuarios.length === 0 ? (
+              <p className="px-4 pb-4 text-sm" style={{ color: C.gris }}>Sin gente registrada.</p>
+            ) : (
+              <table className="w-full min-w-[520px] text-left text-sm">
+                <thead>
+                  <tr style={{ borderTop: `1px solid ${C.linea}`, color: C.gris, fontSize: 11, fontWeight: 700 }}>
+                    {["Persona", "Rol", "Ve $", "Alta", "Último login"].map((h) => (
+                      <th key={h} className="px-4 py-2 font-semibold">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {d.usuarios.map((u) => (
+                    <tr key={u.userId} style={{ borderTop: `1px solid ${C.linea}` }}>
+                      <td className="px-4 py-2 font-semibold">{u.nombre || u.email || "—"}</td>
+                      <td className="px-4 py-2">{u.rol}</td>
+                      <td className="px-4 py-2">{u.veFinanzas ? "Sí" : "No"}</td>
+                      <td className="px-4 py-2" style={{ color: C.gris, fontSize: 12 }}>{fecha(u.creadoEn)}</td>
+                      <td className="px-4 py-2" style={{ color: C.gris, fontSize: 12 }}>{fecha(u.ultimoLogin)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span className="text-sm font-semibold">Última actividad</span>
+              {d.usoWhatsapp ? (
+                <span
+                  className="rounded-full px-2 py-1 text-[11px] font-semibold"
+                  style={{ background: "#EEF4EB", color: C.bosque }}
+                >
+                  Ha usado WhatsApp
+                </span>
+              ) : (
+                <span className="text-[11px]" style={{ color: C.gris }}>No ha usado WhatsApp</span>
+              )}
+            </div>
+            {d.auditoria.length === 0 ? (
+              <p className="text-sm" style={{ color: C.gris }}>Sin captura registrada todavía — nunca ha guardado nada.</p>
+            ) : (
+              <div className="flex flex-col gap-1">
+                {d.auditoria.map((a, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 border-t py-1.5 text-sm" style={{ borderColor: C.linea }}>
+                    <span>{a.accion}</span>
+                    <span style={{ color: C.gris, fontSize: 12 }}>{a.email || "—"} · {fecha(a.creadoEn)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-2 text-sm font-semibold">Tickets de este predio</div>
+            {d.tickets.length === 0 ? (
+              <p className="text-sm" style={{ color: C.gris }}>No ha escrito.</p>
+            ) : (
+              d.tickets.map((t) => (
+                <div key={t.id} className="border-t py-2 text-sm" style={{ borderColor: C.linea }}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-semibold">{t.titulo}</span>
+                    <span
+                      className="rounded-full px-2 py-0.5 text-[11px] font-semibold"
+                      style={{
+                        background: t.estado === "nueva" ? "#FBF4E3" : t.estado === "resuelta" ? "#EEF4EB" : "#EEF1F6",
+                        color: t.estado === "nueva" ? C.barrial : t.estado === "resuelta" ? C.bosque : C.azul,
+                      }}
+                    >
+                      {t.estado.replace("_", " ")}
+                    </span>
+                  </div>
+                  <div style={{ color: C.gris, fontSize: 12 }}>{t.tipo} · {fecha(t.creado_en)}</div>
+                </div>
+              ))
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-2 text-sm font-semibold">Fallas recientes</div>
+            {d.errores.length === 0 ? (
+              <p className="text-sm" style={{ color: C.gris }}>Sin fallas registradas.</p>
+            ) : (
+              d.errores.map((e, i) => (
+                <div key={i} className="border-t py-1.5 text-sm" style={{ borderColor: C.linea }}>
+                  <div className="font-mono text-xs" style={{ color: C.rojo }}>{e.donde}: {e.mensaje}</div>
+                  <div style={{ color: C.gris, fontSize: 11 }}>{fecha(e.creadoEn)}</div>
+                </div>
+              ))
+            )}
+          </Card>
+        </>
+      )}
+    </div>
   );
 }
 
