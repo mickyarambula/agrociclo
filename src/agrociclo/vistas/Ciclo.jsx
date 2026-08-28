@@ -55,7 +55,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                           { l: "Presupuesto", v: presupuestoCiclo > 0 ? `${num((inversionTotal / presupuestoCiclo) * 100, 0)}% usado` : "Sin fijar" },
                         ].map((k) => (
                           <div key={k.l}>
-                            <div style={{ fontSize: 10, letterSpacing: 0.8, textTransform: "uppercase", color: "rgba(255,255,255,0.65)", fontWeight: 700 }}>{k.l}</div>
+                            <div style={{ fontSize: 11, letterSpacing: 0.8, textTransform: "uppercase", color: C.blanco, fontWeight: 700 }}>{k.l}</div>
                             <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17, color: C.blanco }}>{k.v}</div>
                           </div>
                         ))}

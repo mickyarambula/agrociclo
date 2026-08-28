@@ -80,7 +80,7 @@ export function Simulador({ parcelasT, costosParcela, inversionTotal, ingresoTot
       {/* Selector de parcela/cultivo */}
       <div className="flex items-center gap-4 flex-wrap mb-4">
         <Campo label="Cultivo · parcela">
-          <select style={{ ...estiloInput, width: "auto", fontWeight: 700 }} value={sel} onChange={e => setSel(e.target.value)}>
+          <select style={{ ...estiloInput, width: "auto", maxWidth: "min(100%, 280px)", fontWeight: 700, textOverflow: "ellipsis" }} value={sel} onChange={e => setSel(e.target.value)}>
             {parcelasT.map(p => (
               <option key={p.id} value={p.id}>
                 {p.cultivo} · {p.nombre} · {p.ha} ha
