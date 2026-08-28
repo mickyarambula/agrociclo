@@ -19,6 +19,18 @@ describe("Catálogo de tipos de trabajo (tipo_trabajo)", () => {
     assert.ok(r.ledger.tipo_trabajo[0].id, "el insert genera id");
   });
 
+  it("el catálogo de cultivos acepta altas incluso en un ledger sin la tabla", async () => {
+    const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyTableToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const viejo = ranchoVacioLedger();
+    delete viejo.cultivo;
+
+    const r = await applyTableToLedger(viejo, "cultivo", "insert",
+      { organizacion_id: viejo.organizacion[0].id, nombre: "Papa" }, []);
+    assert.equal(r.result.error, null);
+    assert.equal(r.ledger.cultivo[0].nombre, "Papa");
+  });
+
   it("el predio nuevo nace con el catálogo vacío y acepta ámbito raya", async () => {
     const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
     const { applyTableToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");

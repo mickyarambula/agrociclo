@@ -416,9 +416,9 @@ export function GuiaCiclo({ pasos, onOcultar }) {
   );
 }
 
-export function FormParcela({ inicial, productores, creditos, onGuardar }) {
+export function FormParcela({ inicial, productores, creditos, cultivos, onAgregarCultivo, onGuardar }) {
   const [f, set] = useForm({
-    nombre: inicial?.nombre || "", cultivo: inicial?.cultivo || "", ha: inicial?.ha ?? "",
+    nombre: inicial?.nombre || "", cultivo: inicial?.cultivo || "", cultivoNuevo: "", ha: inicial?.ha ?? "",
     rendEsperado: inicial?.rendEsperado ?? "", precioEsperado: inicial?.precioEsperado ?? "",
     tenencia: inicial?.tenencia || "Propia",
     rentaPorHa: inicial?.rentaPorHa ?? "",
@@ -432,11 +432,27 @@ export function FormParcela({ inicial, productores, creditos, onGuardar }) {
   const ha = Number(f.ha) || 0, rend = Number(f.rendEsperado) || 0, precio = Number(f.precioEsperado) || 0;
   const ingresoProy = ha * rend * precio;
   const rentaProy = esRentada ? ha * (Number(f.rentaPorHa) || 0) : 0;
-  const bloqueado = !f.nombre || !f.cultivo || (esRentada && f.rentaOrigen === "linea" && !f.rentaCreditoId);
+  const cultivoFinal = f.cultivo === "__nuevo"
+    ? (() => {
+        const n = f.cultivoNuevo.trim();
+        const existente = (cultivos || []).find((c) => claveTipo(c) === claveTipo(n));
+        return existente || n;
+      })()
+    : f.cultivo;
+  const bloqueado = !f.nombre || !cultivoFinal || (esRentada && f.rentaOrigen === "linea" && !f.rentaCreditoId);
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Nombre / lote"><input style={estiloInput} placeholder="Ej. Lote 7 · San Blas" value={f.nombre} onChange={set("nombre")} /></Campo>
-      <Campo label="Cultivo"><input style={estiloInput} placeholder="Ej. Maíz blanco" value={f.cultivo} onChange={set("cultivo")} /></Campo>
+      <Campo label="Cultivo">
+        <select style={estiloInput} value={f.cultivo} onChange={set("cultivo")}>
+          <option value="">— Elige —</option>
+          {(cultivos || []).concat(f.cultivo && !(cultivos || []).includes(f.cultivo) && f.cultivo !== "__nuevo" ? [f.cultivo] : []).map(c => <option key={c}>{c}</option>)}
+          <option value="__nuevo">+ Nuevo cultivo…</option>
+        </select>
+      </Campo>
+      {f.cultivo === "__nuevo" && (
+        <Campo label="Nombre del cultivo"><input style={estiloInput} placeholder="Ej. Papa" value={f.cultivoNuevo} onChange={set("cultivoNuevo")} /></Campo>
+      )}
       <Campo label="Hectáreas"><input type="number" style={estiloInput} placeholder="0" value={f.ha} onChange={set("ha")} /></Campo>
       <Campo label="Rendimiento esperado (ton/ha)"><input type="number" style={estiloInput} placeholder="Ej. 12" value={f.rendEsperado} onChange={set("rendEsperado")} /></Campo>
       <Campo label="Precio esperado ($/ton)"><input type="number" style={estiloInput} placeholder="Ej. 5600" value={f.precioEsperado} onChange={set("precioEsperado")} /></Campo>
@@ -462,7 +478,11 @@ export function FormParcela({ inicial, productores, creditos, onGuardar }) {
           Vista rápida: ingreso esperado <strong>{money(ingresoProy)}</strong>{rentaProy > 0 ? <> · la renta se llevará <strong>{money(rentaProy)}</strong> ({num((rentaProy / ingresoProy) * 100, 1)}% del ingreso)</> : null}.
         </div>
       )}
-      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar parcela"}</Boton></div>
+      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => {
+        if (bloqueado) return;
+        if (f.cultivo === "__nuevo" && onAgregarCultivo && !(cultivos || []).find((c) => claveTipo(c) === claveTipo(cultivoFinal))) onAgregarCultivo(cultivoFinal);
+        onGuardar({ ...f, cultivo: cultivoFinal });
+      }}>{inicial ? "Guardar cambios" : "Guardar parcela"}</Boton></div>
     </div>
   );
 }

@@ -19,7 +19,7 @@ import {
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
   interesCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
-  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA,
+  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -904,6 +904,24 @@ function AgroCicloApp() {
   });
   const agregarTipoLabor = (nombre) => agregarTipoMut.mutate({ ambito: "labor", nombre });
   const agregarActividadRaya = (nombre) => agregarTipoMut.mutate({ ambito: "raya", nombre });
+
+  /* Catálogo de cultivos: los comunes del valle + los del predio. */
+  const cultivosQ = useOrgRead(["cultivos"], "cultivo", { build: (q) => q.is("eliminado_en", null).order("nombre") });
+  const cultivos = useMemo(() => {
+    const extra = (cultivosQ.data ?? []).map((c) => String(c.nombre));
+    return [...CULTIVOS_VALLE, ...extra];
+  }, [cultivosQ.data]);
+  const agregarCultivoMut = useOrgWrite({
+    mutationFn: async (nombre) => {
+      const n = String(nombre || "").trim();
+      if (!n) throw new Error("Escribe el nombre.");
+      const { error } = await supabase.from("cultivo").insert({ organizacion_id: ORG_ID, nombre: n });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["cultivos"]],
+    successMsg: "Cultivo agregado al catálogo",
+  });
+  const agregarCultivo = (nombre) => agregarCultivoMut.mutate(nombre);
 
   /* --- PARCELAS (base de datos) --- */
   const guardarParcelaMut = useOrgWrite({
@@ -1836,7 +1854,7 @@ function AgroCicloApp() {
           <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela }} />
 
           {/* ===== PARCELAS ===== */}
-          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar }} />
+          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo }} />
 
           {/* ===== LABORES ===== */}
           <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor }} />

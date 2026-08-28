@@ -29,6 +29,7 @@ export interface Ledger {
   disposicion: Row[];
   pago_disposicion: Row[];
   tipo_trabajo: Row[];
+  cultivo: Row[];
 }
 
 export type TableName = keyof Ledger;

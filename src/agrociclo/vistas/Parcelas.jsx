@@ -4,14 +4,14 @@ import { fuente, Tarjeta, Boton, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormParcela } from "../forms/campo";
 import { CheckCircle2 } from "lucide-react";
 
-export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar }) {
+export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo }) {
   return (
     <>
           {vista === "parcelas" && (
             <Seccion titulo="Parcelas y cultivos" accion="Nueva parcela" puedeEditar={puedeEditar}
               abierto={form?.tipo === "parcela"} onAbrir={() => setForm({ tipo: "parcela", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
+              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
               {parcelasT.length === 0 && <Vacio texto="Sin parcelas en esta temporada." />}
               <div className="grid md:grid-cols-2 gap-3">
                 {parcelasT.map(p => {

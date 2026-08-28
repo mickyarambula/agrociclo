@@ -160,6 +160,9 @@ export const ORDEN_ESTADO = { solicitado: 0, cotizado: 1, autorizado: 2, recibid
 // para ligar el fondeo de línea a su crédito por uuid directo (ver `cajaMovsT`). El fondeo de línea
 // escribe una disposición real (origen_tipo='fondeo_caja') vía fn_guardar_caja_fondeo.
 
+/* Cultivos comunes del Valle del Fuerte; el predio agrega los suyos al
+   catálogo (tabla cultivo). */
+export const CULTIVOS_VALLE = ["Maíz blanco", "Maíz amarillo", "Frijol", "Garbanzo", "Trigo", "Sorgo", "Cártamo"];
 /* Actividades base de la raya; el predio agrega las suyas al catálogo
    (tabla tipo_trabajo, ambito "raya"). */
 export const ACTIVIDADES_RAYA = ["Deshierbe", "Riego", "Aplicación", "Cosecha", "Acarreo"];

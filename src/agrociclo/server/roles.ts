@@ -101,6 +101,7 @@ const TABLE_MODULO: Record<string, ModuloId> = {
   jornal: "cuadrillas",
   productor: "productores",
   parcela: "parcelas",
+  cultivo: "parcelas",
   insumo: "inventario",
   inventario_movimiento: "inventario",
   labor: "labores",
