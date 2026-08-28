@@ -26,7 +26,7 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                           </div>
                         </div>
                         <div className="flex items-center gap-1">
-                          {veFinanzas && (
+                          {veFinanzas && c.tieneProy && (
                             <span style={{ background: c.utilidad >= 0 ? "#E8F1E6" : "#F7E8E3", color: c.utilidad >= 0 ? C.bosque : C.rojo, fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 999 }}>
                               {c.utilidad >= 0 ? "Utilidad" : "Pérdida"}
                             </span>
@@ -43,9 +43,15 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                           <Fila l="Costo financiero" v={money(c.interes)} resalta />
                           <Fila l="Costo directo / ha" v={money(c.directoPorHa)} />
                           <Fila l="Costo completo / ha" v={money(c.porHa)} />
-                          <Fila l="Equilibrio" v={`${num(c.puntoEq, 2)} ton/ha`} />
-                          <Fila l="Precio mínimo" v={`${money(c.precioEq)}/ton`} />
-                          <Fila l="Utilidad proy." v={money(c.utilidad)} />
+                          <Fila l="Equilibrio" v={c.tieneProy ? `${num(c.puntoEq, 2)} ton/ha` : "—"} />
+                          <Fila l="Precio mínimo" v={c.tieneProy ? `${money(c.precioEq)}/ton` : "—"} />
+                          <Fila l="Utilidad proy." v={c.tieneProy ? money(c.utilidad) : "—"} />
+                          {!c.tieneProy && puedeEditar && (
+                            <button type="button" onClick={() => setForm({ tipo: "parcela", item: p })}
+                              style={{ border: "none", background: "transparent", cursor: "pointer", padding: "6px 0 0", fontSize: 12, color: C.hoja, fontWeight: 600, textAlign: "left", fontFamily: fuente.cuerpo, textDecoration: "underline" }}>
+                              Pon tu rendimiento y precio esperados para ver tu punto de equilibrio
+                            </button>
+                          )}
                         </div>
                       ) : (
                         <div className="mt-3" style={{ fontSize: 13, color: C.gris }}>

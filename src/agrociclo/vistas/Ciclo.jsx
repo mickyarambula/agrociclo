@@ -75,7 +75,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                     {(veFinanzas ? [
                       { l: "Inversión total", v: money(inversionTotal), s: `${num(haTotal, 0)} ha · toca para el desglose`, ir: "reportes" },
                       { l: "Costo financiero", v: money(costoFinTotal), s: "Avíos + compras + rentas", ir: "credito", alerta: true },
-                      { l: "Ingreso cosechado", v: money(ingresoRealTotal), s: ingresoRealTotal > 0 ? `de ${money(ingresoTotal)} esperado` : "Aún sin entregas", ir: "cosecha" },
+                      { l: "Ingreso cosechado", v: money(ingresoRealTotal), s: ingresoRealTotal > 0 ? (ingresoTotal > 0 ? `de ${money(ingresoTotal)} esperado` : "esperado: —") : "Aún sin entregas", ir: "cosecha" },
                       { l: "Raya por pagar", v: money(rayaPendiente), s: rayaPendiente > 0 ? "Toca para hacer el corte" : "Al corriente", ir: "cuadrillas", alerta: rayaPendiente > 0 },
                     ] : [
                       { l: "Diésel en tanque", v: `${num(dieselIns?.stock || 0, 0)} L`, s: "Toca para ver almacén", ir: "inventario" },
@@ -244,12 +244,16 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                                 <tr key={p.id} style={{ borderTop: `1px solid ${C.linea}` }}>
                                   <td className="py-2.5 pr-3" style={{ fontWeight: 600 }}>{p.cultivo}<div style={{ fontSize: 11, color: C.gris, fontWeight: 400 }}>{p.nombre} · {p.ha} ha</div></td>
                                   <td className="py-2.5 pr-3">{money(c.total)}</td>
-                                  <td className="py-2.5 pr-3">{num(c.puntoEq, 2)} ton/ha · {money(c.precioEq)}/ton</td>
+                                  <td className="py-2.5 pr-3">{c.tieneProy ? <>{num(c.puntoEq, 2)} ton/ha · {money(c.precioEq)}/ton</> : "—"}</td>
                                   <td className="py-2.5 pr-3">{enCosecha ? `${num(c.tonReal, 1)} ton (${num(c.rendReal, 2)}/ha)` : "—"}</td>
-                                  <td className="py-2.5" style={{ fontWeight: 700, color: (enCosecha ? c.utilidadReal : c.utilidad) >= 0 ? C.bosque : C.rojo }}>
-                                    {enCosecha ? money(c.utilidadReal) : money(c.utilidad)}
-                                    <span style={{ fontSize: 10, color: C.gris, fontWeight: 600 }}> {enCosecha ? "real parcial" : "proyectada"}</span>
-                                  </td>
+                                  {enCosecha || c.tieneProy ? (
+                                    <td className="py-2.5" style={{ fontWeight: 700, color: (enCosecha ? c.utilidadReal : c.utilidad) >= 0 ? C.bosque : C.rojo }}>
+                                      {enCosecha ? money(c.utilidadReal) : money(c.utilidad)}
+                                      <span style={{ fontSize: 10, color: C.gris, fontWeight: 600 }}> {enCosecha ? "real parcial" : "proyectada"}</span>
+                                    </td>
+                                  ) : (
+                                    <td className="py-2.5" style={{ color: C.gris }}>—</td>
+                                  )}
                                 </tr>
                               );
                             })}

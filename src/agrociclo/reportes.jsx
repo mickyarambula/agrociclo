@@ -314,7 +314,7 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
       <Tarjeta style={{ padding: 20 }}>
         <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Estado de resultados de la temporada</span>
         <div className="mt-3 max-w-md">
-          <Fila l="Ingresos esperados (proyección)" v={money(ingresoTotal)} />
+          <Fila l="Ingresos esperados (proyección)" v={ingresoTotal > 0 ? money(ingresoTotal) : "—"} />
           <div style={{ height: 6 }} />
           {ingresoRealTotal > 0 && <><Fila l="Ingreso real cosechado (neto)" v={money(ingresoRealTotal)} /><div style={{ height: 6 }} /></>}
           <Fila l="(−) Costos directos (incluye renta)" v={money(costoDirectoTotal)} />
@@ -325,9 +325,13 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
           <div style={{ height: 10 }} />
           <div className="flex justify-between" style={{ borderTop: `2px solid ${C.tinta}`, paddingTop: 8 }}>
             <span style={{ fontWeight: 700 }}>Utilidad proyectada</span>
-            <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, color: utilidad >= 0 ? C.bosque : C.rojo }}>
-              {money(utilidad)} <span style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>({num(margen, 1)}% margen)</span>
-            </span>
+            {ingresoTotal > 0 ? (
+              <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, color: utilidad >= 0 ? C.bosque : C.rojo }}>
+                {money(utilidad)} <span style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>({num(margen, 1)}% margen)</span>
+              </span>
+            ) : (
+              <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, color: C.gris }}>—</span>
+            )}
           </div>
         </div>
       </Tarjeta>

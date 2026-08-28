@@ -477,8 +477,11 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
         <Campo label="Nombre del cultivo"><input style={estiloInput} placeholder="Ej. Papa" value={f.cultivoNuevo} onChange={set("cultivoNuevo")} /></Campo>
       )}
       <Campo label="Hectáreas"><input type="number" style={estiloInput} placeholder="0" value={f.ha} onChange={set("ha")} /></Campo>
-      <Campo label="Rendimiento esperado (ton/ha)"><input type="number" style={estiloInput} placeholder="Ej. 12" value={f.rendEsperado} onChange={set("rendEsperado")} /></Campo>
-      <Campo label="Precio esperado ($/ton)"><input type="number" style={estiloInput} placeholder="Ej. 5600" value={f.precioEsperado} onChange={set("precioEsperado")} /></Campo>
+      <Campo label="Rendimiento esperado (ton/ha) · opcional"><input type="number" style={estiloInput} placeholder="Ej. 12" value={f.rendEsperado} onChange={set("rendEsperado")} /></Campo>
+      <Campo label="Precio esperado ($/ton) · opcional"><input type="number" style={estiloInput} placeholder="Ej. 5600" value={f.precioEsperado} onChange={set("precioEsperado")} /></Campo>
+      <div className="md:col-span-3" style={{ fontSize: 12, color: C.gris, marginTop: -6 }}>
+        Sirven para calcular tu punto de equilibrio y la utilidad proyectada. Puedes ponerlos después, cuando tengas contrato o cotización.
+      </div>
       <Campo label="Tenencia de la tierra">
         <select style={estiloInput} value={f.tenencia} onChange={set("tenencia")}>
           <option>Propia</option>

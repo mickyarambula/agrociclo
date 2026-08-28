@@ -730,6 +730,8 @@ function AgroCicloApp() {
         porHa: p.ha ? total / p.ha : 0,
         directoPorHa: p.ha ? directo / p.ha : 0,
         ingreso, utilidad: ingreso - total,
+        // rend/precio esperados vacíos = "no lo sé todavía", no una proyección de cero.
+        tieneProy: p.rendEsperado > 0 && p.precioEsperado > 0,
         puntoEq: p.precioEsperado > 0 && p.ha > 0 ? (total / p.ha) / p.precioEsperado : 0,
         precioEq: p.rendEsperado > 0 && p.ha > 0 ? (total / p.ha) / p.rendEsperado : 0,
         tonReal, ingresoReal, rendReal: p.ha ? tonReal / p.ha : 0,
@@ -759,8 +761,8 @@ function AgroCicloApp() {
     parcelasT.forEach(p => {
       const c = costosParcela[p.id];
       if (!c) return;
-      if (c.utilidad < 0) a.push({ nivel: "rojo", ambito: "fin", texto: `${p.cultivo} (${p.nombre}) proyecta pérdida de ${money(Math.abs(c.utilidad))}. Equilibrio: ${num(c.puntoEq, 2)} ton/ha vs ${num(p.rendEsperado, 2)} esperadas.` });
-      else if (p.rendEsperado > 0 && c.puntoEq / p.rendEsperado > 0.85) a.push({ nivel: "ambar", ambito: "fin", texto: `${p.cultivo} (${p.nombre}) trae margen apretado: precio mínimo ${money(c.precioEq)}/ton.` });
+      if (c.tieneProy && c.utilidad < 0) a.push({ nivel: "rojo", ambito: "fin", texto: `${p.cultivo} (${p.nombre}) proyecta pérdida de ${money(Math.abs(c.utilidad))}. Equilibrio: ${num(c.puntoEq, 2)} ton/ha vs ${num(p.rendEsperado, 2)} esperadas.` });
+      else if (c.tieneProy && c.puntoEq / p.rendEsperado > 0.85) a.push({ nivel: "ambar", ambito: "fin", texto: `${p.cultivo} (${p.nombre}) trae margen apretado: precio mínimo ${money(c.precioEq)}/ton.` });
     });
     if (inversionTotal > 0 && costoFinTotal / inversionTotal > 0.12)
       a.push({ nivel: "ambar", ambito: "fin", texto: `El costo financiero ya es ${num((costoFinTotal / inversionTotal) * 100, 1)}% de tu inversión total.` });

@@ -44,10 +44,12 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
                     <Tarjeta key={p.id} style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
                       <Etiqueta>{p.cultivo} · {p.nombre}</Etiqueta>
                       <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, marginTop: 4 }}>{num(c.tonReal, 1)} ton</div>
-                      <div style={{ fontSize: 12, color: C.gris }}>{num(c.rendReal, 2)} ton/ha · {num(avance, 0)}% de lo esperado</div>
-                      <div style={{ height: 8, borderRadius: 4, background: C.papel, border: `1px solid ${C.linea}`, marginTop: 6 }}>
-                        <div style={{ width: `${Math.min(100, avance)}%`, height: "100%", borderRadius: 4, background: C.hoja }} />
-                      </div>
+                      <div style={{ fontSize: 12, color: C.gris }}>{num(c.rendReal, 2)} ton/ha{p.rendEsperado > 0 ? ` · ${num(avance, 0)}% de lo esperado` : " · esperado: —"}</div>
+                      {p.rendEsperado > 0 && (
+                        <div style={{ height: 8, borderRadius: 4, background: C.papel, border: `1px solid ${C.linea}`, marginTop: 6 }}>
+                          <div style={{ width: `${Math.min(100, avance)}%`, height: "100%", borderRadius: 4, background: C.hoja }} />
+                        </div>
+                      )}
                       {veFinanzas && (
                         <div className="mt-2" style={{ fontSize: 12 }}>
                           <Fila l="Vendido" v={money(c.ingresoReal)} />
