@@ -93,7 +93,11 @@ function createNeonSql(): Promise<Sql> {
     types.setTypeParser(OID_INT8, Number);
     types.setTypeParser(OID_DATE, identity);
     types.setTypeParser(OID_INTERVAL, identity);
-    const pool = new Pool({ connectionString: databaseUrl });
+    // Límites bajos a propósito: el pooler de Supabase tiene pocos slots y varias
+    // instancias serverless calientes suman sus pools — sin esto, una ráfaga de
+    // escrituras agota el pooler y tumba el login para todo mundo (visto en vivo
+    // el 2026-08-28: ECHECKOUTTIMEOUT y luego ETIMEDOUT contra el pooler).
+    const pool = new Pool({ connectionString: databaseUrl, max: 3, idleTimeoutMillis: 5000 });
     return toSql(async <T>(text: string, params: unknown[]) => {
       const res = await pool.query(text, params);
       return res.rows as T[];

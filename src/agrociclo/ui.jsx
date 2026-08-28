@@ -1,7 +1,7 @@
 /* UI básica compartida: tipografía, tarjetas, botones, campos, secciones
    y el error boundary. Sin lógica de negocio. */
 import { useState, Component } from "react";
-import { Pencil, Trash2, Plus, X } from "lucide-react";
+import { Pencil, Trash2, Plus, X, SlidersHorizontal, LogOut } from "lucide-react";
 import { C, money, num } from "./base";
 import { reportarError } from "./server/plataforma";
 
@@ -109,24 +109,85 @@ export function etiquetaCiclo(t, compacto) {
 export function Acciones({ onEditar, onEliminar }) {
   const [confirmar, setConfirmar] = useState(false);
   return (
-    <div className="flex items-center gap-1">
+    <div className="flex items-center gap-2">
       {onEditar && (
         <button onClick={onEditar} title="Editar" aria-label="Editar"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, padding: 5 }}>
-          <Pencil size={15} />
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Pencil size={17} />
         </button>
       )}
       {confirmar ? (
         <button onClick={() => { onEliminar(); setConfirmar(false); }}
-          style={{ border: `1px solid ${C.rojo}`, background: "#FBEEE9", color: C.rojo, borderRadius: 8, padding: "3px 8px", fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: fuente.cuerpo }}>
+          style={{ border: `1px solid ${C.rojo}`, background: "#FBEEE9", color: C.rojo, borderRadius: 8, padding: "3px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer", fontFamily: fuente.cuerpo, minHeight: 44 }}>
           ¿Eliminar?
         </button>
       ) : (
         <button onClick={() => { setConfirmar(true); setTimeout(() => setConfirmar(false), 3500); }} title="Eliminar" aria-label="Eliminar"
-          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, padding: 5 }}>
-          <Trash2 size={15} />
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Trash2 size={17} />
         </button>
       )}
+    </div>
+  );
+}
+
+/** Menú de pantalla completa para lo que se consulta sentado (no las 4 de la
+ * barra de abajo, que ya están a un toque). `grupos`: [{etiqueta, items:
+ * [{id,nombre,icono}]}], igual forma que el menú lateral de escritorio.
+ * `slotAyuda` se pasa desde fuera (un `<AyudaBoton variant="menu"/>`) para que
+ * este archivo, sin lógica de negocio, no tenga que importar ese componente.
+ * @param {{grupos: any[], onSeleccionar: (id: string) => void, onCerrar: () => void, userLabel: string, mostrarAjustes: boolean, onAjustes: () => void, onSalir: () => void, slotAyuda?: any}} props */
+export function MenuMovil({ grupos, onSeleccionar, onCerrar, userLabel, mostrarAjustes, onAjustes, onSalir, slotAyuda }) {
+  return (
+    <div className="md:hidden" style={{ position: "fixed", inset: 0, background: C.blanco, zIndex: 60, display: "flex", flexDirection: "column" }}>
+      <div className="flex items-center justify-between" style={{ padding: "16px 16px", borderBottom: `1px solid ${C.linea}` }}>
+        <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18, color: C.tinta }}>Menú</span>
+        <button type="button" onClick={onCerrar} aria-label="Cerrar menú"
+          style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", color: C.tinta }}>
+          <X size={22} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflowY: "auto", padding: "8px 12px" }}>
+        {grupos.map((g) => (
+          g.items.length === 0 ? null : (
+            <div key={g.etiqueta || "inicio"} className="flex flex-col gap-0.5" style={{ marginBottom: 8 }}>
+              {g.etiqueta ? (
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gris, padding: "14px 12px 6px" }}>
+                  {g.etiqueta}
+                </div>
+              ) : null}
+              {g.items.map((/** @type {any} */ item) => {
+                const Ic = item.icono;
+                return (
+                  <button key={item.id} type="button" onClick={() => onSeleccionar(item.id)}
+                    className="flex items-center gap-3 w-full text-left"
+                    style={{ padding: "12px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontSize: 15, fontWeight: 500, color: C.tinta, minHeight: 48 }}>
+                    <Ic size={19} /> {item.nombre}
+                  </button>
+                );
+              })}
+            </div>
+          )
+        ))}
+      </div>
+      <div style={{ borderTop: `1px solid ${C.linea}`, padding: "10px 12px 16px" }}>
+        <div style={{ fontSize: 12, color: C.gris, padding: "4px 12px 10px" }}>{userLabel}</div>
+        <div className="flex items-center" style={{ gap: 4 }}>
+          {mostrarAjustes && (
+            <button type="button" onClick={onAjustes}
+              className="flex items-center gap-2"
+              style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600, color: C.tinta, minHeight: 48, justifyContent: "center" }}>
+              <SlidersHorizontal size={17} /> Ajustes
+            </button>
+          )}
+          <div style={{ flex: 1 }}>{slotAyuda}</div>
+          <button type="button" onClick={onSalir}
+            className="flex items-center gap-2"
+            style={{ flex: 1, padding: "10px 8px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600, color: C.tinta, minHeight: 48, justifyContent: "center" }}>
+            <LogOut size={17} /> Salir
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

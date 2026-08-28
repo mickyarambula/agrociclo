@@ -19,7 +19,7 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
                     <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17 }}>El cierre de la venta</span>
                     <span style={{ fontSize: 12, color: C.gris }}>con lo entregado hasta hoy · todo el ciclo</span>
                   </div>
-                  <div className="grid grid-cols-3 gap-3 mt-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                     {[
                       { l: "Vendido", v: money(ingresoRealTotal), s: `${num(Object.values(costosParcela).reduce((s, c) => s + c.tonReal, 0), 1)} ton entregadas` },
                       { l: "Costó", v: money(inversionTotal), s: "labores + insumos + raya + renta + gastos + financiero" },

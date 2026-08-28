@@ -198,7 +198,7 @@ export function ProductorCard({ pr, cuenta, parcelasPr, creditosPr, infoLinea, p
         {puedeEditar && <Acciones onEditar={onEditar} onEliminar={onEliminar} />}
       </div>
 
-      <div className="grid grid-cols-3 gap-2 mt-3">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-3">
         {[
           { l: "Cargos", v: cuenta.totalCargos, color: C.barrial },
           { l: "Abonos", v: cuenta.totalAbonos, color: C.hoja },

@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, ListTodo
+  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, ListTodo, Menu
 } from "lucide-react";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
@@ -24,7 +24,7 @@ import {
 import {
   fuente, estiloInput, etiquetaCiclo,
   Tarjeta, Etiqueta, Boton, Campo, PickerParcela, Acciones, ErrorBoundary,
-  BarraLista, Seccion, Fila, Vacio, useForm,
+  BarraLista, Seccion, Fila, Vacio, useForm, MenuMovil,
 } from "./ui";
 import { VistaAjustes } from "./vistas/Ajustes";
 import { VistaReportes } from "./vistas/VistaReportes";
@@ -127,6 +127,23 @@ function AgroCicloApp() {
       formRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
     }
   }, [form]);
+  // El teclado del celular resta alto real al viewport DESPUÉS de que el campo ya
+  // recibió foco (el navegador intenta el scroll-into-view antes de que el teclado
+  // termine de subir) — sin esto, el campo activo (o lo que hay debajo, como
+  // Guardar) queda tapado. visualViewport.resize es lo único que dispara ya con
+  // el teclado arriba, en cualquier formulario de la app.
+  useEffect(() => {
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    if (!vv) return;
+    const alAchicarse = () => {
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "SELECT" || el.tagName === "TEXTAREA")) {
+        el.scrollIntoView({ block: "center", behavior: "smooth" });
+      }
+    };
+    vv.addEventListener("resize", alAchicarse);
+    return () => vv.removeEventListener("resize", alAchicarse);
+  }, []);
 
   /* --- roles de sesión (servidor) --- */
 
@@ -1787,9 +1804,38 @@ function AgroCicloApp() {
     { etiqueta: "Venta", ids: ["cosecha", "productores"] },
     { etiqueta: "Números", ids: ["gastos", "caja", "credito", "costofin", "reportes"] },
   ];
-  const NAV_MOVIL = rol === "Encargado de campo"
-    ? NAV.filter((n) => ["captura", "labores", "cuadrillas", "cosecha"].includes(n.id))
-    : NAV.filter((n) => n.id !== "ajustes");
+  // Abajo en el celular solo lo que se usa parado en la parcela, con una mano
+  // y sol encima — una sola fila, ícono grande. Todo lo demás (lo que se
+  // consulta sentado) vive en el menú ☰ de la barra de arriba. El Encargado
+  // anota raya viendo a la cuadrilla y consume insumos sin comprarlos, así que
+  // su fila cambia Insumos por Raya; los demás roles comparten la misma.
+  const IDS_ABAJO_POR_ROL = { "Encargado de campo": ["captura", "labores", "cuadrillas", "cosecha"] };
+  const idsAbajo = IDS_ABAJO_POR_ROL[rol] || ["captura", "labores", "inventario", "cosecha"];
+  const NAV_MOVIL = NAV.filter((n) => idsAbajo.includes(n.id));
+  const idsAbajoSet = new Set(NAV_MOVIL.map((n) => n.id));
+  const NAV_MENU_GRUPOS = NAV_GRUPOS.map((g) => ({
+    etiqueta: g.etiqueta,
+    items: g.ids.map((id) => NAV.find((n) => n.id === id)).filter((n) => n && !idsAbajoSet.has(n.id)),
+  }));
+  const [menuMovilAbierto, setMenuMovilAbierto] = useState(false);
+  // El menú de abajo del celular es una sola fila de máximo 4 — su alto real
+  // cambia poco, pero se mide de verdad (rol con menos secciones, o ninguna)
+  // en vez de adivinar un número fijo que a veces se queda corto o largo.
+  const navMovilRef = useRef(null);
+  const [navMovilAlto, setNavMovilAlto] = useState(0);
+  useEffect(() => {
+    const el = navMovilRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(([entry]) => setNavMovilAlto(entry.contentRect.height));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  const onCambiarCiclo = (e) => {
+    void setCiclo(e.target.value);
+    setVista(rol === "Encargado de campo" ? "captura" : "panel");
+    cerrar(); setRapida(null); setGuiaCicloOculta(false);
+    setCorteInput(hoyStr); setFechaObjetivo(hoyStr);
+  };
   const cicloActual = ciclos.find((c) => c.id === CICLO_ID);
   const presupuestoCiclo = Number(cicloActual?.presupuesto) || 0;
 
@@ -1876,7 +1922,7 @@ function AgroCicloApp() {
         @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
       `}</style>
 
-      <header className={`flex items-center justify-between gap-2 px-3 md:px-8 py-3 md:py-4 ${rol === "Encargado de campo" ? "flex-nowrap" : "flex-wrap"}`} style={{ background: C.bosque, color: C.blanco }}>
+      <header className="flex items-center justify-between gap-2 px-3 md:px-8 py-3 md:py-4 flex-wrap" style={{ background: C.bosque, color: C.blanco }}>
         <div className="flex items-center gap-2 md:gap-3 min-w-0">
           <div className="flex items-center justify-center shrink-0" style={{ width: 36, height: 36, borderRadius: 10, background: C.grano }}>
             <Sprout size={20} color={C.bosque} strokeWidth={2.5} />
@@ -1887,24 +1933,38 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); setGuiaCicloOculta(false); setCorteInput(hoyStr); setFechaObjetivo(hoyStr); }}
+          {/* Móvil: etiqueta corta ("OI 26/27") para todos los roles — aquí no
+              sobra ancho para el nombre completo del ciclo. */}
+          <select className="md:hidden" value={CICLO_ID} onChange={onCambiarCiclo}
             title="Ciclo de siembra"
             aria-label="Ciclo de siembra"
-            style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
+            style={{ ...estiloInput, width: "auto", maxWidth: 130, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12, textOverflow: "ellipsis" }}>
+            {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, true)}</option>)}
+          </select>
+          <select className="hidden md:block" value={CICLO_ID} onChange={onCambiarCiclo}
+            title="Ciclo de siembra"
+            aria-label="Ciclo de siembra"
+            style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 260, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12, textOverflow: "ellipsis" }}>
             {ciclos.map(t => <option key={t.id} value={t.id} style={{ color: C.tinta }}>{etiquetaCiclo(t, rol === "Encargado de campo")}</option>)}
           </select>
+          <button type="button" className="inline-flex md:hidden" onClick={() => setMenuMovilAbierto(true)}
+            title="Menú" aria-label="Menú"
+            style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: "rgba(255,255,255,0.08)", color: C.blanco, border: "1px solid rgba(255,255,255,0.25)", cursor: "pointer", alignItems: "center", justifyContent: "center" }}>
+            <Menu size={20} />
+          </button>
           {rol === "Dueño" && (
             <button
               type="button"
               onClick={() => { setVista("ajustes"); cerrar(); }}
               title="Ajustes del predio"
               aria-label="Ajustes"
-              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: vista === "ajustes" ? C.grano : "rgba(255,255,255,0.08)", color: vista === "ajustes" ? C.bosque : C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 6 }}
+              className="hidden md:inline-flex"
+              style={{ ...estiloInput, width: "auto", minWidth: 44, minHeight: 44, background: vista === "ajustes" ? C.grano : "rgba(255,255,255,0.08)", color: vista === "ajustes" ? C.bosque : C.blanco, border: "1px solid rgba(255,255,255,0.25)", fontWeight: 600, fontSize: 12, cursor: "pointer", alignItems: "center", justifyContent: "center", gap: 6 }}
             >
               <SlidersHorizontal size={15} /> <span className="hidden md:inline">Ajustes</span>
             </button>
           )}
-          <div className="flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
+          <div className="hidden md:flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
             <AyudaBoton />
             <span className="hidden md:inline" style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
@@ -1921,6 +1981,18 @@ function AgroCicloApp() {
           </div>
         </div>
       </header>
+      {menuMovilAbierto && (
+        <MenuMovil
+          grupos={NAV_MENU_GRUPOS}
+          onSeleccionar={(id) => { setVista(id); cerrar(); setRapida(null); setMenuMovilAbierto(false); }}
+          onCerrar={() => setMenuMovilAbierto(false)}
+          userLabel={`${user?.displayName || user?.primaryEmail || "Cuenta"} · ${rol}`}
+          mostrarAjustes={rol === "Dueño"}
+          onAjustes={() => { setVista("ajustes"); cerrar(); setMenuMovilAbierto(false); }}
+          onSalir={() => void salirAgro()}
+          slotAyuda={<AyudaBoton variant="menu" />}
+        />
+      )}
       {corteVista !== hoyStr && (
         <div className="flex items-center gap-3 flex-wrap px-3 md:px-8 py-3" style={{ background: C.grano, borderBottom: `3px solid ${C.barrial}` }}>
           <CalendarClock size={20} color={C.tinta} />
@@ -1964,7 +2036,7 @@ function AgroCicloApp() {
           {rol === "Encargado de campo" && <div style={{ fontSize: 11, color: C.gris, padding: "10px 12px" }}>Vista de campo: sin información financiera.</div>}
         </nav>
 
-        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100 }}>
+        <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100, ...(navMovilAlto ? { paddingBottom: navMovilAlto + 12 } : {}) }}>
 
           {/* ===== CAPTURA DE CAMPO ===== */}
           <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
@@ -2012,18 +2084,20 @@ function AgroCicloApp() {
         </main>
       </div>
 
-      <nav className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around py-1.5" style={{ background: C.blanco, borderTop: `1px solid ${C.linea}` }}>
-        {NAV_MOVIL.map(item => {
-          const Ic = item.icono; const activo = vista === item.id;
-          return (
-            <button key={item.id} onClick={() => { setVista(item.id); cerrar(); }}
-              className="flex flex-col items-center gap-0.5 flex-1"
-              style={{ border: "none", background: "transparent", cursor: "pointer", padding: "8px 6px", minHeight: 52, color: activo ? C.bosque : C.gris, fontWeight: activo ? 700 : 500, fontSize: 11, fontFamily: fuente.cuerpo }}>
-              <Ic size={20} /> {item.nombre}
-            </button>
-          );
-        })}
-      </nav>
+      {NAV_MOVIL.length > 0 && (
+        <nav ref={navMovilRef} className="md:hidden fixed bottom-0 left-0 right-0 flex justify-around py-1.5" style={{ background: C.blanco, borderTop: `1px solid ${C.linea}` }}>
+          {NAV_MOVIL.map(item => {
+            const Ic = item.icono; const activo = vista === item.id;
+            return (
+              <button key={item.id} onClick={() => { setVista(item.id); cerrar(); }}
+                className="flex flex-col items-center gap-1 flex-1"
+                style={{ border: "none", background: "transparent", cursor: "pointer", padding: "6px 4px", minHeight: 58, color: activo ? C.bosque : C.gris, fontWeight: activo ? 700 : 500, fontSize: 12, fontFamily: fuente.cuerpo, textAlign: "center" }}>
+                <Ic size={26} /> {item.nombre}
+              </button>
+            );
+          })}
+        </nav>
+      )}
     </div>
   );
 }

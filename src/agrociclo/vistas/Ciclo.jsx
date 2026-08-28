@@ -115,7 +115,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                         <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>El cierre de la venta</span>
                         <span style={{ fontSize: 12, color: C.gris }}>toca para ver por parcela</span>
                       </div>
-                      <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                         {[
                           { l: "Vendido", v: money(ingresoRealTotal) },
                           { l: "Costó", v: money(inversionTotal) },
@@ -146,7 +146,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                       </div>
                       {presupuestoCiclo > 0 ? (
                         <>
-                          <div className="grid grid-cols-3 gap-3 mt-3">
+                          <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                             {[
                               { l: "Presupuestado", v: money(presupuestoCiclo) },
                               { l: "Gastado", v: money(inversionTotal) },
@@ -184,7 +184,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                         <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Grupo · saldo por liquidar a cosecha</span>
                         <ChevronRight size={14} color={C.gris} />
                       </div>
-                      <div className="grid grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                         {[
                           { l: "Dispersado", v: money(grupoCargos), c: C.barrial },
                           { l: "Abonado (boletas)", v: money(grupoAbonos), c: C.hoja },

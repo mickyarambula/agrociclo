@@ -16,30 +16,43 @@ const C = {
   wa: "#128C7E",
 };
 
-export function AyudaBoton() {
+/** variant "header" (default) = botón oscuro de la barra de arriba.
+ * "menu" = renglón claro para el menú móvil de pantalla completa. */
+export function AyudaBoton({ variant = "header" }: { variant?: "header" | "menu" }) {
   const [open, setOpen] = useState(false);
   return (
     <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        title="Ayuda"
-        aria-label="Ayuda"
-        className="inline-flex items-center justify-center gap-1"
-        style={{
-          minWidth: 44,
-          minHeight: 44,
-          background: "rgba(255,255,255,0.08)",
-          color: C.blanco,
-          border: "1px solid rgba(255,255,255,0.25)",
-          borderRadius: 10,
-          fontWeight: 600,
-          fontSize: 12,
-          cursor: "pointer",
-        }}
-      >
-        <HelpCircle size={15} /> <span className="hidden md:inline">Ayuda</span>
-      </button>
+      {variant === "menu" ? (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          className="flex items-center justify-center gap-2 w-full"
+          style={{ padding: "10px 8px", borderRadius: 10, border: "none", background: "transparent", cursor: "pointer", fontSize: 13, fontWeight: 600, color: C.tinta, minHeight: 48 }}
+        >
+          <HelpCircle size={17} /> Ayuda
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setOpen(true)}
+          title="Ayuda"
+          aria-label="Ayuda"
+          className="inline-flex items-center justify-center gap-1"
+          style={{
+            minWidth: 44,
+            minHeight: 44,
+            background: "rgba(255,255,255,0.08)",
+            color: C.blanco,
+            border: "1px solid rgba(255,255,255,0.25)",
+            borderRadius: 10,
+            fontWeight: 600,
+            fontSize: 12,
+            cursor: "pointer",
+          }}
+        >
+          <HelpCircle size={15} /> <span className="hidden md:inline">Ayuda</span>
+        </button>
+      )}
       {open ? <AyudaPanel onClose={() => setOpen(false)} /> : null}
     </>
   );

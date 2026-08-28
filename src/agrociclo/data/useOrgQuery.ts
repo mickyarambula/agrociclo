@@ -6,6 +6,19 @@ import type { Row } from "./types";
 import { reportarError } from "../server/plataforma";
 import { mensajeParaPortal } from "../server/soporte";
 
+/** Sin señal (o intermitente) es el pan de cada día en el campo — no es una
+ * falla de la app, así que ni se reporta al portal ni se muestra el mensaje
+ * crudo del navegador ("Failed to fetch"). Se detecta por `navigator.onLine`
+ * o por la forma típica del error de red en los navegadores comunes. */
+function esFalloDeConexion(err: Error): boolean {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+  return /failed to fetch|networkerror|load failed|err_internet|err_network|err_connection/i.test(
+    err.message,
+  );
+}
+const MENSAJE_SIN_CONEXION =
+  "No se guardó — sin conexión. Lo que escribiste sigue aquí, vuelve a intentar cuando tengas señal.";
+
 let version = 0;
 subscribe(() => {
   version += 1;
@@ -97,8 +110,12 @@ export function useOrgWrite(opts: {
         extra?.onSuccess?.();
       } catch (e) {
         const err = e instanceof Error ? e : new Error(String(e));
-        toast.error(err.message);
-        if (opts.op) {
+        const sinConexion = esFalloDeConexion(err);
+        toast.error(sinConexion ? MENSAJE_SIN_CONEXION : err.message, sinConexion ? { duration: 6000 } : undefined);
+        // Sin conexión no es una falla de la app — es el campo, todos los días.
+        // No se reporta al portal para no llenarlo de ruido que Miguel no puede
+        // arreglar (ver CLAUDE.md: offline es tema de arquitectura aparte).
+        if (opts.op && !sinConexion) {
           const mensaje = mensajeParaPortal(opts.op, err.message);
           reportarError({ data: { mensaje, donde: opts.op } }).catch(() => {
             /* si ni el aviso de la falla se pudo mandar, no hay nada más que hacer aquí */

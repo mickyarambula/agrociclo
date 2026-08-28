@@ -17,7 +17,7 @@ export function VistaGastos({ vista, veFinanzas, puedeEditar, form, setForm, cer
                 o quedarse como <strong>general</strong> (solo afecta el estado de resultados, no el costo/ha).
               </p>
 
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {[
                   { l: "Prorrateado por ha", v: money(gastosProrrateo), s: `${money(gastosIndPorHa)}/ha` },
                   { l: "Asignado a parcelas", v: money(gastosT.filter(g => g.destino === "parcela").reduce((s, g) => s + g.monto, 0)), s: "Directo a su lote" },
