@@ -26,6 +26,11 @@ import {
   Tarjeta, Etiqueta, Boton, Campo, PickerParcela, Acciones, ErrorBoundary,
   BarraLista, Seccion, Fila, Vacio, useForm,
 } from "./ui";
+import { VistaSolicitudes } from "./vistas/Solicitudes";
+import { VistaRaya } from "./vistas/Raya";
+import { VistaInsumos } from "./vistas/Insumos";
+import { VistaLabores } from "./vistas/Labores";
+import { VistaParcelas } from "./vistas/Parcelas";
 import { VistaCiclo } from "./vistas/Ciclo";
 import { VistaHoy } from "./vistas/Hoy";
 import { Simulador, Reportes } from "./reportes";
@@ -1796,270 +1801,16 @@ function AgroCicloApp() {
           <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela }} />
 
           {/* ===== PARCELAS ===== */}
-          {vista === "parcelas" && (
-            <Seccion titulo="Parcelas y cultivos" accion="Nueva parcela" puedeEditar={puedeEditar}
-              abierto={form?.tipo === "parcela"} onAbrir={() => setForm({ tipo: "parcela", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
-              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
-              {parcelasT.length === 0 && <Vacio texto="Sin parcelas en esta temporada." />}
-              <div className="grid md:grid-cols-2 gap-3">
-                {parcelasT.map(p => {
-                  const c = costosParcela[p.id];
-                  return (
-                    <Tarjeta key={p.id} style={{ padding: 18 }}>
-                      <div className="flex justify-between items-start gap-2">
-                        <div>
-                          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 17 }}>{p.cultivo}</div>
-                          <div style={{ fontSize: 13, color: C.gris }}>
-                            {p.nombre} · {p.ha} ha · <span style={{ fontWeight: 600, color: p.tenencia === "Rentada" ? C.barrial : C.hoja }}>{p.tenencia}{p.tenencia === "Rentada" ? ` ${money(p.rentaPorHa)}/ha` : ""}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          {veFinanzas && (
-                            <span style={{ background: c.utilidad >= 0 ? "#E8F1E6" : "#F7E8E3", color: c.utilidad >= 0 ? C.bosque : C.rojo, fontSize: 11, fontWeight: 700, padding: "4px 8px", borderRadius: 999 }}>
-                              {c.utilidad >= 0 ? "Utilidad" : "Pérdida"}
-                            </span>
-                          )}
-                          {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "parcela", item: p })} onEliminar={() => eliminarParcela(p)} />}
-                        </div>
-                      </div>
-                      {veFinanzas ? (
-                        <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3" style={{ fontSize: 13 }}>
-                          <Fila l="Labores e insumos" v={money(c.labores)} />
-                          <Fila l="Jornales" v={money(c.nomina)} />
-                          {p.tenencia === "Rentada" && <Fila l="Renta de tierra" v={money(c.renta)} resalta />}
-                          <Fila l="Gastos indirectos" v={money(c.gastoInd)} />
-                          <Fila l="Costo financiero" v={money(c.interes)} resalta />
-                          <Fila l="Costo directo / ha" v={money(c.directoPorHa)} />
-                          <Fila l="Costo completo / ha" v={money(c.porHa)} />
-                          <Fila l="Equilibrio" v={`${num(c.puntoEq, 2)} ton/ha`} />
-                          <Fila l="Precio mínimo" v={`${money(c.precioEq)}/ton`} />
-                          <Fila l="Utilidad proy." v={money(c.utilidad)} />
-                        </div>
-                      ) : (
-                        <div className="mt-3" style={{ fontSize: 13, color: C.gris }}>
-                          {laboresHechas.filter(l => l.parcelaId === p.id).length} labores registradas · {num(c.tonReal, 1)} ton entregadas
-                        </div>
-                      )}
-                      {veFinanzas && p.tenencia === "Rentada" && p.rentaOrigen === "externo" && !p.fechaPagoRenta && (
-                        <div className="flex items-center justify-between gap-2 mt-3" style={{ background: "#FBF4E3", borderRadius: 8, padding: "8px 10px", fontSize: 12 }}>
-                          <span style={{ color: C.barrial, fontWeight: 600 }}>Renta financiada aparte al {num(p.tasaRenta, 1)}% · interés {money(rentaInteres(p))}</span>
-                          {puedeEditar && <Boton chico secundario onClick={() => pagarRenta(p)}><CheckCircle2 size={13} /> Renta pagada</Boton>}
-                        </div>
-                      )}
-                      {veFinanzas && p.tenencia === "Rentada" && p.rentaOrigen === "linea" && (
-                        dispSinLiquidar(p.rentaOrigen, p.fechaPagoRenta, p.disposicionId)
-                          ? <div className="mt-3 flex items-center gap-2" style={{ background: "#FBF4E3", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: C.barrial }}>
-                              <span style={{ fontWeight: 700 }}>● Disposición sin liquidar</span>
-                              <span style={{ color: C.gris }}>· renta pagada al productor, pero su disposición sigue sin liquidar en Costo financiero.</span>
-                            </div>
-                          : <div className="mt-3" style={{ background: "#EEF2E6", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: C.bosque }}>
-                              Renta sobre línea registrada · su interés ya corre en la línea, no se cuenta aparte.
-                            </div>
-                      )}
-                    </Tarjeta>
-                  );
-                })}
-              </div>
-            </Seccion>
-          )}
+          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar }} />
 
           {/* ===== LABORES ===== */}
-          {vista === "labores" && (
-            <Seccion titulo="Labores y aplicaciones" accion="Registrar labor" puedeEditar={puedeEditar}
-              abierto={form?.tipo === "labor"} onAbrir={() => setForm({ tipo: "labor", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
-              form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} veFinanzas={veFinanzas} onGuardar={(f) => guardarLabor(f, form?.item)} />}>
-
-              <TareasWhatsApp labores={laboresT} parcelas={parcelas} insumos={insumos} />
-
-              {tarjetaRapida}
-              {tarjetaOrden}
-              {tarjetaPorHacer}
-
-              {laboresHechas.length === 0 && <Vacio texto="Aún no hay labores registradas en esta temporada." />}
-              {laboresHechas.length > 0 && (
-                <Tarjeta>
-                  {laboresHechas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {
-                    const p = parcelas.find(x => x.id === l.parcelaId);
-                    const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
-                    return (
-                      <div key={l.id} className="flex justify-between items-center gap-3 px-4 py-3 flex-wrap" style={{ borderTop: i ? `1px solid ${C.linea}` : "none" }}>
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{l.tipo} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.cultivo} ({p?.nombre})</span></div>
-                          <div style={{ fontSize: 12, color: C.gris }}>
-                            {l.fecha} · {l.desc}
-                            {ins ? ` · ${num(l.cantidad, 1)} ${ins.unidad} ${ins.nombre}` : ""}
-                            {l.litrosDiesel ? ` · ${num(l.litrosDiesel, 0)} L diésel${veFinanzas ? ` (${money(l.costoDiesel)})` : ""}` : ""}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {veFinanzas && (
-                            <div style={{ fontWeight: 700, fontSize: 14, color: costoLabor(l) > 0 ? C.tinta : C.barrial }}>
-                              {costoLabor(l) > 0 ? money(costoLabor(l)) : "sin costo"}
-                            </div>
-                          )}
-                          {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "labor", item: l })} onEliminar={() => eliminarLabor(l)} />}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </Tarjeta>
-              )}
-            </Seccion>
-          )}
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor }} />
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
-          {vista === "inventario" && (
-            <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
-              abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
-              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
-              <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
-              {(stockQ.data ?? []).length === 0 ? (
-                <Vacio texto="Bodega vacía. La compra entra aquí; la labor lo baja. Empieza con “Registrar compra”." />
-              ) : (
-              <div className="grid md:grid-cols-2 gap-3">
-                {insumosAlmacen.map(ins => (
-                  <Tarjeta key={ins.id} style={{ padding: 16, borderLeft: ins.categoria === "Diésel" ? `3px solid ${C.barrial}` : undefined }}>
-                    <div className="flex justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5" style={{ fontWeight: 600, fontSize: 14 }}>
-                          {ins.categoria === "Diésel" && <Fuel size={14} color={C.barrial} />}{ins.nombre}
-                        </div>
-                        <div style={{ fontSize: 12, color: C.gris }}>{ins.categoria} · {money(ins.costoUnitario)} / {ins.unidad}</div>
-                      </div>
-                      <div className="text-right">
-                        <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, color: ins.stock <= 2 ? C.rojo : C.bosque }}>{num(ins.stock, 1)}</div>
-                        <div style={{ fontSize: 11, color: C.gris }}>{ins.unidad} en {ins.categoria === "Diésel" ? "tanque" : "bodega"}</div>
-                      </div>
-                    </div>
-                    {ins.stock <= 2 && (
-                      <div className="flex items-center gap-1.5 mt-2" style={{ fontSize: 12, color: C.rojo, fontWeight: 600 }}>
-                        <AlertTriangle size={13} /> Stock bajo, planea recompra
-                      </div>
-                    )}
-                  </Tarjeta>
-                ))}
-              </div>
-              )}
-
-              {(movInvQ.data ?? []).length > 0 && (
-                <>
-                  <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginTop: 8 }}>Movimientos · compra entra, labor sale</div>
-                  <Tarjeta>
-                    {(movInvQ.data ?? []).slice(0, 20).map((m, i) => {
-                      const ins = Array.isArray(m.insumo) ? m.insumo[0] : m.insumo;
-                      const nombre = ins?.nombre || "Insumo";
-                      const unidad = ins?.unidad || "";
-                      const entra = m.tipo !== "salida";
-                      const origen = m.origen_tipo === "labor" ? "labor" : m.origen_tipo === "compra" ? "compra" : (m.origen_tipo || "");
-                      return (
-                        <div key={m.id} className="flex justify-between items-center gap-3 px-4 py-2.5" style={{ borderTop: i ? `1px solid ${C.linea}` : "none", fontSize: 13 }}>
-                          <div>
-                            <span style={{ fontWeight: 700, color: entra ? C.bosque : C.barrial }}>{entra ? "Entró" : "Salió"}</span>
-                            {" · "}{nombre}
-                            <span style={{ color: C.gris }}> · {origen} · {m.fecha}</span>
-                          </div>
-                          <div style={{ fontWeight: 700, color: entra ? C.bosque : C.barrial }}>
-                            {entra ? "+" : "−"}{num(Number(m.cantidad) || 0, 1)} {unidad}
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </Tarjeta>
-                </>
-              )}
-
-              <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginTop: 8 }}>Historial de compras</div>
-              {comprasT.length === 0 && <Vacio texto="Sin compras registradas." />}
-              {comprasT.length > 0 && (
-                <Tarjeta>
-                  {comprasT.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((cp, i) => (
-                    <div key={cp.id} className="flex justify-between items-center gap-3 px-4 py-3 flex-wrap" style={{ borderTop: i ? `1px solid ${C.linea}` : "none" }}>
-                      <div>
-                        <div style={{ fontWeight: 600, fontSize: 14 }}>
-                          {cp.insumoNombre} <span style={{ color: C.gris, fontWeight: 400 }}>· {num(cp.cantidad, 1)} {cp.unidad} · {cp.proveedor}</span>
-                        </div>
-                        <div style={{ fontSize: 12, color: C.gris }}>
-                          {cp.fecha} · {cp.origen === "externo"
-                            ? <span style={{ color: C.barrial, fontWeight: 600 }}>Crédito de proveedor {num(cp.tasa, 1)}% · interés {money(interesCompra(cp))} {cp.fechaPago ? `· pagada el ${cp.fechaPago}` : "· corriendo"}</span>
-                            : cp.origen === "linea"
-                              ? <span style={{ color: C.hoja, fontWeight: 600 }}>Sobre línea: {creditosT.find(c => c.id === cp.creditoId)?.fuente || "—"} · sin interés aparte</span>
-                              : "Recurso propio"}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <div style={{ fontWeight: 700, fontSize: 14 }}>{money(cp.monto)}</div>
-                        {puedeEditar && cp.origen === "externo" && !cp.fechaPago && (
-                          <Boton chico secundario onClick={() => marcarPagada(cp)}><CheckCircle2 size={13} /> Marcar pagada</Boton>
-                        )}
-                        {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "compra", item: cp })} onEliminar={() => eliminarCompra(cp)} />}
-                      </div>
-                    </div>
-                  ))}
-                </Tarjeta>
-              )}
-            </Seccion>
-          )}
+          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
-          {vista === "cuadrillas" && (
-            <Seccion titulo="Cuadrillas y operadores · lista de raya" accion="Registrar trabajo" puedeEditar={puedeEditar}
-              abierto={form?.tipo === "nomina"} onAbrir={() => setForm({ tipo: "nomina", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
-              form={<FormNomina key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} directorio={directorio} onGuardar={(f) => guardarNomina(f, form?.item)} />}>
-
-              {rayaPorPersona.length > 0 && (
-                <Tarjeta style={{ padding: 18, borderTop: `3px solid ${C.grano}` }}>
-                  <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Corte de raya · {money(rayaPendiente)} pendiente</div>
-                  <div className="flex flex-col mt-2">
-                    {rayaPorPersona.map((r, i) => (
-                      <div key={r.nombre} className="flex justify-between items-center gap-3 py-2.5 flex-wrap" style={{ borderTop: i ? `1px dashed ${C.linea}` : "none" }}>
-                        <div>
-                          <div style={{ fontWeight: 600, fontSize: 14 }}>{r.nombre} <span style={{ background: "#EEF2E6", color: C.bosque, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>{r.tipo}</span></div>
-                          <div style={{ fontSize: 12, color: C.gris }}>{r.jornales} jornales en {r.registros} registro(s)</div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17 }}>{money(r.total)}</div>
-                          {puedeEditar && <Boton chico onClick={() => pagarRayaPersona(r.nombre)}><CheckCircle2 size={13} /> Pagar raya</Boton>}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </Tarjeta>
-              )}
-
-              {nominaT.length === 0 && <Vacio texto="Sin jornales registrados esta temporada." />}
-              {nominaT.length > 0 && (
-                <Tarjeta>
-                  {nominaT.slice().sort((a, b) => (a.pagado === b.pagado ? b.fecha.localeCompare(a.fecha) : a.pagado ? 1 : -1)).map((n, i) => {
-                    const p = parcelas.find(x => x.id === n.parcelaId);
-                    const jornales = n.personas * n.dias;
-                    return (
-                      <div key={n.id} className="flex justify-between items-center gap-3 px-4 py-3 flex-wrap" style={{ borderTop: i ? `1px solid ${C.linea}` : "none" }}>
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap" style={{ fontWeight: 600, fontSize: 14 }}>
-                            {n.cuadrilla}
-                            {!n.pagado
-                              ? <span style={{ background: "#FBF4E3", color: C.barrial, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>Por pagar</span>
-                              : <span style={{ background: "#E8F1E6", color: C.bosque, fontSize: 10, fontWeight: 700, padding: "2px 7px", borderRadius: 999 }}>Pagado {n.fechaPago || ""}</span>}
-                          </div>
-                          <div style={{ fontSize: 12, color: C.gris }}>
-                            {n.fecha} · {n.actividad} · {p?.cultivo} ({p?.nombre}) · {n.personas} × {n.dias} día(s) = {jornales} jornales × {money(n.pago)}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <div style={{ fontWeight: 700, fontSize: 14 }}>{money(jornales * n.pago)}</div>
-                          {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "nomina", item: n })} onEliminar={() => eliminarNomina(n)} />}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </Tarjeta>
-              )}
-            </Seccion>
-          )}
+          <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina }} />
 
           {/* ===== COSECHA ===== */}
           {vista === "cosecha" && (
@@ -2148,44 +1899,7 @@ function AgroCicloApp() {
           )}
 
           {/* ===== SOLICITUDES DE COMPRA (pipeline) ===== */}
-          {vista === "solicitudes" && (
-            <Seccion
-              titulo="Solicitudes de compra"
-              accion="Nueva solicitud"
-              puedeEditar={puedeEditar}
-              abierto={form?.tipo === "solicitud"}
-              editando={!!form?.item}
-              onAbrir={() => setForm({ tipo: "solicitud", item: null })}
-              onCerrar={cerrar}
-              form={<FormSolicitud key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} parcelas={parcelasT} onGuardar={(f) => guardarSolicitud(f, form?.item)} />}>
-              <div style={{ background: C.papel, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: C.gris }}>
-                Flujo: <strong style={{ color: C.azul }}>Solicitado</strong> → <strong style={{ color: C.grano }}>Cotizado</strong> → <strong style={{ color: C.hoja }}>Autorizado</strong> → <strong style={{ color: C.bosque }}>Recibido</strong>. Al recibir, el insumo entra al almacén y se registra la compra automáticamente.
-              </div>
-
-              {solicitudesT.length === 0 && <Vacio texto="Sin solicitudes de compra. Levanta la primera con “Nueva solicitud”." />}
-              <div className="flex flex-col gap-3">
-                {solicitudesT.slice().sort((a, b) => (ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado]) || b.fecha.localeCompare(a.fecha)).map(sol => (
-                  <SolicitudCard
-                    key={sol.id}
-                    sol={sol}
-                    insumos={insumos}
-                    parcelas={parcelasT}
-                    creditos={creditosT}
-                    productores={productores}
-                    veFinanzas={veFinanzas}
-                    vePrecios={vePrecios}
-                    puedeEditar={puedeEditar}
-                    onEditar={() => setForm({ tipo: "solicitud", item: sol })}
-                    onEliminar={() => eliminarSolicitud(sol)}
-                    onCotizar={(cot) => agregarCotizacion(sol, cot)}
-                    onEliminarCot={(cotId) => eliminarCotizacion(sol, cotId)}
-                    onAutorizar={(datos) => autorizarSolicitud(sol, datos)}
-                    onRecibir={() => recibirSolicitud(sol)}
-                  />
-                ))}
-              </div>
-            </Seccion>
-          )}
+          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
           {vista === "productores" && veFinanzas && (
@@ -3003,6 +2717,16 @@ function AgroCicloApp() {
 export default function AgroCiclo() {
   return <ErrorBoundary><AgroCicloApp /></ErrorBoundary>;
 }
+
+
+
+
+
+
+
+
+
+
 
 
 
