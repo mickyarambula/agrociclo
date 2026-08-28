@@ -1,0 +1,421 @@
+// @ts-nocheck
+/* Formularios y tarjetas del campo: labores (completo, 3 toques y orden
+   flaca), parcelas, guía de arranque y tareas por WhatsApp. */
+import { useState, useEffect, useRef } from "react";
+import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy } from "lucide-react";
+import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR } from "../base";
+import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm } from "../ui";
+import { CampoProductor, CampoFinanciamiento } from "./comunes";
+
+/* ---------- Tareas del día por WhatsApp ---------- */
+export function TareasWhatsApp({ labores, parcelas, insumos }) {
+  const [fecha, setFecha] = useState(hoyStr);
+  const [abierto, setAbierto] = useState(false);
+  const [msg, setMsg] = useState("");
+  const [copiado, setCopiado] = useState(false);
+  const ref = useRef(null);
+
+  const generar = () => {
+    const delDia = labores.filter(l => l.fecha === fecha);
+    if (delDia.length === 0) return `🌱 *Tareas ${fecha}*\n\nSin labores registradas para este día.`;
+    const lineas = delDia.map(l => {
+      const p = parcelas.find(x => x.id === l.parcelaId);
+      const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
+      let t = `▫️ *${l.tipo}* — ${p?.cultivo} (${p?.nombre})`;
+      if (l.desc) t += `\n   ${l.desc}`;
+      if (ins) t += `\n   Insumo: ${num(l.cantidad, 1)} ${ins.unidad} de ${ins.nombre}`;
+      if (l.litrosDiesel) t += `\n   Diésel autorizado: ${num(l.litrosDiesel, 0)} L`;
+      return t;
+    });
+    return `🌱 *Tareas del día — ${fecha}*\n\n${lineas.join("\n\n")}\n\nCualquier cambio o falta de material, avisar antes de empezar. 👍`;
+  };
+
+  useEffect(() => { setMsg(generar()); setCopiado(false); /* eslint-disable-next-line */ }, [fecha, labores]);
+
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(msg);
+      setCopiado(true);
+    } catch {
+      if (ref.current) { ref.current.select(); document.execCommand("copy"); setCopiado(true); }
+    }
+    setTimeout(() => setCopiado(false), 2500);
+  };
+
+  return (
+    <Tarjeta style={{ padding: 16, borderLeft: `3px solid #25D366` }}>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex items-center gap-2">
+          <MessageCircle size={17} color="#25D366" />
+          <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Tareas del día por WhatsApp</span>
+        </div>
+        <Boton chico secundario onClick={() => setAbierto(!abierto)}>{abierto ? "Ocultar" : "Preparar mensaje"}</Boton>
+      </div>
+      {abierto && (
+        <div className="flex flex-col gap-3 mt-3">
+          <div className="flex items-end gap-3 flex-wrap">
+            <Campo label="Día"><input type="date" style={{ ...estiloInput, width: "auto" }} value={fecha} onChange={(e) => setFecha(e.target.value)} /></Campo>
+            <div style={{ fontSize: 12, color: C.gris, paddingBottom: 8 }}>El mensaje se arma con las labores de ese día. Edítalo si quieres.</div>
+          </div>
+          <textarea ref={ref} value={msg} onChange={(e) => setMsg(e.target.value)} rows={8}
+            style={{ ...estiloInput, fontFamily: "monospace", fontSize: 13, resize: "vertical" }} />
+          <div className="flex gap-2 flex-wrap">
+            <Boton onClick={copiar}><Copy size={14} /> {copiado ? "¡Copiado!" : "Copiar mensaje"}</Boton>
+            <a href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+              <Boton secundario><MessageCircle size={14} /> Abrir en WhatsApp</Boton>
+            </a>
+          </div>
+        </div>
+      )}
+    </Tarjeta>
+  );
+}
+
+export function FormLabor({ inicial, parcelas, insumos, onGuardar, veFinanzas = true }) {
+  const [f, set] = useForm({
+    fecha: inicial?.fecha || hoyStr,
+    parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
+    tipo: inicial?.tipo || TIPOS_LABOR[0],
+    desc: inicial?.desc || "",
+    costoOp: inicial?.costoOp ?? "",
+    insumoId: inicial?.insumoId || "",
+    cantidad: inicial?.cantidad ?? "",
+    litrosDiesel: inicial?.litrosDiesel ?? "",
+  });
+  const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
+  const diesel = insumos.find(i => i.categoria === "Diésel");
+
+  const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
+  const cantNum = Number(f.cantidad) || 0;
+  const litrosNum = Number(f.litrosDiesel) || 0;
+  const dispInsumo = insSel ? insSel.stock + (inicial && inicial.insumoId === insSel.id ? (inicial.cantidad || 0) : 0) : 0;
+  const dispDiesel = diesel ? diesel.stock + (inicial?.litrosDiesel || 0) : 0;
+  const faltaInsumo = insSel && cantNum > dispInsumo;
+  const faltaDiesel = litrosNum > dispDiesel;
+  const costoPrev =
+    (Number(f.costoOp) || 0) +
+    litrosNum * (diesel?.costoUnitario || 0) +
+    cantNum * (insSel?.costoUnitario || 0);
+  const bajaBodega = litrosNum > 0 || cantNum > 0;
+  const bloqueado = !f.parcelaId || faltaInsumo || faltaDiesel;
+
+  return (
+    <div className="grid md:grid-cols-3 gap-3">
+      <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
+      <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
+      <Campo label="Tipo de labor"><select style={estiloInput} value={f.tipo} onChange={set("tipo")}>{TIPOS_LABOR.map(t => <option key={t}>{t}</option>)}</select></Campo>
+      <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
+      {veFinanzas && (
+        <Campo label="Costo de operación / máquina (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
+      )}
+      <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`}>
+        <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+      </Campo>
+      <Campo label="Insumo que baja de bodega">
+        <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+          <option value="">— Ninguno —</option>
+          {noDiesel.map((i) => (
+            <option key={i.id} value={i.id}>
+              {i.nombre} · {num(i.stock, 1)} {i.unidad}
+            </option>
+          ))}
+        </select>
+      </Campo>
+      {f.insumoId && (
+        <Campo label={`Cantidad usada · hay ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
+          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+        </Campo>
+      )}
+      {veFinanzas && (costoPrev > 0 || bajaBodega) && (
+        <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>
+          Al lote: <strong>{money(costoPrev)}</strong>
+          {bajaBodega ? " · se descuenta de bodega al guardar" : ""}
+          {costoPrev === 0 ? " · sin costo todavía (pon diésel, insumo o operación)" : ""}
+        </div>
+      )}
+      {(faltaInsumo || faltaDiesel) && (
+        <div className="md:col-span-3 flex items-center gap-2" style={{ background: "#FBEEE9", border: `1px solid ${C.rojo}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.rojo, fontWeight: 600 }}>
+          <AlertTriangle size={15} />
+          {faltaDiesel ? `No hay suficiente diésel (disponible: ${num(dispDiesel, 0)} L). ` : ""}
+          {faltaInsumo ? `No hay suficiente ${insSel.nombre} (disponible: ${num(dispInsumo, 1)} ${insSel.unidad}). ` : ""}
+          Registra primero la compra en Insumos.
+        </div>
+      )}
+      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton></div>
+    </div>
+  );
+}
+
+/* ---------- Hoy: form corto y órdenes flacas ---------- */
+
+export function ChipsTipoLabor({ value, onChange }) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      {TIPOS_LABOR.map((t) => {
+        const on = value === t;
+        return (
+          <button key={t} type="button" onClick={() => onChange(t)}
+            style={{
+              minHeight: 44, padding: "8px 12px", borderRadius: 10, cursor: "pointer", fontWeight: 600, fontSize: 13,
+              fontFamily: fuente.cuerpo,
+              border: `1.5px solid ${on ? C.bosque : C.linea}`,
+              background: on ? C.bosque : C.blanco,
+              color: on ? C.blanco : C.tinta,
+            }}>
+            {t}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/* Captura de lo que YA se hizo, en 3 toques: parcela, tipo, y si bajó algo de
+   bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
+   form completo de Labores). Si el plan pide más de lo que hay, no niega en
+   seco: dice cuánto hay y lo pone en un toque. */
+export function FormLaborRapida({ orden, parcelas, insumos, onGuardar, onCancelar }) {
+  const [f, set, setF] = useForm({
+    parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
+    tipo: orden?.tipo || "",
+    litrosDiesel: orden?.planLitrosDiesel || "",
+    insumoId: orden?.planInsumoId || "",
+    cantidad: orden?.planCantidad || "",
+  });
+  const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
+  const diesel = insumos.find(i => i.categoria === "Diésel");
+  const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
+  const cantNum = Number(f.cantidad) || 0;
+  const litrosNum = Number(f.litrosDiesel) || 0;
+  const dispInsumo = insSel ? insSel.stock : 0;
+  const dispDiesel = diesel?.stock || 0;
+  const faltaInsumo = !!insSel && cantNum > dispInsumo;
+  const faltaDiesel = litrosNum > dispDiesel;
+  const listo = f.parcelaId && f.tipo && !faltaInsumo && !faltaDiesel;
+  return (
+    <div className="flex flex-col gap-3">
+      <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
+      <Campo label="Qué se hizo"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Campo label={`Diésel (L) · hay ${num(dispDiesel, 0)}`}>
+          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        </Campo>
+        <Campo label="Insumo de bodega">
+          <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+            <option value="">— Ninguno —</option>
+            {noDiesel.map((i) => <option key={i.id} value={i.id}>{i.nombre} · {num(i.stock, 1)} {i.unidad}</option>)}
+          </select>
+        </Campo>
+        {f.insumoId && (
+          <Campo label={`Cantidad usada · hay ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
+            <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+          </Campo>
+        )}
+      </div>
+      {faltaDiesel && (
+        <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
+        </div>
+      )}
+      {faltaInsumo && (
+        <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó.
+          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        <Boton deshabilitado={!listo} onClick={() => onGuardar({
+          fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
+          desc: orden?.desc || "", costoOp: 0,
+          insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
+        })}>{orden ? "Hecha, guardar" : "Guardar labor"}</Boton>
+        <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
+      </div>
+    </div>
+  );
+}
+
+/* La orden flaca de la oficina: qué hacer y dónde. El insumo/diésel es
+   sugerencia — la bodega no baja hasta que el de campo la marque hecha. */
+export function FormOrdenLabor({ inicial, parcelas, insumos, onGuardar, onCancelar }) {
+  const [f, set, setF] = useForm({
+    parcelaId: inicial?.parcelaId || "",
+    tipo: inicial?.tipo || "",
+    desc: inicial?.desc || "",
+    insumoId: inicial?.planInsumoId || "",
+    cantidad: inicial?.planCantidad || "",
+    litrosDiesel: inicial?.planLitrosDiesel || "",
+  });
+  const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
+  return (
+    <div className="flex flex-col gap-3">
+      <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
+      <Campo label="Qué hacer"><ChipsTipoLabor value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <div className="grid md:grid-cols-3 gap-3">
+        <Campo label="Nota (opcional)"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
+        <Campo label="Insumo sugerido (opcional)">
+          <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
+            <option value="">— Ninguno —</option>
+            {noDiesel.map((i) => <option key={i.id} value={i.id}>{i.nombre} · {num(i.stock, 1)} {i.unidad}</option>)}
+          </select>
+        </Campo>
+        {f.insumoId && (
+          <Campo label="Cantidad sugerida">
+            <input type="number" inputMode="decimal" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
+          </Campo>
+        )}
+        <Campo label="Diésel sugerido (L, opcional)">
+          <input type="number" inputMode="decimal" style={estiloInput} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        </Campo>
+      </div>
+      <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        La bodega no baja todavía: baja cuando el de campo la marque hecha, con lo que de verdad se usó.
+      </p>
+      <div className="flex items-center gap-2">
+        <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar orden"}</Boton>
+        <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
+      </div>
+    </div>
+  );
+}
+
+export function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, puedeOrdenar, onHecha, onOrdenar, onEditar, onEliminar }) {
+  if (ordenes.length === 0 && !puedeOrdenar) return null;
+  return (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.grano}` }}>
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Por hacer · {ordenes.length}</div>
+        {puedeOrdenar && <Boton chico secundario onClick={onOrdenar}><Plus size={13} /> Ordenar labor</Boton>}
+      </div>
+      {ordenes.length === 0 ? (
+        <p style={{ margin: "8px 0 0", fontSize: 12, color: C.gris }}>Nada pendiente. Anota qué hacer y el de campo la cierra en el lote.</p>
+      ) : (
+        ordenes.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map((l) => {
+          const p = parcelas.find((x) => x.id === l.parcelaId);
+          const ins = l.planInsumoId ? insumos.find((i) => i.id === l.planInsumoId) : null;
+          const d = diasEntre(l.fecha, hoyStr);
+          const desde = d === 0 ? "desde hoy" : d === 1 ? "desde ayer" : `desde hace ${d} días`;
+          return (
+            <div key={l.id} className="flex justify-between items-center gap-3 flex-wrap" style={{ padding: "10px 0", borderTop: `1px solid ${C.linea}`, marginTop: 8 }}>
+              <div style={{ minWidth: 0 }}>
+                <div style={{ fontWeight: 600, fontSize: 14 }}>{l.tipo} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.nombre || "parcela"}</span></div>
+                <div style={{ fontSize: 12, color: C.gris }}>
+                  {l.desc ? `${l.desc} · ` : ""}
+                  {ins ? `${num(l.planCantidad, 1)} ${ins.unidad} ${ins.nombre} · ` : ""}
+                  {l.planLitrosDiesel ? `${num(l.planLitrosDiesel, 0)} L diésel · ` : ""}
+                  <span style={{ fontWeight: 700, color: d >= 3 ? C.rojo : C.barrial }}>{desde}</span>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {puedeLabores && <Boton chico onClick={() => onHecha(l)}>Hecha</Boton>}
+                {puedeOrdenar && <Acciones onEditar={() => onEditar(l)} onEliminar={() => onEliminar(l)} />}
+              </div>
+            </div>
+          );
+        })
+      )}
+    </Tarjeta>
+  );
+}
+
+/* Guía de arranque de El ciclo: 3 pasos derivados del estado real del ciclo
+   (sin flags en el ledger). Desaparece sola con la primera captura. */
+export function GuiaCiclo({ pasos, onOcultar }) {
+  const actual = pasos.findIndex((p) => !p.done);
+  return (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Arranca tu ciclo</div>
+          <div style={{ fontSize: 12, color: C.gris }}>Tres pasos y el panel empieza a decir la verdad.</div>
+        </div>
+        <button type="button" onClick={onOcultar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: C.gris, fontFamily: fuente.cuerpo, padding: 4 }}>
+          Ocultar
+        </button>
+      </div>
+      {pasos.map((p, i) => {
+        const esActual = i === actual;
+        return (
+          <div key={p.titulo} className="flex items-start gap-3" style={{ padding: "12px 0 2px", borderTop: i ? `1px solid ${C.linea}` : "none", marginTop: 10, opacity: p.done || esActual ? 1 : 0.75 }}>
+            {p.done ? (
+              <CheckCircle2 size={26} color={C.hoja} style={{ flexShrink: 0 }} />
+            ) : (
+              <span style={{
+                width: 26, height: 26, borderRadius: 99, flexShrink: 0, display: "inline-flex", alignItems: "center", justifyContent: "center",
+                fontFamily: fuente.display, fontWeight: 800, fontSize: 14,
+                background: esActual ? C.bosque : C.blanco, color: esActual ? C.blanco : C.gris,
+                border: esActual ? "none" : `1.5px solid ${C.linea}`,
+              }}>{i + 1}</span>
+            )}
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="flex items-center justify-between gap-2 flex-wrap">
+                <span style={{ fontWeight: 600, fontSize: 14, color: p.done ? C.gris : C.tinta }}>
+                  {p.titulo}
+                  {p.opcional && !p.done ? <span style={{ fontWeight: 400, color: C.gris }}> · recomendado</span> : null}
+                </span>
+                {!p.done && p.cta && (
+                  <Boton chico secundario={!esActual} onClick={p.cta.onClick}>{p.cta.label} <ChevronRight size={13} /></Boton>
+                )}
+              </div>
+              {p.hint && <div style={{ fontSize: 12, color: C.gris, marginTop: 2 }}>{p.hint}</div>}
+              {!p.done && !p.cta && p.nota && <div style={{ fontSize: 12, color: C.barrial, marginTop: 2 }}>{p.nota}</div>}
+            </div>
+          </div>
+        );
+      })}
+    </Tarjeta>
+  );
+}
+
+export function FormParcela({ inicial, productores, creditos, onGuardar }) {
+  const [f, set] = useForm({
+    nombre: inicial?.nombre || "", cultivo: inicial?.cultivo || "", ha: inicial?.ha ?? "",
+    rendEsperado: inicial?.rendEsperado ?? "", precioEsperado: inicial?.precioEsperado ?? "",
+    tenencia: inicial?.tenencia || "Propia",
+    rentaPorHa: inicial?.rentaPorHa ?? "",
+    rentaOrigen: inicial?.rentaOrigen || "propio",
+    rentaCreditoId: inicial?.rentaCreditoId || "",
+    tasaRenta: inicial?.tasaRenta ?? "",
+    fechaRenta: inicial?.fechaRenta || hoyStr,
+    productorId: inicial?.productorId || "",
+  });
+  const esRentada = f.tenencia === "Rentada";
+  const ha = Number(f.ha) || 0, rend = Number(f.rendEsperado) || 0, precio = Number(f.precioEsperado) || 0;
+  const ingresoProy = ha * rend * precio;
+  const rentaProy = esRentada ? ha * (Number(f.rentaPorHa) || 0) : 0;
+  const bloqueado = !f.nombre || !f.cultivo || (esRentada && f.rentaOrigen === "linea" && !f.rentaCreditoId);
+  return (
+    <div className="grid md:grid-cols-3 gap-3">
+      <Campo label="Nombre / lote"><input style={estiloInput} placeholder="Ej. Lote 7 · San Blas" value={f.nombre} onChange={set("nombre")} /></Campo>
+      <Campo label="Cultivo"><input style={estiloInput} placeholder="Ej. Maíz blanco" value={f.cultivo} onChange={set("cultivo")} /></Campo>
+      <Campo label="Hectáreas"><input type="number" style={estiloInput} placeholder="0" value={f.ha} onChange={set("ha")} /></Campo>
+      <Campo label="Rendimiento esperado (ton/ha)"><input type="number" style={estiloInput} placeholder="Ej. 12" value={f.rendEsperado} onChange={set("rendEsperado")} /></Campo>
+      <Campo label="Precio esperado ($/ton)"><input type="number" style={estiloInput} placeholder="Ej. 5600" value={f.precioEsperado} onChange={set("precioEsperado")} /></Campo>
+      <Campo label="Tenencia de la tierra">
+        <select style={estiloInput} value={f.tenencia} onChange={set("tenencia")}>
+          <option>Propia</option>
+          <option>Rentada</option>
+        </select>
+      </Campo>
+      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
+      {esRentada && (
+        <>
+          <Campo label="Renta por hectárea (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 14000" value={f.rentaPorHa} onChange={set("rentaPorHa")} /></Campo>
+          <Campo label="Fecha del contrato"><input type="date" style={estiloInput} value={f.fechaRenta} onChange={set("fechaRenta")} /></Campo>
+          <CampoFinanciamiento
+            origen={f.rentaOrigen} creditoId={f.rentaCreditoId} tasa={f.tasaRenta}
+            onOrigen={set("rentaOrigen")} onCredito={set("rentaCreditoId")} onTasa={set("tasaRenta")}
+            creditos={creditos} labelExterno="Financiamiento aparte (con tasa)" placeholderTasa="Ej. 16.5" />
+        </>
+      )}
+      {ingresoProy > 0 && (
+        <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>
+          Vista rápida: ingreso esperado <strong>{money(ingresoProy)}</strong>{rentaProy > 0 ? <> · la renta se llevará <strong>{money(rentaProy)}</strong> ({num((rentaProy / ingresoProy) * 100, 1)}% del ingreso)</> : null}.
+        </div>
+      )}
+      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar parcela"}</Boton></div>
+    </div>
+  );
+}
