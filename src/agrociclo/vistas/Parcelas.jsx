@@ -4,14 +4,14 @@ import { fuente, Tarjeta, Boton, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormParcela } from "../forms/campo";
 import { CheckCircle2 } from "lucide-react";
 
-export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo }) {
+export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }) {
   return (
     <>
           {vista === "parcelas" && (
             <Seccion titulo="Parcelas y cultivos" accion="Nueva parcela" puedeEditar={puedeEditar}
               abierto={form?.tipo === "parcela"} onAbrir={() => setForm({ tipo: "parcela", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
+              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} renteros={renteros} productores={productores} onAgregarRentero={agregarRentero} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
               {parcelasT.length === 0 && <Vacio texto="Sin parcelas en esta temporada." />}
               <div className="grid md:grid-cols-2 gap-3">
                 {parcelasT.map(p => {
@@ -38,7 +38,7 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3" style={{ fontSize: 13 }}>
                           <Fila l="Labores e insumos" v={money(c.labores)} />
                           <Fila l="Jornales" v={money(c.nomina)} />
-                          {p.tenencia === "Rentada" && <Fila l="Renta de tierra" v={money(c.renta)} resalta />}
+                          {p.tenencia === "Rentada" && <Fila l={`Renta de tierra${nombreRenteroDe && nombreRenteroDe(p) ? ` · a ${nombreRenteroDe(p)}` : ""}`} v={money(c.renta)} resalta />}
                           <Fila l="Gastos indirectos" v={money(c.gastoInd)} />
                           <Fila l="Costo financiero" v={money(c.interes)} resalta />
                           <Fila l="Costo directo / ha" v={money(c.directoPorHa)} />

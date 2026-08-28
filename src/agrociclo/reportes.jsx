@@ -210,7 +210,7 @@ export function Simulador({ parcelasT, costosParcela, inversionTotal, ingresoTot
 
 /* ---------- Reportes ---------- */
 
-export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsProductivas = [], prestamosT = [], productores = [], costoFinTotal, inversionTotal, costoDirectoTotal, gastosIndTotal, ingresoTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, costosParcela }) {
+export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsProductivas = [], prestamosT = [], productores = [], costoFinTotal, inversionTotal, costoDirectoTotal, gastosIndTotal, ingresoTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, costosParcela, nombreRenteroDe }) {
   const nominaTotal = nominaT.reduce((s, n) => s + n.personas * n.dias * n.pago, 0);
   const jornalesTot = nominaT.reduce((s, n) => s + n.personas * n.dias, 0);
 
@@ -256,7 +256,7 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
   });
 
   const movRenta = parcelasT.filter(p => p.tenencia === "Rentada").map(p => ({
-    fecha: p.fechaRenta || "—", desc: "Renta " + num(p.ha, 0) + " ha × " + money(p.rentaPorHa) + "/ha", parcela: p.cultivo + " · " + p.nombre, monto: p.ha * (p.rentaPorHa || 0)
+    fecha: p.fechaRenta || "—", desc: "Renta " + num(p.ha, 0) + " ha × " + money(p.rentaPorHa) + "/ha" + (nombreRenteroDe && nombreRenteroDe(p) ? " · a " + nombreRenteroDe(p) : ""), parcela: p.cultivo + " · " + p.nombre, monto: p.ha * (p.rentaPorHa || 0)
   }));
 
   const movGastosPorCat = {};

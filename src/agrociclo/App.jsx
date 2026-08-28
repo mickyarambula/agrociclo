@@ -274,6 +274,7 @@ function AgroCicloApp() {
         fechaPagoRenta: r.fecha_pago_renta ?? null,
         disposicionId: r.renta_disposicion_id ?? null,   // B2b: la disposición de la renta de línea
         productorId: r.productor_id, // uuid
+        renteroId: r.rentero_id ?? null,   // a quién se paga la renta (informativo)
       };
     });
   }, [parcelasQ.data, temporadaId]);
@@ -926,6 +927,33 @@ function AgroCicloApp() {
   });
   const agregarCultivo = (nombre) => agregarCultivoMut.mutate(nombre);
 
+  /* Renteros: a quién se le paga la renta. Catálogo aparte de Productores —
+     nunca salen en la cuenta corriente ni en el consolidado del grupo. */
+  const renterosQ = useOrgRead(["renteros"], "rentero", { build: (q) => q.is("eliminado_en", null).order("nombre") });
+  const renteros = renterosQ.data ?? [];
+  const agregarRenteroMut = useOrgWrite({
+    mutationFn: async ({ id, nombre }) => {
+      const { error } = await supabase.from("rentero").insert({ id, organizacion_id: ORG_ID, nombre });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["renteros"]],
+    successMsg: "Rentero guardado",
+  });
+  const agregarRentero = (nombre) => {
+    const n = String(nombre || "").trim();
+    if (!n) return null;
+    const id = crypto.randomUUID();
+    agregarRenteroMut.mutate({ id, nombre: n });
+    return id;
+  };
+  const nombreRenteroDe = (p) => {
+    if (!p?.renteroId) return null;
+    const r = renteros.find((x) => x.id === p.renteroId);
+    if (r) return String(r.nombre);
+    const pr = productores.find((x) => x.id === p.renteroId);
+    return pr ? String(pr.nombre) : null;
+  };
+
   /* --- PARCELAS (base de datos) --- */
   const guardarParcelaMut = useOrgWrite({
     mutationFn: async ({ f, original }) => {
@@ -955,6 +983,7 @@ function AgroCicloApp() {
         // en edición se preserva la que ya traía.
         p_fecha_pago_renta: original?.fechaPagoRenta ?? (esRentada && rentaOrigen === "propio" ? (f.fechaRenta || hoyStr) : null),
         p_linea_credito_id: lineaUuid,
+        p_rentero_id: esRentada ? (f.renteroId || null) : null,
       });
       if (error) throw new Error(error.message);
     },
@@ -1858,7 +1887,7 @@ function AgroCicloApp() {
           <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela }} />
 
           {/* ===== PARCELAS ===== */}
-          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo }} />
+          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />
 
           {/* ===== LABORES ===== */}
           <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir }} />
@@ -1891,7 +1920,7 @@ function AgroCicloApp() {
           <VistaCostoFin {...{ vista, veFinanzas, fechaObjetivo, pagoSupuesto, creditosT, dispsDeLinea, interesInsoluto, comprasT, gastosT, parcelasT, interesDisp, setPagoSupuesto, abonoMonto, puedeEditar, revertirLiquidacion, setAbonoMonto, liquidarDisposicion, setFechaObjetivo }} />
 
           {/* ===== REPORTES + SIMULADOR ===== */}
-          <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto }} />
+          <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }} />
 
           <VistaAjustes {...{ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo }} />
         </main>

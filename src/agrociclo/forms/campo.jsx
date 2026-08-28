@@ -437,7 +437,7 @@ export function GuiaCiclo({ pasos, onOcultar }) {
   );
 }
 
-export function FormParcela({ inicial, productores, creditos, cultivos, onAgregarCultivo, onGuardar }) {
+export function FormParcela({ inicial, productores, creditos, cultivos, onAgregarCultivo, renteros, onAgregarRentero, onGuardar }) {
   const [f, set] = useForm({
     nombre: inicial?.nombre || "", cultivo: inicial?.cultivo || "", cultivoNuevo: "", ha: inicial?.ha ?? "",
     rendEsperado: inicial?.rendEsperado ?? "", precioEsperado: inicial?.precioEsperado ?? "",
@@ -448,6 +448,8 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
     tasaRenta: inicial?.tasaRenta ?? "",
     fechaRenta: inicial?.fechaRenta || hoyStr,
     productorId: inicial?.productorId || "",
+    renteroId: inicial?.renteroId || "",
+    renteroNuevo: "",
   });
   const esRentada = f.tenencia === "Rentada";
   const ha = Number(f.ha) || 0, rend = Number(f.rendEsperado) || 0, precio = Number(f.precioEsperado) || 0;
@@ -488,6 +490,25 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
         <>
           <Campo label="Renta por hectárea (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 14000" value={f.rentaPorHa} onChange={set("rentaPorHa")} /></Campo>
           <Campo label="Fecha del contrato"><input type="date" style={estiloInput} value={f.fechaRenta} onChange={set("fechaRenta")} /></Campo>
+          <Campo label="Se la rento a (opcional)">
+            <select style={estiloInput} value={f.renteroId} onChange={set("renteroId")}>
+              <option value="">— Sin registrar —</option>
+              {(renteros || []).length > 0 && (
+                <optgroup label="Renteros">
+                  {(renteros || []).map((r) => <option key={r.id} value={r.id}>{r.nombre}</option>)}
+                </optgroup>
+              )}
+              {(productores || []).length > 0 && (
+                <optgroup label="Productores del grupo">
+                  {(productores || []).map((pr) => <option key={pr.id} value={pr.id}>{pr.codigo} · {pr.nombre}</option>)}
+                </optgroup>
+              )}
+              <option value="__nuevo">+ Nuevo rentero…</option>
+            </select>
+          </Campo>
+          {f.renteroId === "__nuevo" && (
+            <Campo label="Nombre del rentero"><input style={estiloInput} placeholder="Ej. Don Ramón Cota" value={f.renteroNuevo} onChange={set("renteroNuevo")} /></Campo>
+          )}
           <CampoFinanciamiento
             origen={f.rentaOrigen} creditoId={f.rentaCreditoId} tasa={f.tasaRenta}
             onOrigen={set("rentaOrigen")} onCredito={set("rentaCreditoId")} onTasa={set("tasaRenta")}
@@ -499,10 +520,16 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
           Vista rápida: ingreso esperado <strong>{money(ingresoProy)}</strong>{rentaProy > 0 ? <> · la renta se llevará <strong>{money(rentaProy)}</strong> ({num((rentaProy / ingresoProy) * 100, 1)}% del ingreso)</> : null}.
         </div>
       )}
-      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => {
+      <div className="flex items-end"><Boton deshabilitado={bloqueado || (esRentada && f.renteroId === "__nuevo" && !f.renteroNuevo.trim())} onClick={() => {
         if (bloqueado) return;
         if (f.cultivo === "__nuevo" && onAgregarCultivo && !(cultivos || []).find((c) => claveTipo(c) === claveTipo(cultivoFinal))) onAgregarCultivo(cultivoFinal);
-        onGuardar({ ...f, cultivo: cultivoFinal });
+        let renteroId = f.renteroId;
+        if (esRentada && renteroId === "__nuevo") {
+          const n = f.renteroNuevo.trim();
+          const existente = (renteros || []).find((r) => claveTipo(r.nombre) === claveTipo(n));
+          renteroId = existente ? existente.id : (onAgregarRentero ? onAgregarRentero(n) : "");
+        }
+        onGuardar({ ...f, cultivo: cultivoFinal, renteroId: renteroId === "__nuevo" ? "" : renteroId });
       }}>{inicial ? "Guardar cambios" : "Guardar parcela"}</Boton></div>
     </div>
   );

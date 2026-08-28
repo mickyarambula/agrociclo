@@ -2,7 +2,7 @@
 import { fuente } from "../ui";
 import { Simulador, Reportes } from "../reportes";
 
-export function VistaReportes({ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto }) {
+export function VistaReportes({ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }) {
   return (
     <>
           {vista === "reportes" && veFinanzas && (
@@ -15,7 +15,7 @@ export function VistaReportes({ vista, veFinanzas, parcelasT, costosParcela, inv
                 apsProductivas={apsProductivas} prestamosT={prestamosT} productores={productores}
                 costoFinTotal={costoFinTotal} inversionTotal={inversionTotal} costoDirectoTotal={costoDirectoTotal}
                 gastosIndTotal={gastosIndTotal} ingresoTotal={ingresoTotal} ingresoRealTotal={ingresoRealTotal}
-                rentaTotal={rentaTotal} haTotal={haTotal} dieselUsado={dieselUsado} dieselCosto={dieselCosto} costosParcela={costosParcela} />
+                rentaTotal={rentaTotal} haTotal={haTotal} dieselUsado={dieselUsado} dieselCosto={dieselCosto} costosParcela={costosParcela} nombreRenteroDe={nombreRenteroDe} />
             </div>
           )}
     </>

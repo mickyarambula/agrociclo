@@ -264,6 +264,9 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       tenencia: p.p_tenencia,
       renta_por_ha: p.p_renta_por_ha,
       renta_origen: rentaOrigen,
+      // A quién se le paga la renta (rentero del catálogo o productor del grupo).
+      // Informativo: no toca cuentas ni tesorería.
+      rentero_id: esRentada ? (p.p_rentero_id ?? null) : null,
       tasa_renta: p.p_tasa_renta,
       fecha_renta: p.p_fecha_renta ?? (esRentada ? hoyMochis() : null),
       fecha_pago_renta: p.p_fecha_pago_renta,
