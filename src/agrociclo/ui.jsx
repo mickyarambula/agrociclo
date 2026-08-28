@@ -1,4 +1,3 @@
-// @ts-nocheck
 /* UI básica compartida: tipografía, tarjetas, botones, campos, secciones
    y el error boundary. Sin lógica de negocio. */
 import { useState, Component } from "react";
@@ -11,6 +10,7 @@ export const fuente = {
   cuerpo: "'IBM Plex Sans', system-ui, sans-serif",
 };
 
+/** @param {{children?: any, style?: any, onClick?: any, className?: string}} props */
 export function Tarjeta({ children, style, onClick, className }) {
   return (
     <div onClick={onClick} className={className}
@@ -19,9 +19,11 @@ export function Tarjeta({ children, style, onClick, className }) {
     </div>
   );
 }
+/** @param {{children?: any}} props */
 export function Etiqueta({ children }) {
   return <div style={{ fontSize: 11, letterSpacing: "0.08em", textTransform: "uppercase", color: C.gris, fontWeight: 600 }}>{children}</div>;
 }
+/** @param {{children?: any, onClick?: any, secundario?: boolean, chico?: boolean, deshabilitado?: boolean}} props */
 export function Boton({ children, onClick, secundario, chico, deshabilitado }) {
   return (
     <button onClick={deshabilitado ? undefined : onClick}
@@ -37,6 +39,7 @@ export function Boton({ children, onClick, secundario, chico, deshabilitado }) {
     </button>
   );
 }
+/** @param {{label?: any, children?: any}} props */
 export function Campo({ label, children }) {
   return (
     <label className="flex flex-col gap-1" style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>
@@ -44,6 +47,7 @@ export function Campo({ label, children }) {
     </label>
   );
 }
+/** @param {{parcelas: any[], value?: any, onChange?: any, opcional?: boolean}} props */
 export function PickerParcela({ parcelas, value, onChange, opcional }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -89,6 +93,7 @@ export const estiloInput = {
   fontSize: 14, color: C.tinta, fontFamily: fuente.cuerpo, background: C.blanco, fontWeight: 400, width: "100%",
 };
 
+/** @param {Record<string, any> | null | undefined} t  @param {boolean} [compacto] */
 export function etiquetaCiclo(t, compacto) {
   if (!t) return "Ciclo";
   if (!compacto) return t.nombre || t.clave || "Ciclo";
@@ -99,6 +104,7 @@ export function etiquetaCiclo(t, compacto) {
 }
 
 
+/** @param {{onEditar?: any, onEliminar?: any}} props */
 export function Acciones({ onEditar, onEliminar }) {
   const [confirmar, setConfirmar] = useState(false);
   return (
@@ -126,8 +132,11 @@ export function Acciones({ onEditar, onEliminar }) {
 
 /* ---------- Error Boundary ---------- */
 export class ErrorBoundary extends Component {
-  constructor(props) { super(props); this.state = { error: null }; }
+  /** @param {any} props */
+  constructor(props) { super(props); this.state = /** @type {{error: any}} */ ({ error: null }); }
+  /** @param {any} e */
   static getDerivedStateFromError(e) { return { error: e }; }
+  /** @param {any} e  @param {any} info */
   componentDidCatch(e, info) { console.error("AgroCiclo error:", e, info?.componentStack); }
   render() {
     if (!this.state.error) return this.props.children;
@@ -154,6 +163,7 @@ export class ErrorBoundary extends Component {
 }
 
 
+/** @param {{datos: any[]}} props */
 export function BarraLista({ datos }) {
   const [abierto, setAbierto] = useState(null); // nombre del concepto expandido
   const max = Math.max(...datos.map(d => d.valor), 1);
@@ -192,7 +202,7 @@ export function BarraLista({ datos }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {d.movimientos.map((m, i) => (
+                  {d.movimientos.map((/** @type {any} */ m, /** @type {number} */ i) => (
                     <tr key={i} style={{ borderTop: `1px solid ${C.linea}` }}>
                       <td style={{ padding: "4px 8px 4px 0", whiteSpace: "nowrap", color: C.gris }}>{m.fecha}</td>
                       <td style={{ padding: "4px 8px 4px 0" }}>{m.desc}</td>
@@ -216,6 +226,7 @@ export function BarraLista({ datos }) {
 }
 
 /* ---------- Componentes de apoyo ---------- */
+/** @param {{titulo?: any, accion?: any, abierto?: any, editando?: any, onAbrir?: any, onCerrar?: any, form?: any, children?: any, puedeEditar?: boolean}} props */
 export function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true }) {
   return (
     <div className="flex flex-col gap-4">
@@ -251,6 +262,7 @@ export function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, 
   );
 }
 
+/** @param {{l?: any, v?: any, resalta?: boolean}} props */
 export function Fila({ l, v, resalta }) {
   return (
     <div className="flex justify-between" style={{ borderBottom: `1px dashed ${C.linea}`, paddingBottom: 3 }}>
@@ -260,12 +272,14 @@ export function Fila({ l, v, resalta }) {
   );
 }
 
+/** @param {{texto?: any}} props */
 export function Vacio({ texto }) {
   return <Tarjeta style={{ padding: 24, textAlign: "center", color: C.gris, fontSize: 14 }}>{texto}</Tarjeta>;
 }
 
+/** @param {any} inicial */
 export function useForm(inicial) {
   const [f, setF] = useState(inicial);
-  const set = (k) => (e) => setF(prev => ({ ...prev, [k]: e.target.value }));
+  const set = (/** @type {string} */ k) => (/** @type {any} */ e) => setF((/** @type {any} */ prev) => ({ ...prev, [k]: e.target.value }));
   return [f, set, setF];
 }
