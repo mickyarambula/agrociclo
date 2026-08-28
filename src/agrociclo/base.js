@@ -53,22 +53,22 @@ export const costoFinCredito = (cr) => interesCredito(cr) + fegaCredito(cr) + co
 /* Interés propio SOLO cuando el origen es "externo" (crédito de proveedor / financiamiento aparte).
    Si el origen es "linea", el interés ya lo devenga la línea registrada — no se cuenta dos veces.
    Si es "propio", no hay interés. */
-/** @param {Fila} cp */
-export const interesCompra = (cp) =>
-  cp.origen === "externo" ? (cp.monto * ((Number(cp.tasa) || 0) / 100) / 365) * diasEntre(cp.fecha, cp.fechaPago || hoyStr) : 0;
-/** @param {Fila} g */
-export const interesGasto = (g) =>
-  g.origen === "externo" ? (g.monto * ((Number(g.tasa) || 0) / 100) / 365) * diasEntre(g.fecha, g.fechaPago || hoyStr) : 0;
+/** @param {Fila} cp  @param {string} [corte] */
+export const interesCompra = (cp, corte = hoyStr) =>
+  cp.origen === "externo" ? (cp.monto * ((Number(cp.tasa) || 0) / 100) / 365) * diasEntre(cp.fecha, cp.fechaPago || corte) : 0;
+/** @param {Fila} g  @param {string} [corte] */
+export const interesGasto = (g, corte = hoyStr) =>
+  g.origen === "externo" ? (g.monto * ((Number(g.tasa) || 0) / 100) / 365) * diasEntre(g.fecha, g.fechaPago || corte) : 0;
 /** @param {Fila} l */
 export const costoLabor = (l) => (l.costoOp || 0) + (l.costoInsumo || 0) + (l.costoDiesel || 0);
 
 /* --- rentas --- */
 /** @param {Fila} p */
 export const rentaMonto = (p) => p.tenencia === "Rentada" ? p.ha * (Number(p.rentaPorHa) || 0) : 0;
-/** @param {Fila} p */
-export const rentaInteres = (p) =>
+/** @param {Fila} p  @param {string} [corte] */
+export const rentaInteres = (p, corte = hoyStr) =>
   p.tenencia === "Rentada" && p.rentaOrigen === "externo"
-    ? (rentaMonto(p) * (Number(p.tasaRenta) || 0) / 100 / 365) * diasEntre(p.fechaRenta || hoyStr, p.fechaPagoRenta || hoyStr)
+    ? (rentaMonto(p) * (Number(p.tasaRenta) || 0) / 100 / 365) * diasEntre(p.fechaRenta || corte, p.fechaPagoRenta || corte)
     : 0;
 
 /* --- boletas --- */

@@ -92,6 +92,27 @@ function AgroCicloApp() {
     [productoresQ.data]
   );
   const [fechaObjetivo, setFechaObjetivo] = useState(hoyStr);
+  /* Fecha de corte de la vista: pararse en un día del ciclo para ver el interés
+     proyectado. Vive solo en la sesión; las escrituras siguen al hoy real.
+     El input guarda lo tecleado tal cual (clampear en onChange pelea con el
+     tecleo por segmentos); el valor EFECTIVO se acota al rango del ciclo. */
+  const [corteInput, setCorteInput] = useState(hoyStr);
+  const cicloDeLaVista = ciclos.find((c) => c.id === CICLO_ID);
+  const corteMin = cicloDeLaVista?.fechaInicio && cicloDeLaVista.fechaInicio < hoyStr ? cicloDeLaVista.fechaInicio : hoyStr;
+  const corteMax = cicloDeLaVista?.fechaFin || null;
+  const corteVista = (() => {
+    let v = corteInput || hoyStr;
+    if (v < corteMin) v = corteMin;
+    if (corteMax && v > corteMax) v = corteMax;
+    return v;
+  })();
+  const setCorteVista = (f) => {
+    setCorteInput(f || hoyStr);
+    let v = f || hoyStr;
+    if (v < corteMin) v = corteMin;
+    if (corteMax && v > corteMax) v = corteMax;
+    setFechaObjetivo(v); // el what-if de Costo financiero se para en la misma fecha
+  };
   const [pagoSupuesto, setPagoSupuesto] = useState({});
   // Pagos parciales: monto del abono por renglón (clave de dispsDeLinea). El input de fecha
   // reusa pagoSupuesto[clave] (capado a hoy); el monto vive aquí.
@@ -685,10 +706,14 @@ function AgroCicloApp() {
   const dispuestoNoPagadoLinea = (cr) => dispsDeLinea(cr.id).reduce((s, d) => s + (d.saldo != null ? d.saldo : d.monto), 0);
   const costoFinLineaA = (cr, fechaCorte) => interesLineaA(cr, fechaCorte) + fegaCredito(cr) + comisionCredito(cr);
 
-  const costoFinCreditos = cfinLineasVista;  // B1: total de líneas desde v_linea_credito_estado (no del motor JS)
-  const interesComprasTot = comprasT.reduce((s, c) => s + interesCompra(c), 0);
-  const interesGastosTot = gastosT.reduce((s, g) => s + interesGasto(g), 0);
-  const rentaIntTotal = parcelasT.reduce((s, p) => s + rentaInteres(p), 0);
+  // Con corte = hoy manda la vista SQL (v_linea_credito_estado); con corte en otra
+  // fecha, el motor JS (que la espeja al centavo) proyecta a ese día.
+  const costoFinCreditos = corteVista === hoyStr
+    ? cfinLineasVista
+    : creditosT.reduce((s, cr) => s + costoFinLineaA(cr, corteVista), 0);
+  const interesComprasTot = comprasT.reduce((s, c) => s + interesCompra(c, corteVista), 0);
+  const interesGastosTot = gastosT.reduce((s, g) => s + interesGasto(g, corteVista), 0);
+  const rentaIntTotal = parcelasT.reduce((s, p) => s + rentaInteres(p, corteVista), 0);
   const costoFinGeneral = costoFinCreditos + interesComprasTot + interesGastosTot;
   const costoFinTotal = costoFinGeneral + rentaIntTotal;
   const costoFinPorHa = haTotal > 0 ? costoFinGeneral / haTotal : 0;
@@ -718,7 +743,7 @@ function AgroCicloApp() {
       const gastoDirecto = gastosT.filter(g => g.destino === "parcela" && g.parcelaId === p.id).reduce((s, g) => s + g.monto, 0)
         + apsProductivas.filter(a => a.destino === "parcela" && a.parcelaId === p.id).reduce((s, a) => s + a.monto, 0);
       const gastoInd = gastoDirecto + gastosIndPorHa * p.ha;
-      const ci = costoFinPorHa * p.ha + rentaInteres(p);
+      const ci = costoFinPorHa * p.ha + rentaInteres(p, corteVista);
       const directo = cl + cn + renta;
       const total = directo + gastoInd + ci; // costo completo
       const ingreso = p.ha * p.rendEsperado * p.precioEsperado;
@@ -739,7 +764,7 @@ function AgroCicloApp() {
       };
     });
     return map;
-  }, [parcelasT, laboresT, nominaT, costoFinPorHa, boletasT, gastosT, gastosIndPorHa, apsProductivas]);
+  }, [parcelasT, laboresT, nominaT, costoFinPorHa, boletasT, gastosT, gastosIndPorHa, apsProductivas, corteVista]);
 
   const costoDirectoTotal = Object.values(costosParcela).reduce((s, c) => s + c.directo, 0);
   const inversionTotal = costoDirectoTotal + gastosIndTotal + costoFinTotal;
@@ -752,9 +777,11 @@ function AgroCicloApp() {
   /* --- avisos --- */
   const avisos = useMemo(() => {
     const a = [];
+    // Con corte de vista activo, los días se cuentan a esa fecha.
+    const diasHastaC = (f) => Math.round((new Date(f + "T00:00:00").getTime() - new Date(corteVista + "T00:00:00").getTime()) / 86400000);
     creditosT.forEach(cr => {
       if (!cr.fechaVencimiento) return;
-      const d = diasHasta(cr.fechaVencimiento);
+      const d = diasHastaC(cr.fechaVencimiento);
       if (d < 0) a.push({ nivel: "rojo", ambito: "fin", texto: `El crédito de ${cr.fuente} VENCIÓ hace ${Math.abs(d)} días (${cr.fechaVencimiento}). Revisa moratorios con tu intermediario.` });
       else if (d <= 60) a.push({ nivel: "ambar", ambito: "fin", texto: `El crédito de ${cr.fuente} vence en ${d} días (${cr.fechaVencimiento}) · autorizado ${money(cr.monto)} + accesorios.` });
     });
@@ -766,8 +793,8 @@ function AgroCicloApp() {
     });
     if (inversionTotal > 0 && costoFinTotal / inversionTotal > 0.12)
       a.push({ nivel: "ambar", ambito: "fin", texto: `El costo financiero ya es ${num((costoFinTotal / inversionTotal) * 100, 1)}% de tu inversión total.` });
-    comprasT.filter(c => c.origen === "externo" && !c.fechaPago && diasEntre(c.fecha, hoyStr) > 90)
-      .forEach(c => a.push({ nivel: "ambar", ambito: "fin", texto: `La compra a crédito de proveedor de ${c.insumoNombre} lleva ${diasEntre(c.fecha, hoyStr)} días al ${num(c.tasa, 1)}% (${money(interesCompra(c))} acumulado).` }));
+    comprasT.filter(c => c.origen === "externo" && !c.fechaPago && diasEntre(c.fecha, corteVista) > 90)
+      .forEach(c => a.push({ nivel: "ambar", ambito: "fin", texto: `La compra a crédito de proveedor de ${c.insumoNombre} lleva ${diasEntre(c.fecha, corteVista)} días al ${num(c.tasa, 1)}% (${money(interesCompra(c, corteVista))} acumulado).` }));
     insumosAlmacen.filter(i => i.stock <= 2).forEach(i => a.push({ nivel: "ambar", ambito: "op", texto: `Stock bajo de ${i.nombre}: quedan ${num(i.stock, 1)} ${i.unidad}.` }));
     if (rayaPendiente > 0) a.push({ nivel: "info", ambito: "op", texto: `Raya pendiente: ${money(rayaPendiente)} para el próximo día de pago.` });
     const sinAplicar = prestamosT.reduce((s, pp) => s + Math.max(0, pp.monto - (pp.aplicaciones || []).reduce((x, ap) => x + ap.monto, 0)), 0);
@@ -783,7 +810,7 @@ function AgroCicloApp() {
         && freezePorDispId[pp.disposicionId] && !freezePorDispId[pp.disposicionId].saldada)
       .forEach(pp => {
         const prod = productores.find(x => x.id === pp.productorId);
-        const dias = diasEntre(pp.fechaPago, hoyStr);
+        const dias = diasEntre(pp.fechaPago, corteVista);
         const tasa = tasaPorLineaId[pp.creditoId] || 0;
         const interes = pp.monto * (tasa / 100 / 365) * Math.max(0, dias);
         a.push({ nivel: "ambar", ambito: "fin",
@@ -795,7 +822,7 @@ function AgroCicloApp() {
         && freezePorDispId[p.disposicionId] && !freezePorDispId[p.disposicionId].saldada)
       .forEach(p => {
         const monto = rentaMonto(p);
-        const dias = diasEntre(p.fechaPagoRenta, hoyStr);
+        const dias = diasEntre(p.fechaPagoRenta, corteVista);
         const tasa = tasaPorLineaId[p.rentaCreditoId] || 0;
         const interes = monto * (tasa / 100 / 365) * Math.max(0, dias);
         a.push({ nivel: "ambar", ambito: "fin",
@@ -809,7 +836,7 @@ function AgroCicloApp() {
     if (porRecibir > 0) a.push({ nivel: "info", ambito: "op", texto: `${porRecibir} compra(s) autorizada(s) por recibir en almacén.` });
     if (cajaPorAutorizar > 0) a.push({ nivel: "ambar", ambito: "fin", texto: `Caja chica: ${money(cajaPorAutorizar)} en salidas por autorizar.` });
     return veFinanzas ? a : a.filter(x => x.ambito === "op");
-  }, [parcelasT, costosParcela, inversionTotal, costoFinTotal, comprasT, insumosAlmacen, rayaPendiente, creditosT, veFinanzas, solicitudesT, cajaPorAutorizar, prestamosT, freezePorDispId]);
+  }, [parcelasT, costosParcela, inversionTotal, costoFinTotal, comprasT, insumosAlmacen, rayaPendiente, creditosT, veFinanzas, solicitudesT, cajaPorAutorizar, prestamosT, freezePorDispId, corteVista]);
 
   /* --- helper: diésel del catálogo (para FormLabor y el panel) --- */
   const dieselIns = insumos.find(i => i.categoria === "Diésel");
@@ -1816,7 +1843,7 @@ function AgroCicloApp() {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); setGuiaCicloOculta(false); }}
+          <select value={CICLO_ID} onChange={(e) => { void setCiclo(e.target.value); setVista(rol === "Encargado de campo" ? "captura" : "panel"); cerrar(); setRapida(null); setGuiaCicloOculta(false); setCorteInput(hoyStr); setFechaObjetivo(hoyStr); }}
             title="Ciclo de siembra"
             aria-label="Ciclo de siembra"
             style={{ ...estiloInput, width: "auto", maxWidth: rol === "Encargado de campo" ? 118 : 220, background: "rgba(255,255,255,0.12)", color: C.blanco, border: "1px solid rgba(255,255,255,0.3)", fontWeight: 600, fontSize: 12 }}>
@@ -1850,6 +1877,19 @@ function AgroCicloApp() {
           </div>
         </div>
       </header>
+      {corteVista !== hoyStr && (
+        <div className="flex items-center gap-3 flex-wrap px-3 md:px-8 py-3" style={{ background: C.grano, borderBottom: `3px solid ${C.barrial}` }}>
+          <CalendarClock size={20} color={C.tinta} />
+          <span style={{ fontWeight: 800, fontSize: 15, color: C.tinta, fontFamily: fuente.display }}>
+            Estás viendo el ciclo al {corteVista}
+          </span>
+          <span style={{ fontSize: 13, color: C.tinta }}>El interés está proyectado a esa fecha — no es el estado real de hoy.</span>
+          <button type="button" onClick={() => setCorteVista(hoyStr)}
+            style={{ background: C.tinta, color: C.blanco, border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: fuente.cuerpo, minHeight: 40 }}>
+            Volver a hoy
+          </button>
+        </div>
+      )}
 
       <div className="flex">
         <nav className="hidden md:flex flex-col gap-1 p-3" style={{ width: 210, borderRight: `1px solid ${C.linea}`, minHeight: "calc(100vh - 68px)" }}>
@@ -1886,7 +1926,7 @@ function AgroCicloApp() {
           <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
 
           {/* ===== PANEL ===== */}
-          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela }} />
+          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
 
           {/* ===== PARCELAS ===== */}
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />

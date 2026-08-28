@@ -1,9 +1,9 @@
 // @ts-nocheck
-import { C, money, num } from "../base";
-import { fuente, Tarjeta, Etiqueta, Boton } from "../ui";
-import { Sprout, Plus, ChevronRight, Bell } from "lucide-react";
+import { C, money, num, hoyStr } from "../base";
+import { fuente, Tarjeta, Etiqueta, Boton, estiloInput } from "../ui";
+import { Sprout, Plus, ChevronRight, Bell, CalendarClock } from "lucide-react";
 
-export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela }) {
+export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }) {
   return (
     <>
           {vista === "panel" && (
@@ -33,7 +33,17 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                 )
               ) : (
                 <>
-                  {tarjetaGuiaCiclo}
+                  <div className="flex items-center gap-2 flex-wrap" style={{ fontSize: 13, color: C.gris }}>
+                <CalendarClock size={15} color={C.barrial} />
+                <span>Ver el ciclo al:</span>
+                <input type="date" style={{ ...estiloInput, width: "auto" }} value={corteInput}
+                  min={corteMin || undefined} max={corteMax || undefined}
+                  onChange={(e) => setCorteVista(e.target.value)} />
+                {corteVista !== hoyStr && (
+                  <Boton chico secundario onClick={() => setCorteVista(hoyStr)}>Volver a hoy</Boton>
+                )}
+              </div>
+              {tarjetaGuiaCiclo}
                   {/* ===== TIRA DE PLATA: el pulso del dinero en una franja ===== */}
                   {veFinanzas && (
                     <Tarjeta style={{ padding: "12px 16px", background: C.bosque }}>
