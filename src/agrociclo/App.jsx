@@ -26,6 +26,8 @@ import {
   Tarjeta, Etiqueta, Boton, Campo, PickerParcela, Acciones, ErrorBoundary,
   BarraLista, Seccion, Fila, Vacio, useForm,
 } from "./ui";
+import { VistaProductores } from "./vistas/Productores";
+import { VistaCosecha } from "./vistas/Cosecha";
 import { VistaSolicitudes } from "./vistas/Solicitudes";
 import { VistaRaya } from "./vistas/Raya";
 import { VistaInsumos } from "./vistas/Insumos";
@@ -1813,194 +1815,13 @@ function AgroCicloApp() {
           <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina }} />
 
           {/* ===== COSECHA ===== */}
-          {vista === "cosecha" && (
-            <Seccion titulo="Cosecha · entregas en bodega" accion="Registrar boleta" puedeEditar={puedeEditar}
-              abierto={form?.tipo === "boleta"} onAbrir={() => setForm({ tipo: "boleta", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
-              form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
-
-              {/* ===== EL CIERRE: la cuenta que el productor quiere ver ===== */}
-              {veFinanzas && boletasT.length > 0 && (
-                <Tarjeta style={{ padding: 20, borderTop: `4px solid ${ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo}` }}>
-                  <div className="flex items-center justify-between flex-wrap gap-2">
-                    <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 17 }}>El cierre de la venta</span>
-                    <span style={{ fontSize: 12, color: C.gris }}>con lo entregado hasta hoy · todo el ciclo</span>
-                  </div>
-                  <div className="grid grid-cols-3 gap-3 mt-3">
-                    {[
-                      { l: "Vendido", v: money(ingresoRealTotal), s: `${num(Object.values(costosParcela).reduce((s, c) => s + c.tonReal, 0), 1)} ton entregadas` },
-                      { l: "Costó", v: money(inversionTotal), s: "labores + insumos + raya + renta + gastos + financiero" },
-                      { l: "Quedó", v: money(ingresoRealTotal - inversionTotal), c: ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo, s: ingresoRealTotal - inversionTotal >= 0 ? "hasta hoy vas arriba" : "aún no cubres el costo" },
-                    ].map((k) => (
-                      <div key={k.l}>
-                        <Etiqueta>{k.l}</Etiqueta>
-                        <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
-                        <div style={{ fontSize: 11, color: C.gris }}>{k.s}</div>
-                      </div>
-                    ))}
-                  </div>
-                </Tarjeta>
-              )}
-
-              <div className="grid md:grid-cols-3 gap-3">
-                {parcelasT.map(p => {
-                  const c = costosParcela[p.id];
-                  if (!c || c.tonReal === 0) return null;
-                  const avance = p.rendEsperado > 0 ? (c.rendReal / p.rendEsperado) * 100 : 0;
-                  return (
-                    <Tarjeta key={p.id} style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
-                      <Etiqueta>{p.cultivo} · {p.nombre}</Etiqueta>
-                      <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, marginTop: 4 }}>{num(c.tonReal, 1)} ton</div>
-                      <div style={{ fontSize: 12, color: C.gris }}>{num(c.rendReal, 2)} ton/ha · {num(avance, 0)}% de lo esperado</div>
-                      <div style={{ height: 8, borderRadius: 4, background: C.papel, border: `1px solid ${C.linea}`, marginTop: 6 }}>
-                        <div style={{ width: `${Math.min(100, avance)}%`, height: "100%", borderRadius: 4, background: C.hoja }} />
-                      </div>
-                      {veFinanzas && (
-                        <div className="mt-2" style={{ fontSize: 12 }}>
-                          <Fila l="Vendido" v={money(c.ingresoReal)} />
-                          <Fila l="Costó (todo el lote)" v={money(c.total)} />
-                          <Fila l="Quedó hasta hoy" v={money(c.utilidadReal)} resalta />
-                        </div>
-                      )}
-                    </Tarjeta>
-                  );
-                })}
-              </div>
-
-              {boletasT.length === 0 && <Vacio texto="Sin entregas registradas." />}
-              {boletasT.length > 0 && (
-                <Tarjeta>
-                  {boletasT.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((b, i) => {
-                    const p = parcelas.find(x => x.id === b.parcelaId);
-                    const c = calcBoleta(b);
-                    return (
-                      <div key={b.id} className="px-4 py-3" style={{ borderTop: i ? `1px solid ${C.linea}` : "none" }}>
-                        <div className="flex justify-between items-center gap-3 flex-wrap">
-                          <div>
-                            <div style={{ fontWeight: 600, fontSize: 14 }}>
-                              Boleta {b.boleta} · {b.bodega} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.cultivo} ({p?.nombre})</span>
-                            </div>
-                            <div style={{ fontSize: 12, color: C.gris }}>
-                              {b.fecha} · Neto {num(c.neto, 0)} kg · Hum {num(b.humedad, 1)}% (−{num(c.descH, 0)} kg) · Imp {num(b.impurezas, 1)}% (−{num(c.descI, 0)} kg) → <strong style={{ color: C.tinta }}>{num(c.pagable, 0)} kg</strong>
-                              {veFinanzas ? <> × {money(b.precioTon)}/ton</> : null}
-                            </div>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {veFinanzas && <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 16, color: C.bosque }}>{money(c.ingresoNeto)}</div>}
-                            {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "boleta", item: b })} onEliminar={() => eliminarBoleta(b)} />}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </Tarjeta>
-              )}
-            </Seccion>
-          )}
+          <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costosParcela, parcelas, eliminarBoleta }} />
 
           {/* ===== SOLICITUDES DE COMPRA (pipeline) ===== */}
           <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
-          {vista === "productores" && veFinanzas && (
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 24, margin: 0 }}>Productores del grupo</h1>
-                {puedeEditar && (
-                  <div className="flex gap-2 flex-wrap">
-                    <Boton secundario onClick={() => setForm({ tipo: "prestamo", item: null })}><Banknote size={15} /> Préstamo en efectivo</Boton>
-                    <Boton secundario onClick={() => setForm({ tipo: "dispersion", item: null })}><ArrowRightLeft size={15} /> Registrar dispersión</Boton>
-                    <Boton onClick={() => setForm({ tipo: "productor", item: null })}><Plus size={15} /> Nuevo productor</Boton>
-                  </div>
-                )}
-              </div>
-              <p style={{ fontSize: 13, color: C.gris, marginTop: -8 }}>
-                El estado de cuenta de cada nombre va como lo lleva la financiera: <strong>cargos</strong> = todo lo
-                dispersado, prestado en efectivo u ordenado a su código de cliente (rentas, agua, maquilas, compras, gastos);
-                <strong> abonos</strong> = sus entregas a bodega. La liquidación de cosecha se cobra contra esto.
-              </p>
-
-              <div ref={formRef} style={{ scrollMarginTop: 16 }} />
-
-              {form && form.tipo === "productor" && puedeEditar && (
-                <Tarjeta style={{ padding: 18, borderLeft: "3px solid " + C.hoja }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{form.item ? "Editar productor" : "Nuevo productor"}</span>
-                    <button onClick={cerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar"><X size={17} /></button>
-                  </div>
-                  <FormProductor key={form.item ? form.item.id : "nuevo"} inicial={form.item} onGuardar={(f) => guardarProductor(f, form.item)} />
-                </Tarjeta>
-              )}
-              {form && form.tipo === "dispersion" && puedeEditar && (
-                <Tarjeta style={{ padding: 18, borderLeft: "3px solid " + C.grano }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{form.item ? "Editar dispersión" : "Registrar dispersión en efectivo"}</span>
-                    <button onClick={cerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar"><X size={17} /></button>
-                  </div>
-                  <FormDispersion key={form.item ? form.item.id : "nueva"} inicial={form.item} productores={productores} creditos={creditosT} onGuardar={(f) => guardarDispersion(f, form.item)} />
-                </Tarjeta>
-              )}
-              {form && form.tipo === "prestamo" && puedeEditar && (
-                <Tarjeta style={{ padding: 18, borderLeft: "3px solid " + C.barrial }}>
-                  <div className="flex justify-between items-center mb-3">
-                    <span style={{ fontWeight: 700, fontSize: 14 }}>{form.item ? "Editar préstamo" : "Préstamo en efectivo al productor"}</span>
-                    <button onClick={cerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar"><X size={17} /></button>
-                  </div>
-                  <FormPrestamo key={form.item ? form.item.id : "nuevo"} inicial={form.item} productores={productores} creditos={creditosT} onGuardar={(f) => guardarPrestamo(f, form.item)} />
-                </Tarjeta>
-              )}
-
-              <Tarjeta style={{ padding: 16, background: "#FBF4E3", border: "1px solid " + C.grano }}>
-                <div className="flex justify-between flex-wrap gap-3" style={{ fontSize: 13, color: C.barrial }}>
-                  <span><strong>Consolidado del grupo</strong> · {productores.length} nombres</span>
-                  <span>
-                    Dispersado: <strong>{money(grupoCargos)}</strong> · Abonado: <strong>{money(grupoAbonos)}</strong> · Saldo por liquidar:{" "}
-                    <strong style={{ color: grupoCargos - grupoAbonos > 0 ? C.rojo : C.bosque }}>{money(grupoCargos - grupoAbonos)}</strong>
-                  </span>
-                </div>
-              </Tarjeta>
-
-              {prestamosT.length > 0 && (
-                <>
-                  <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Préstamos en efectivo · la bolsa de cada productor</div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    {prestamosT.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map(pp => (
-                      <PrestamoCard key={pp.id} pp={pp}
-                        productor={productores.find(x => x.id === pp.productorId)}
-                        linea={pp.creditoId ? creditosT.find(c => c.id === pp.creditoId) : null}
-                        parcelas={parcelasT}
-                        sinLiquidar={veFinanzas && dispSinLiquidar(pp.origen, pp.fechaPago, pp.disposicionId)}
-                        puedeEditar={puedeEditar}
-                        onEditar={() => setForm({ tipo: "prestamo", item: pp })}
-                        onEliminar={() => eliminarPrestamo(pp)}
-                        onLiquidar={() => liquidarPrestamo(pp)}
-                        onAplicar={(f) => agregarAplicacion(pp.id, f)}
-                        onEliminarAplicacion={(apId) => eliminarAplicacion(pp.id, apId)}
-                      />
-                    ))}
-                  </div>
-                </>
-              )}
-
-              {productoresQ.isLoading && <Vacio texto="Cargando productores…" />}
-              {!productoresQ.isLoading && productores.length === 0 && <Vacio texto="Sin productores registrados." />}
-              <div className="grid md:grid-cols-2 gap-3">
-                {productores.slice().sort((a, b) => a.tipo === b.tipo ? a.nombre.localeCompare(b.nombre) : a.tipo === "Grupo" ? 1 : -1).map(pr => (
-                  <ProductorCard key={pr.id} pr={pr}
-                    cuenta={cuentasProductor[pr.id] || { cargos: [], abonos: [], totalCargos: 0, totalAbonos: 0, saldo: 0 }}
-                    parcelasPr={parcelasT.filter(p => p.productorId === pr.id)}
-                    creditosPr={creditosT.filter(c => c.productorId != null && c.productorId === pr.id)}
-                    infoLinea={(cr) => ({ dispuesto: dispuestoLinea(cr), costo: costoFinLineaA(cr, hoyStr) })}
-                    puedeEditar={puedeEditar}
-                    onEditar={() => setForm({ tipo: "productor", item: pr })}
-                    onEliminar={() => eliminarProductor(pr)}
-                    onEditarDispersion={(m) => { const disp = dispersionesT.find(d => d.id === m.origenId); if (disp) setForm({ tipo: "dispersion", item: disp }); }}
-                    onEliminarDispersion={(m) => eliminarDispersion(m.origenId)}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }} />
 
           {/* ===== GASTOS GENERALES ===== */}
           {vista === "gastos" && veFinanzas && (
@@ -2717,6 +2538,10 @@ function AgroCicloApp() {
 export default function AgroCiclo() {
   return <ErrorBoundary><AgroCicloApp /></ErrorBoundary>;
 }
+
+
+
+
 
 
 
