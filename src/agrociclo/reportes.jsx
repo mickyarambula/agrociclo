@@ -2,8 +2,8 @@
 /* Reportes del ciclo y simulador de escenarios por cultivo. */
 import { useState } from "react";
 import { SlidersHorizontal } from "lucide-react";
-import { C, money, num, costoLabor } from "../base";
-import { fuente, estiloInput, Tarjeta, Etiqueta, Campo, BarraLista, Fila, Vacio } from "../ui";
+import { C, money, num, costoLabor } from "./base";
+import { fuente, estiloInput, Tarjeta, Etiqueta, Campo, BarraLista, Fila, Vacio } from "./ui";
 
 /* ---------- Simulador de escenarios — por cultivo, unidades reales ---------- */
 
