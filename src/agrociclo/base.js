@@ -56,6 +56,21 @@ export const costoFinCredito = (cr) => interesCredito(cr) + fegaCredito(cr) + co
 /** @param {Fila} cp  @param {string} [corte] */
 export const interesCompra = (cp, corte = hoyStr) =>
   cp.origen === "externo" ? (cp.monto * ((Number(cp.tasa) || 0) / 100) / 365) * diasEntre(cp.fecha, cp.fechaPago || corte) : 0;
+/* Sobreprecio de casa comercial: cobro ÚNICO y fijo desde el día uno (no es interés, no crece con
+   el tiempo) — es el diferencial contado→cosecha que ya viene metido en el precio del insumo. */
+/** @param {Fila} cp */
+export const sobreprecioCompra = (cp) =>
+  cp.origen === "externo" && cp.modo === "sobreprecio" ? cp.monto * (Number(cp.pct) || 0) / 100 : 0;
+/* Costo financiero de una compra externa: si ya llegó el número real (financiera/casa comercial
+   lo confirmó al marcarla pagada), ese manda y deja de moverse. Si no, se estima: sobreprecio fijo
+   (modo "sobreprecio") o interés que devenga por tasa (modo "tasa", o filas de antes de esta función
+   que no traen `modo` — para esas nada cambia). */
+/** @param {Fila} cp  @param {string} [corte] */
+export const costoFinCompra = (cp, corte = hoyStr) => {
+  if (cp.origen !== "externo") return 0;
+  if (cp.costoFinReal != null) return Number(cp.costoFinReal);
+  return cp.modo === "sobreprecio" ? sobreprecioCompra(cp) : interesCompra(cp, corte);
+};
 /** @param {Fila} g  @param {string} [corte] */
 export const interesGasto = (g, corte = hoyStr) =>
   g.origen === "externo" ? (g.monto * ((Number(g.tasa) || 0) / 100) / 365) * diasEntre(g.fecha, g.fechaPago || corte) : 0;

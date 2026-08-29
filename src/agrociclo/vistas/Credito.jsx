@@ -1,7 +1,8 @@
 // @ts-nocheck
-import { C, money, num, hoyStr, diasEntre, diasHasta, tasaCredito, plazoDias, fegaCredito, comisionCredito, interesCompra, rentaMonto, rentaInteres } from "../base";
+import { C, money, num, hoyStr, diasEntre, diasHasta, tasaCredito, plazoDias, fegaCredito, comisionCredito, costoFinCompra, rentaMonto, rentaInteres } from "../base";
 import { fuente, Tarjeta, Boton, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormCredito } from "../forms/dinero";
+import { BotonMarcarPagada } from "../forms/comunes";
 import { CheckCircle2 } from "lucide-react";
 
 export function VistaCredito({ vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva, creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta }) {
@@ -79,13 +80,17 @@ export function VistaCredito({ vista, veFinanzas, puedeEditar, form, setForm, ce
                       <div>
                         <div style={{ fontWeight: 600, fontSize: 14 }}>{cp.insumoNombre} · {cp.proveedor}</div>
                         <div style={{ fontSize: 12, color: C.gris }}>
-                          {money(cp.monto)} al {num(cp.tasa, 1)}% desde {cp.fecha}
-                          {cp.fechaPago ? ` · pagada el ${cp.fechaPago}` : ` · ${diasEntre(cp.fecha, hoyStr)} días corriendo`}
+                          {cp.modo === "sobreprecio"
+                            ? <>{money(cp.monto)} · {num(cp.pct, 1)}% de más a cosecha, desde {cp.fecha}</>
+                            : <>{money(cp.monto)} al {num(cp.tasa, 1)}% desde {cp.fecha}</>}
+                          {cp.fechaPago ? ` · pagada el ${cp.fechaPago}` : (cp.modo === "sobreprecio" ? "" : ` · ${diasEntre(cp.fecha, hoyStr)} días corriendo`)}
                         </div>
                       </div>
                       <div className="flex items-center gap-2">
-                        <div style={{ fontWeight: 700, fontSize: 14, color: cp.fechaPago ? C.gris : C.barrial }}>+{money(interesCompra(cp))}</div>
-                        {puedeEditar && !cp.fechaPago && <Boton chico secundario onClick={() => marcarPagada(cp)}><CheckCircle2 size={13} /> Marcar pagada</Boton>}
+                        <div style={{ fontWeight: 700, fontSize: 14, color: cp.fechaPago ? C.gris : C.barrial }}>
+                          +{money(costoFinCompra(cp))}{cp.costoFinReal != null ? " (real)" : ""}
+                        </div>
+                        {puedeEditar && !cp.fechaPago && <BotonMarcarPagada compra={cp} marcarPagada={marcarPagada} />}
                       </div>
                     </div>
                   ))}

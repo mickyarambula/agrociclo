@@ -3,7 +3,7 @@ import { C, ORDEN_ESTADO } from "../base";
 import { Seccion, Vacio } from "../ui";
 import { FormSolicitud, SolicitudCard } from "../forms/almacen";
 
-export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud }) {
+export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }) {
   return (
     <>
           {vista === "solicitudes" && (
@@ -39,6 +39,8 @@ export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, in
                     onEliminarCot={(cotId) => eliminarCotizacion(sol, cotId)}
                     onAutorizar={(datos) => autorizarSolicitud(sol, datos)}
                     onRecibir={() => recibirSolicitud(sol)}
+                    finModoCiclo={finModoCiclo}
+                    finValorCiclo={finValorCiclo}
                   />
                 ))}
               </div>

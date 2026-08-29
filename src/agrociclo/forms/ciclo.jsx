@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { C, money } from "../base";
 import { fuente, estiloInput, Boton, Campo } from "../ui";
+import { CampoSobreprecio } from "./comunes";
 import { supabase } from "../lib/supabase";
 import { runCanarios } from "../data/canarios";
 
@@ -58,6 +59,8 @@ export function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
   const [presupuesto, setPresupuesto] = useState(
     inicial?.presupuesto != null && Number(inicial.presupuesto) > 0 ? String(inicial.presupuesto) : "",
   );
+  const [finModo, setFinModo] = useState(inicial?.finModo || "");
+  const [finValor, setFinValor] = useState(inicial?.finValor != null ? String(inicial.finValor) : "");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   return (
@@ -81,6 +84,25 @@ export function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
           onChange={(e) => setPresupuesto(e.target.value)}
         />
       </Campo>
+      <Campo label="¿Cómo te financias este ciclo? (opcional)">
+        <select style={estiloInput} value={finModo} onChange={(e) => setFinModo(e.target.value)}>
+          <option value="">— Sin contestar —</option>
+          <option value="propio">Con mi dinero</option>
+          <option value="sobreprecio">Casa comercial (me cobran más si pago a cosecha)</option>
+          <option value="tasa">Financiera / SOFOM / banco (me dieron una tasa)</option>
+        </select>
+      </Campo>
+      {finModo === "sobreprecio" && <CampoSobreprecio pct={finValor} onPct={setFinValor} />}
+      {finModo === "tasa" && (
+        <Campo label="Tasa anual que te dieron (%)">
+          <input type="number" style={estiloInput} placeholder="Ej. 22" value={finValor} onChange={(e) => setFinValor(e.target.value)} />
+        </Campo>
+      )}
+      {finModo && (
+        <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+          Es solo un estimado para preseleccionar tus compras nuevas — cada compra la puedes cambiar en un toque, y tu financiera o casa comercial te dará el número final.
+        </p>
+      )}
       {error && <p style={{ fontSize: 12, color: C.rojo, fontWeight: 600, margin: 0 }}>{error}</p>}
       <Boton
         deshabilitado={busy || !clave.trim() || !nombre.trim()}
@@ -93,6 +115,8 @@ export function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
             inicio,
             fin,
             presupuesto: presupuesto === "" ? 0 : Math.max(0, Number(presupuesto) || 0),
+            finModo: finModo || null,
+            finValor: finModo && finModo !== "propio" ? (Number(finValor) || 0) : null,
           })
             .catch((e) => {
               setError(e instanceof Error ? e.message : String(e));
@@ -153,7 +177,7 @@ export function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado })
               <FormCiclo
                 inicial={c}
                 etiquetaSubmit="Guardar ciclo"
-                onListo={async ({ clave, nombre, inicio, fin, presupuesto }) => {
+                onListo={async ({ clave, nombre, inicio, fin, presupuesto, finModo, finValor }) => {
                   const res = await supabase.rpc("fn_editar_ciclo", {
                     p_id: c.id,
                     p_clave: clave,
@@ -161,6 +185,8 @@ export function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado })
                     p_fecha_inicio: inicio || null,
                     p_fecha_fin: fin || null,
                     p_presupuesto: presupuesto ?? 0,
+                    p_fin_modo: finModo,
+                    p_fin_valor: finValor,
                   });
                   if (res.error) throw new Error(res.error.message);
                   setEditId(null);
@@ -179,13 +205,15 @@ export function CiclosAdmin({ ciclos, actualId, onUsar, onCambio, onEliminado })
           </div>
           <FormCiclo
             etiquetaSubmit="Abrir ciclo"
-            onListo={async ({ clave, nombre, inicio, fin, presupuesto }) => {
+            onListo={async ({ clave, nombre, inicio, fin, presupuesto, finModo, finValor }) => {
               const res = await supabase.rpc("fn_abrir_ciclo", {
                 p_clave: clave,
                 p_nombre: nombre,
                 p_fecha_inicio: inicio || null,
                 p_fecha_fin: fin || null,
                 p_presupuesto: presupuesto ?? 0,
+                p_fin_modo: finModo,
+                p_fin_valor: finValor,
               });
               if (res.error) throw new Error(res.error.message);
               const id = res.data && typeof res.data === "object" ? res.data.id : null;

@@ -322,7 +322,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("compra", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: ensureOrg(p) ?? ORG_ID,
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       insumo_id: insumoId,
       insumo_nombre: insumoNombre,
@@ -334,8 +334,11 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       fecha: p.p_fecha,
       origen,
       disposicion_id: dispId,
+      modo: p.p_modo ?? "tasa",
       tasa_externa: p.p_tasa_externa ?? 0,
+      pct_externo: p.p_pct_externo ?? 0,
       fecha_pago_externo: p.p_fecha_pago_externo ?? null,
+      costo_fin_real: getById("compra", id)?.costo_fin_real ?? null,
       solicitud_id: p.p_solicitud_id ?? null,
       proveedor_id: proveedorId,
       eliminado_en: null,
@@ -641,7 +644,9 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       productor_id: prev?.productor_id ?? null,
       origen: prev?.origen ?? null,
       linea_credito_id: prev?.linea_credito_id ?? null,
+      modo: prev?.modo ?? "tasa",
       tasa_externa: prev?.tasa_externa ?? 0,
+      pct_externo: prev?.pct_externo ?? 0,
       compra_id: prev?.compra_id ?? null,
       fecha_recibido: prev?.fecha_recibido ?? null,
       eliminado_en: null,
@@ -686,7 +691,9 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       cotizacion_elegida_id: p.p_cotizacion_id,
       origen: p.p_origen,
       linea_credito_id: p.p_linea_id ?? null,
+      modo: p.p_modo ?? "tasa",
       tasa_externa: p.p_tasa ?? 0,
+      pct_externo: p.p_pct ?? 0,
       productor_id: p.p_productor_id ?? null,
       autorizado_por_texto: p.p_autorizado_por_texto ?? "Dueño",
       fecha_autorizacion: p.p_fecha ?? hoyMochis(),
@@ -724,7 +731,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       : null;
     insertRow("compra", {
       id: compraId,
-      organizacion_id: ORG_ID,
+      organizacion_id: ensureOrg(p) ?? ORG_ID,
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       insumo_id: insumoId,
       insumo_nombre: sol.insumo_nombre,
@@ -736,8 +743,11 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       fecha: p.p_fecha ?? hoyMochis(),
       origen,
       disposicion_id: dispId,
+      modo: sol.modo ?? "tasa",
       tasa_externa: sol.tasa_externa ?? 0,
+      pct_externo: sol.pct_externo ?? 0,
       fecha_pago_externo: null,
+      costo_fin_real: null,
       solicitud_id: id,
       proveedor_id: proveedorId,
       eliminado_en: null,
@@ -911,6 +921,8 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       fecha_inicio: p.p_fecha_inicio ? String(p.p_fecha_inicio) : null,
       fecha_fin: p.p_fecha_fin ? String(p.p_fecha_fin) : null,
       presupuesto: Math.max(0, Number(p.p_presupuesto) || 0),
+      fin_modo: p.p_fin_modo || null,
+      fin_valor: p.p_fin_valor != null && p.p_fin_valor !== "" ? Number(p.p_fin_valor) : null,
     });
     return ok({ id, clave, nombre });
   },
@@ -933,6 +945,10 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         p.p_presupuesto != null && p.p_presupuesto !== ""
           ? Math.max(0, Number(p.p_presupuesto) || 0)
           : Math.max(0, Number(c.presupuesto) || 0),
+      fin_modo: p.p_fin_modo !== undefined ? (p.p_fin_modo || null) : (c.fin_modo ?? null),
+      fin_valor: p.p_fin_valor !== undefined
+        ? (p.p_fin_valor == null || p.p_fin_valor === "" ? null : Number(p.p_fin_valor))
+        : (c.fin_valor ?? null),
     });
     return ok({ id, clave, nombre });
   },

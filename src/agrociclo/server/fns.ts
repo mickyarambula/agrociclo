@@ -43,7 +43,7 @@ export type AgroProfile = {
   veFinanzas: boolean;
   puedeEditar: boolean;
   cicloId: string;
-  ciclos: { id: string; clave: string; nombre: string; fechaInicio: string | null; fechaFin: string | null; presupuesto: number }[];
+  ciclos: { id: string; clave: string; nombre: string; fechaInicio: string | null; fechaFin: string | null; presupuesto: number; finModo: string | null; finValor: number | null }[];
   dueñoEtiqueta: string | null;
   encargadoVePrecios: boolean;
   esPlataforma: boolean;
@@ -120,6 +120,10 @@ function ciclosOf(ledger: Ledger) {
     fechaInicio: c.fecha_inicio ? String(c.fecha_inicio) : null,
     fechaFin: c.fecha_fin ? String(c.fecha_fin) : null,
     presupuesto: Math.max(0, Number(c.presupuesto) || 0),
+    // "¿Cómo te financias este ciclo?" — solo preselecciona nuevas compras, nunca la reemplaza.
+    // null = sin contestar ("—"); "propio" = contestado, costo cero a propósito.
+    finModo: c.fin_modo ? String(c.fin_modo) : null,
+    finValor: c.fin_valor != null ? Number(c.fin_valor) : null,
   }));
 }
 

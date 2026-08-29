@@ -18,7 +18,7 @@ import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   C, money, num, hoyStr, diasEntre, diasHasta,
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
-  interesCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
+  costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
   ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE, claveTipo,
 } from "./base";
@@ -69,7 +69,7 @@ function AgroCicloApp() {
   const CICLO_ID = profile.cicloId;
   const ciclos = profile.ciclos.length
     ? profile.ciclos
-    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0 }];
+    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0, finModo: null, finValor: null }];
   const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2627";
   const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
@@ -492,7 +492,7 @@ function AgroCicloApp() {
      tasa_externa/fecha_pago_externo (su propio interés). `productorId` queda en uuid (productores ya
      migrado). `id`/`_uuid` = uuid de la compra. Mapeo defensivo de embeds (objeto o arreglo). */
   const comprasQ = useOrgRead(["compras", CICLO_ID], "compra", {
-    columns: "id, insumo_id, insumo_nombre, productor_id, cantidad, unidad, costo_unitario, monto, fecha, origen, disposicion_id, tasa_externa, fecha_pago_externo, solicitud_id, insumo ( nombre ), proveedor ( nombre ), disposicion ( linea_credito_id, eliminado_en )",
+    columns: "id, insumo_id, insumo_nombre, productor_id, cantidad, unidad, costo_unitario, monto, fecha, origen, disposicion_id, modo, tasa_externa, pct_externo, fecha_pago_externo, costo_fin_real, solicitud_id, insumo ( nombre ), proveedor ( nombre ), disposicion ( linea_credito_id, eliminado_en )",
     build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha"),
   });
   const comprasT = useMemo(
@@ -514,8 +514,11 @@ function AgroCicloApp() {
         origen: r.origen,
         creditoId: r.origen === "linea" ? (lineaUuid ?? "") : null,
         lineaUuid,
+        modo: r.origen === "externo" ? (r.modo || "tasa") : null,
         tasa: r.origen === "externo" ? (Number(r.tasa_externa) || 0) : 0,
+        pct: r.origen === "externo" ? (Number(r.pct_externo) || 0) : 0,
         fechaPago: r.origen === "externo" ? (r.fecha_pago_externo ?? null) : null,
+        costoFinReal: r.origen === "externo" && r.costo_fin_real != null ? Number(r.costo_fin_real) : null,
         disposicionId: r.disposicion_id ?? null,   // B2b
         proveedor: prov?.nombre ?? "",
         productorId: r.productor_id ?? null,   // uuid
@@ -729,7 +732,7 @@ function AgroCicloApp() {
   const costoFinCreditos = corteVista === hoyStr
     ? cfinLineasVista
     : creditosT.reduce((s, cr) => s + costoFinLineaA(cr, corteVista), 0);
-  const interesComprasTot = comprasT.reduce((s, c) => s + interesCompra(c, corteVista), 0);
+  const interesComprasTot = comprasT.reduce((s, c) => s + costoFinCompra(c, corteVista), 0);
   const interesGastosTot = gastosT.reduce((s, g) => s + interesGasto(g, corteVista), 0);
   const rentaIntTotal = parcelasT.reduce((s, p) => s + rentaInteres(p, corteVista), 0);
   const costoFinGeneral = costoFinCreditos + interesComprasTot + interesGastosTot;
@@ -786,6 +789,10 @@ function AgroCicloApp() {
 
   const costoDirectoTotal = Object.values(costosParcela).reduce((s, c) => s + c.directo, 0);
   const inversionTotal = costoDirectoTotal + gastosIndTotal + costoFinTotal;
+  // Cuánto de "Costó" es todavía estimado (nuestra tasa/sobreprecio calculados por nosotros)
+  // vs ya confirmado (la financiera o casa comercial ya dijo el número real).
+  const costoFinRealTotal = comprasT.filter(c => c.costoFinReal != null).reduce((s, c) => s + c.costoFinReal, 0);
+  const costoFinEstimadoTotal = Math.max(0, costoFinTotal - costoFinRealTotal);
   const ingresoTotal = Object.values(costosParcela).reduce((s, c) => s + c.ingreso, 0);
   const ingresoRealTotal = Object.values(costosParcela).reduce((s, c) => s + c.ingresoReal, 0);
   const deudaViva = creditosT.reduce((s, c) => s + dispuestoNoPagadoLinea(c), 0)
@@ -811,8 +818,10 @@ function AgroCicloApp() {
     });
     if (inversionTotal > 0 && costoFinTotal / inversionTotal > 0.12)
       a.push({ nivel: "ambar", ambito: "fin", texto: `El costo financiero ya es ${num((costoFinTotal / inversionTotal) * 100, 1)}% de tu inversión total.` });
-    comprasT.filter(c => c.origen === "externo" && !c.fechaPago && diasEntre(c.fecha, corteVista) > 90)
-      .forEach(c => a.push({ nivel: "ambar", ambito: "fin", texto: `La compra a crédito de proveedor de ${c.insumoNombre} lleva ${diasEntre(c.fecha, corteVista)} días al ${num(c.tasa, 1)}% (${money(interesCompra(c, corteVista))} acumulado).` }));
+    // "Lleva N días" solo tiene sentido para lo que devenga por tasa; el sobreprecio de casa
+    // comercial es un cobro fijo desde el día uno, no crece con el tiempo.
+    comprasT.filter(c => c.origen === "externo" && c.modo !== "sobreprecio" && !c.fechaPago && diasEntre(c.fecha, corteVista) > 90)
+      .forEach(c => a.push({ nivel: "ambar", ambito: "fin", texto: `La compra a crédito de proveedor de ${c.insumoNombre} lleva ${diasEntre(c.fecha, corteVista)} días al ${num(c.tasa, 1)}% (${money(costoFinCompra(c, corteVista))} acumulado).` }));
     insumosAlmacen.filter(i => i.stock <= 2).forEach(i => a.push({ nivel: "ambar", ambito: "op", texto: `Stock bajo de ${i.nombre}: quedan ${num(i.stock, 1)} ${i.unidad}.` }));
     if (rayaPendiente > 0) a.push({ nivel: "info", ambito: "op", texto: `Raya pendiente: ${money(rayaPendiente)} para el próximo día de pago.` });
     const sinAplicar = prestamosT.reduce((s, pp) => s + Math.max(0, pp.monto - (pp.aplicaciones || []).reduce((x, ap) => x + ap.monto, 0)), 0);
@@ -1190,7 +1199,9 @@ function AgroCicloApp() {
         p_fecha: f.fecha,
         p_origen: origen,
         p_linea_id: lineaUuid,
+        p_modo: origen === "externo" ? (f.modo || "tasa") : "tasa",
         p_tasa_externa: origen === "externo" ? (Number(f.tasa) || 0) : 0,
+        p_pct_externo: origen === "externo" ? (Number(f.pct) || 0) : 0,
         p_fecha_pago_externo: origen === "externo" ? (original?.fechaPago || null) : null,
         p_solicitud_id: null,
         p_categoria: esNuevo ? (f.categoria || "Otro") : null,
@@ -1215,14 +1226,18 @@ function AgroCicloApp() {
 
   const marcarPagadaMut = useOrgWrite({
     op: "tabla:compra",
-    mutationFn: async (c) => {
-      const { error } = await supabase.from("compra").update({ fecha_pago_externo: hoyStr }).eq("id", c._uuid).eq("organizacion_id", ORG_ID);
+    mutationFn: async ({ c, montoReal }) => {
+      const patch = { fecha_pago_externo: hoyStr };
+      if (montoReal != null) patch.costo_fin_real = Number(montoReal) || 0;
+      const { error } = await supabase.from("compra").update(patch).eq("id", c._uuid).eq("organizacion_id", ORG_ID);
       if (error) throw new Error(error.message);
     },
     invalidate: [["compras", CICLO_ID]],
     successMsg: "Compra marcada como pagada",
   });
-  const marcarPagada = (c) => marcarPagadaMut.mutate(c);
+  // montoReal opcional: lo que la financiera/casa comercial ya confirmó. Si no llega,
+  // se queda con el estimado (congelado a hoy, como antes).
+  const marcarPagada = (c, montoReal) => marcarPagadaMut.mutate({ c, montoReal });
 
 
   /* --- NÓMINA --- */
@@ -1749,7 +1764,9 @@ function AgroCicloApp() {
         p_cotizacion_id: datos.cotizacionElegidaId,
         p_origen: origen,
         p_linea_id: origen === "linea" ? (datos.creditoId || null) : null,
+        p_modo: origen === "externo" ? (datos.modo || "tasa") : "tasa",
         p_tasa: origen === "externo" ? (Number(datos.tasa) || 0) : 0,
+        p_pct: origen === "externo" ? (Number(datos.pct) || 0) : 0,
         p_productor_id: resolverProductorUuid(datos.productorId),
         p_autorizado_por_texto: rol,
         p_fecha: hoyStr,
@@ -1921,6 +1938,9 @@ function AgroCicloApp() {
   };
   const cicloActual = ciclos.find((c) => c.id === CICLO_ID);
   const presupuestoCiclo = Number(cicloActual?.presupuesto) || 0;
+  // "—" (nunca contestada) es distinta de "propio" (contestada, cuesta cero a propósito).
+  const finModoCiclo = cicloActual?.finModo || null;
+  const finValorCiclo = cicloActual?.finValor ?? null;
 
   const accionRapida = (vistaDestino, tipoForm) => {
     setVista(vistaDestino);
@@ -1970,6 +1990,13 @@ function AgroCicloApp() {
       opcional: true,
       cta: rol === "Dueño" ? { label: "Fijar en Ajustes", onClick: () => { cerrar(); setVista("ajustes"); } } : null,
       nota: "Lo fija el Dueño en Ajustes → Ciclos.",
+    },
+    {
+      titulo: "¿Cómo te financias este ciclo?",
+      done: !!finModoCiclo,
+      opcional: true,
+      cta: rol === "Dueño" ? { label: "Contestar en Ajustes", onClick: () => { cerrar(); setVista("ajustes"); } } : null,
+      nota: "Es solo un estimado para tus compras nuevas — cada una la puedes cambiar en un toque.",
     },
     {
       titulo: "Captura lo primero que pase en el lote",
@@ -2127,7 +2154,7 @@ function AgroCicloApp() {
           <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
 
           {/* ===== PANEL ===== */}
-          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
+          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
 
           {/* ===== PARCELAS ===== */}
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />
@@ -2136,16 +2163,16 @@ function AgroCicloApp() {
           <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }} />
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
-          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }} />
+          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
           <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya }} />
 
           {/* ===== COSECHA ===== */}
-          <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costosParcela, parcelas, eliminarBoleta }} />
+          <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }} />
 
           {/* ===== SOLICITUDES DE COMPRA (pipeline) ===== */}
-          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud }} />
+          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
           <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }} />

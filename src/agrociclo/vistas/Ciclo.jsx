@@ -3,7 +3,7 @@ import { C, money, num, hoyStr } from "../base";
 import { fuente, Tarjeta, Etiqueta, Boton, estiloInput } from "../ui";
 import { Sprout, Plus, ChevronRight, Bell, CalendarClock } from "lucide-react";
 
-export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }) {
+export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }) {
   return (
     <>
           {vista === "panel" && (
@@ -118,12 +118,13 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                         {[
                           { l: "Vendido", v: money(ingresoRealTotal) },
-                          { l: "Costó", v: money(inversionTotal) },
+                          { l: "Costó", v: money(inversionTotal), extra: costoFinEstimadoTotal > 0 ? `incluye ${money(costoFinEstimadoTotal)} de costo financiero estimado` : null },
                           { l: "Quedó", v: money(ingresoRealTotal - inversionTotal), c: ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo },
                         ].map((k) => (
                           <div key={k.l}>
                             <Etiqueta>{k.l}</Etiqueta>
                             <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 20, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
+                            {k.extra && <div style={{ fontSize: 11, color: C.barrial, marginTop: 1 }}>{k.extra}</div>}
                           </div>
                         ))}
                       </div>

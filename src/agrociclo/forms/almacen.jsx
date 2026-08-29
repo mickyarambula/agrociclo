@@ -71,7 +71,10 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
   );
 }
 
-export function FormCompra({ inicial, insumos, productores, creditos, onGuardar }) {
+export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo }) {
+  // Sin `inicial`: la respuesta del ciclo ("¿cómo te financias?") solo PRESELECCIONA —
+  // se cambia en un toque si esta compra en particular fue distinta.
+  const origenDefault = !inicial && finModoCiclo && finModoCiclo !== "propio" ? "externo" : (inicial?.origen || "propio");
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
     insumoId: inicial?.insumoId || "",
@@ -81,9 +84,11 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar 
     cantidad: inicial?.cantidad ?? "",
     costoUnitario: inicial?.costoUnitario ?? "",
     proveedor: inicial?.proveedor || "",
-    origen: inicial?.origen || "propio",
+    origen: origenDefault,
     creditoId: inicial?.creditoId || "",
-    tasa: inicial?.tasa ?? "",
+    modo: inicial?.modo || (!inicial && finModoCiclo === "sobreprecio" ? "sobreprecio" : "tasa"),
+    tasa: inicial?.tasa ?? (!inicial && finModoCiclo === "tasa" ? String(finValorCiclo ?? "") : ""),
+    pct: inicial?.pct ?? (!inicial && finModoCiclo === "sobreprecio" ? String(finValorCiclo ?? "") : ""),
     productorId: inicial?.productorId || "",
   });
   const esNuevo = f.insumoId === "nuevo";
@@ -111,7 +116,8 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar 
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
-        creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22" />
+        creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22"
+        permiteSobreprecio modo={f.modo} pct={f.pct} onModo={set("modo")} onPct={(v) => setF(prev => ({ ...prev, pct: v }))} />
       <div className="flex items-end gap-3 md:col-span-3 flex-wrap">
         {monto > 0 && (
           <div style={{ fontSize: 13, color: C.bosque, paddingBottom: 8 }}>
@@ -166,10 +172,10 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar }) {
 }
 
 /* ---------- Tarjeta de solicitud con pipeline (cotizar / autorizar / recibir) ---------- */
-export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, veFinanzas, vePrecios, puedeEditar, onEditar, onEliminar, onCotizar, onEliminarCot, onAutorizar, onRecibir }) {
+export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, veFinanzas, vePrecios, puedeEditar, onEditar, onEliminar, onCotizar, onEliminarCot, onAutorizar, onRecibir, finModoCiclo, finValorCiclo }) {
   const [modo, setModo] = useState(null); // null | "cotizar" | "autorizar"
   const [cot, setCot] = useState({ proveedor: "", costoUnitario: "", nota: "" });
-  const [aut, setAut] = useState({ cotizacionElegidaId: "", origen: "propio", creditoId: "", tasa: "", productorId: "" });
+  const [aut, setAut] = useState({ cotizacionElegidaId: "", origen: "propio", creditoId: "", modo: "tasa", tasa: "", pct: "", productorId: "" });
 
   const est = ESTADOS_SOLICITUD[sol.estado] || ESTADOS_SOLICITUD.solicitado;
   const parcela = sol.parcelaId ? parcelas.find(p => p.id === sol.parcelaId) : null;
@@ -190,7 +196,15 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
     setModo(null);
   };
   const abrirAut = () => {
-    setAut({ cotizacionElegidaId: mejor ? String(mejor.id) : "", origen: "propio", creditoId: "", tasa: "", productorId: "" });
+    // La respuesta del ciclo solo preselecciona; se cambia en un toque si esta compra fue distinta.
+    const origen = finModoCiclo && finModoCiclo !== "propio" ? "externo" : "propio";
+    setAut({
+      cotizacionElegidaId: mejor ? String(mejor.id) : "", origen, creditoId: "",
+      modo: finModoCiclo === "sobreprecio" ? "sobreprecio" : "tasa",
+      tasa: finModoCiclo === "tasa" ? String(finValorCiclo ?? "") : "",
+      pct: finModoCiclo === "sobreprecio" ? String(finValorCiclo ?? "") : "",
+      productorId: "",
+    });
     setModo("autorizar");
   };
 
@@ -279,7 +293,10 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
               onOrigen={(e) => setAut({ ...aut, origen: e.target.value })}
               onCredito={(e) => setAut({ ...aut, creditoId: e.target.value })}
               onTasa={(e) => setAut({ ...aut, tasa: e.target.value })}
-              creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22" />
+              creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22"
+              permiteSobreprecio modo={aut.modo} pct={aut.pct}
+              onModo={(e) => setAut({ ...aut, modo: e.target.value })}
+              onPct={(v) => setAut({ ...aut, pct: v })} />
             <CampoProductor value={aut.productorId} onChange={(e) => setAut({ ...aut, productorId: e.target.value })} productores={productores} />
           </div>
           <div className="flex items-end gap-2 mt-2">

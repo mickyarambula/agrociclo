@@ -3,7 +3,7 @@ import { C, money, num, calcBoleta, moneyU } from "../base";
 import { fuente, Tarjeta, Etiqueta, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormBoleta } from "../forms/venta";
 
-export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costosParcela, parcelas, eliminarBoleta }) {
+export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }) {
   return (
     <>
           {vista === "cosecha" && (
@@ -22,13 +22,14 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
                     {[
                       { l: "Vendido", v: money(ingresoRealTotal), s: `${num(Object.values(costosParcela).reduce((s, c) => s + c.tonReal, 0), 1)} ton entregadas` },
-                      { l: "Costó", v: money(inversionTotal), s: "labores + insumos + raya + renta + gastos + financiero" },
+                      { l: "Costó", v: money(inversionTotal), s: "labores + insumos + raya + renta + gastos + financiero", extra: costoFinEstimadoTotal > 0 ? `incluye ${money(costoFinEstimadoTotal)} de costo financiero estimado` : null },
                       { l: "Quedó", v: money(ingresoRealTotal - inversionTotal), c: ingresoRealTotal - inversionTotal >= 0 ? C.bosque : C.rojo, s: ingresoRealTotal - inversionTotal >= 0 ? "hasta hoy vas arriba" : "aún no cubres el costo" },
                     ].map((k) => (
                       <div key={k.l}>
                         <Etiqueta>{k.l}</Etiqueta>
                         <div style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, marginTop: 2, color: k.c || C.tinta }}>{k.v}</div>
                         <div style={{ fontSize: 11, color: C.gris }}>{k.s}</div>
+                        {k.extra && <div style={{ fontSize: 11, color: C.barrial, marginTop: 1 }}>{k.extra}</div>}
                       </div>
                     ))}
                   </div>

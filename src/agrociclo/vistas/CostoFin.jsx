@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { C, money, num, hoyStr, diasEntre, tasaCredito, fegaCredito, comisionCredito, rentaMonto } from "../base";
+import { C, money, num, hoyStr, diasEntre, tasaCredito, fegaCredito, comisionCredito, costoFinCompra, rentaMonto } from "../base";
 import { fuente, estiloInput, Tarjeta, Etiqueta, Boton, Vacio } from "../ui";
 import { CheckCircle2, CalendarClock } from "lucide-react";
 
@@ -31,19 +31,33 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                 }).filter(L => L.ds.length > 0 || L.fega > 0 || L.com > 0);
 
                 const externos = [
-                  ...comprasT.filter(c => c.origen === "externo").map(c => ({ clave: "compra-ext-" + c.id, grupo: "Compra a proveedor", ref: c.insumoNombre || c.proveedor || "Insumo", fecha: c.fecha, fechaPago: c.fechaPago, monto: c.monto, tasa: Number(c.tasa) || 0 })),
-                  ...gastosT.filter(g => g.origen === "externo").map(g => ({ clave: "gasto-ext-" + g.id, grupo: "Gasto financiado", ref: g.desc || g.categoria || "Gasto", fecha: g.fecha, fechaPago: g.fechaPago, monto: g.monto, tasa: Number(g.tasa) || 0 })),
-                  ...parcelasT.filter(p => p.tenencia === "Rentada" && p.rentaOrigen === "externo").map(p => ({ clave: "renta-ext-" + p.id, grupo: "Renta financiada", ref: p.nombre, fecha: p.fechaRenta, fechaPago: p.fechaPagoRenta, monto: rentaMonto(p), tasa: Number(p.tasaRenta) || 0 })),
+                  // Compra "sobreprecio" (casa comercial) o ya marcada con su número real: cobro FIJO,
+                  // no crece con el corte — nada de interesDisp ahí, es costoFinCompra tal cual.
+                  ...comprasT.filter(c => c.origen === "externo").map(c => ({
+                    clave: "compra-ext-" + c.id,
+                    grupo: c.modo === "sobreprecio" ? "Compra · sobreprecio a cosecha" : "Compra a proveedor",
+                    ref: c.insumoNombre || c.proveedor || "Insumo", fecha: c.fecha, fechaPago: c.fechaPago, monto: c.monto,
+                    tasa: c.modo === "sobreprecio" ? Number(c.pct) || 0 : Number(c.tasa) || 0,
+                    esPct: c.modo === "sobreprecio",
+                    fijo: c.modo === "sobreprecio" || c.costoFinReal != null,
+                    montoFijo: costoFinCompra(c),
+                    esReal: c.costoFinReal != null,
+                  })),
+                  ...gastosT.filter(g => g.origen === "externo").map(g => ({ clave: "gasto-ext-" + g.id, grupo: "Gasto financiado", ref: g.desc || g.categoria || "Gasto", fecha: g.fecha, fechaPago: g.fechaPago, monto: g.monto, tasa: Number(g.tasa) || 0, fijo: false })),
+                  ...parcelasT.filter(p => p.tenencia === "Rentada" && p.rentaOrigen === "externo").map(p => ({ clave: "renta-ext-" + p.id, grupo: "Renta financiada", ref: p.nombre, fecha: p.fechaRenta, fechaPago: p.fechaPagoRenta, monto: rentaMonto(p), tasa: Number(p.tasaRenta) || 0, fijo: false })),
                 ].map(e => {
                   const corte = corteFila(e);
+                  const diasHoy = Math.max(0, diasEntre(e.fecha || hoyStr, e.fechaPago || hoyStr));
+                  const diasObj = Math.max(0, diasEntre(e.fecha || hoyStr, corte));
+                  if (e.fijo) return { ...e, intHoy: e.montoFijo, intObj: e.montoFijo, diasHoy, diasObj };
                   return {
                     ...e,
                     intHoy: interesDisp(e.monto, e.fecha || hoyStr, e.tasa, e.fechaPago || hoyStr),
                     intObj: interesDisp(e.monto, e.fecha || hoyStr, e.tasa, corte),
-                    diasHoy: Math.max(0, diasEntre(e.fecha || hoyStr, e.fechaPago || hoyStr)),
-                    diasObj: Math.max(0, diasEntre(e.fecha || hoyStr, corte)),
+                    diasHoy, diasObj,
                   };
                 }).sort((a, b) => (a.fecha || "").localeCompare(b.fecha || ""));
+                const hayTasaProveedor = externos.some(e => e.grupo === "Compra a proveedor" || e.grupo === "Gasto financiado");
 
                 const intLineasHoy = lineas.reduce((s, L) => s + L.intHoy, 0);
                 const intLineasObj = lineas.reduce((s, L) => s + L.intObj, 0);
@@ -211,8 +225,18 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
 
                     {externos.length > 0 && (
                       <Tarjeta style={{ padding: 0, overflow: "hidden", borderTop: `3px solid ${C.azul}` }}>
-                        <div style={{ padding: "12px 14px", background: C.papel, fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>
-                          Crédito de proveedor / financiamiento externo
+                        <div style={{ padding: "12px 14px", background: C.papel }}>
+                          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>
+                            Crédito de proveedor / financiamiento externo
+                          </div>
+                          <div style={{ fontSize: 12, color: C.barrial, marginTop: 4 }}>
+                            <strong>Estimado.</strong> Aquí calculamos nosotros con lo que capturaste — tu financiera o casa comercial te dará el número final. En cuanto lo tengas, ponlo con "Marcar pagada".
+                          </div>
+                          {hayTasaProveedor && (
+                            <div style={{ fontSize: 12, color: C.gris, marginTop: 2 }}>
+                              Ojo: contamos el interés desde que te entregan el insumo. Tu financiera puede cobrar desde antes (la fecha en que dispuso el dinero) — el número real puede salir más alto.
+                            </div>
+                          )}
                         </div>
                         <div style={{ overflowX: "auto" }}>
                           <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -228,10 +252,10 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                                   <td style={td}><span style={{ fontWeight: 600 }}>{e.grupo}</span> <span style={{ color: C.gris }}>· {e.ref}</span></td>
                                   <td style={td}>{e.fecha}</td>
                                   <td style={tdR}>{money(e.monto)}</td>
-                                  <td style={tdR}>{num(e.tasa, 1)}%</td>
+                                  <td style={tdR}>{num(e.tasa, 1)}%{e.esPct ? " a cosecha" : ""}</td>
                                   <td style={tdR}>{e.diasHoy}</td>
                                   <td style={tdR}>{money(e.intHoy)}</td>
-                                  <td style={td}>{celdaPago(e)}</td>
+                                  <td style={td}>{e.fijo ? (e.esReal ? <span style={{ fontSize: 11, color: C.hoja, fontWeight: 600 }}>real</span> : <span style={{ fontSize: 11, color: C.gris }}>fijo, no corre</span>) : celdaPago(e)}</td>
                                   <td style={tdR}>{e.diasObj}</td>
                                   <td style={{ ...tdR, fontWeight: 600 }}>{money(e.intObj)}</td>
                                 </tr>

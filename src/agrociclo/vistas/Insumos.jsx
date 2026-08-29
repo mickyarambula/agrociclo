@@ -1,17 +1,18 @@
 // @ts-nocheck
-import { C, money, num, interesCompra, moneyU } from "../base";
-import { fuente, Tarjeta, Boton, Acciones, Seccion, Vacio } from "../ui";
+import { C, money, num, costoFinCompra, moneyU } from "../base";
+import { fuente, Tarjeta, Acciones, Seccion, Vacio } from "../ui";
 import { FormCompra } from "../forms/almacen";
-import { AlertTriangle, Fuel, CheckCircle2 } from "lucide-react";
+import { BotonMarcarPagada } from "../forms/comunes";
+import { AlertTriangle, Fuel } from "lucide-react";
 
-export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }) {
+export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo }) {
   return (
     <>
           {vista === "inventario" && (
             <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
               abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
+              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
               {(stockQ.data ?? []).length === 0 ? (
                 <Vacio texto="Bodega vacía. La compra entra aquí; la labor lo baja. Empieza con “Registrar compra”." />
@@ -80,7 +81,9 @@ export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, ce
                         </div>
                         <div style={{ fontSize: 12, color: C.gris }}>
                           {cp.fecha} · {cp.origen === "externo"
-                            ? <span style={{ color: C.barrial, fontWeight: 600 }}>Crédito de proveedor {num(cp.tasa, 1)}% · interés {money(interesCompra(cp))} {cp.fechaPago ? `· pagada el ${cp.fechaPago}` : "· corriendo"}</span>
+                            ? (cp.modo === "sobreprecio"
+                                ? <span style={{ color: C.barrial, fontWeight: 600 }}>Casa comercial {num(cp.pct, 1)}% a cosecha · {cp.costoFinReal != null ? "cobrado" : "estimado"} {money(costoFinCompra(cp))} {cp.fechaPago ? `· pagada el ${cp.fechaPago}` : ""}</span>
+                                : <span style={{ color: C.barrial, fontWeight: 600 }}>Crédito de proveedor {num(cp.tasa, 1)}% · {cp.costoFinReal != null ? "cobrado" : "interés"} {money(costoFinCompra(cp))} {cp.fechaPago ? `· pagada el ${cp.fechaPago}` : "· corriendo"}</span>)
                             : cp.origen === "linea"
                               ? <span style={{ color: C.hoja, fontWeight: 600 }}>Sobre línea: {creditosT.find(c => c.id === cp.creditoId)?.fuente || "—"} · sin interés aparte</span>
                               : "Recurso propio"}
@@ -89,7 +92,7 @@ export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, ce
                       <div className="flex items-center gap-2">
                         <div style={{ fontWeight: 700, fontSize: 14 }}>{money(cp.monto)}</div>
                         {puedeEditar && cp.origen === "externo" && !cp.fechaPago && (
-                          <Boton chico secundario onClick={() => marcarPagada(cp)}><CheckCircle2 size={13} /> Marcar pagada</Boton>
+                          <BotonMarcarPagada compra={cp} marcarPagada={marcarPagada} />
                         )}
                         {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "compra", item: cp })} onEliminar={() => eliminarCompra(cp)} />}
                       </div>
