@@ -6,6 +6,7 @@ import {
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
   ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, ListTodo, Menu
 } from "lucide-react";
+import { toast } from "sonner";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
@@ -19,7 +20,7 @@ import {
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
   interesCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
-  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE,
+  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE, claveTipo,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -53,7 +54,7 @@ import {
 } from "./forms/almacen";
 import {
   TareasWhatsApp, FormLabor, FormLaborRapida, FormOrdenLabor,
-  PorHacerLabores, GuiaCiclo, FormParcela,
+  PorHacerLabores, GuiaCiclo, FormParcela, CatalogoLitrosHaLabor,
 } from "./forms/campo";
 import { CampoProductor, CampoFinanciamiento } from "./forms/comunes";
 
@@ -903,10 +904,14 @@ function AgroCicloApp() {
     invalidate: [["labores", CICLO_ID], ["inventario-stock", CICLO_ID], ["inventario-mov", CICLO_ID], ["insumos"]],
     successMsg: "Labor eliminada",
   });
-  const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, { onSuccess: cerrar });
+  const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, {
+    onSuccess: () => { cerrar(); if (!original) avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+  });
   /* "Guardar y repetir": guarda la labor y deja el form abierto para el
      siguiente lote (el form vacía parcela y cantidades por su cuenta). */
-  const guardarLaborRepetir = (f, listo) => guardarLaborMut.mutate({ f, original: null }, { onSuccess: listo });
+  const guardarLaborRepetir = (f, listo) => guardarLaborMut.mutate({ f, original: null }, {
+    onSuccess: () => { listo(); avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+  });
   const eliminarLabor = (l) => eliminarLaborMut.mutate(l);
 
   /* Orden flaca: la oficina anota "hacer X en parcela Y"; no baja bodega ni
@@ -938,12 +943,26 @@ function AgroCicloApp() {
      el reporte entre dos capturistas. */
   const tiposQ = useOrgRead(["tipos-trabajo"], "tipo_trabajo", { build: (q) => q.is("eliminado_en", null).order("nombre") });
   const tiposLabor = useMemo(() => {
-    const extra = (tiposQ.data ?? []).filter((t) => t.ambito === "labor").map((t) => String(t.nombre));
+    const claves = new Set(TIPOS_LABOR.map(claveTipo));
+    const extra = (tiposQ.data ?? [])
+      .filter((t) => t.ambito === "labor" && !claves.has(claveTipo(t.nombre)))
+      .map((t) => String(t.nombre));
     return [...TIPOS_LABOR.filter((t) => t !== "Otro"), ...extra, "Otro"];
   }, [tiposQ.data]);
   const actividadesRaya = useMemo(() => {
     const extra = (tiposQ.data ?? []).filter((t) => t.ambito === "raya").map((t) => String(t.nombre));
     return [...ACTIVIDADES_RAYA, ...extra];
+  }, [tiposQ.data]);
+  /* "—" (la clave no existe) = nunca capturado; 0 = confirmado sin diésel,
+     no volver a preguntar. Se llena solo con capturas reales o desde Ajustes. */
+  const litrosHaPorTipo = useMemo(() => {
+    const mapa = {};
+    for (const t of tiposQ.data ?? []) {
+      if (t.ambito === "labor" && t.litros_ha != null && t.litros_ha !== "") {
+        mapa[claveTipo(t.nombre)] = Number(t.litros_ha);
+      }
+    }
+    return mapa;
   }, [tiposQ.data]);
   const agregarTipoMut = useOrgWrite({
     op: "tabla:tipo_trabajo",
@@ -958,6 +977,70 @@ function AgroCicloApp() {
   });
   const agregarTipoLabor = (nombre) => agregarTipoMut.mutate({ ambito: "labor", nombre });
   const agregarActividadRaya = (nombre) => agregarTipoMut.mutate({ ambito: "raya", nombre });
+
+  /* Guarda el L/ha "de referencia" de un tipo de labor. Si el tipo es de
+     fábrica (TIPOS_LABOR) y aún no tiene fila propia en el catálogo, la crea
+     como fila de configuración (no altera la lista visible: tiposLabor la
+     deduplica por claveTipo). */
+  const guardarLitrosHaTipoMut = useOrgWrite({
+    op: "tabla:tipo_trabajo",
+    mutationFn: async ({ nombre, litrosHa }) => {
+      const clave = claveTipo(nombre);
+      const fila = (tiposQ.data ?? []).find((t) => t.ambito === "labor" && claveTipo(t.nombre) === clave);
+      if (fila) {
+        const { error } = await supabase.from("tipo_trabajo").update({ litros_ha: litrosHa }).eq("id", fila.id).eq("organizacion_id", ORG_ID);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("tipo_trabajo").insert({ organizacion_id: ORG_ID, ambito: "labor", nombre, litros_ha: litrosHa });
+        if (error) throw new Error(error.message);
+      }
+    },
+    invalidate: [["tipos-trabajo"]],
+    successMsg: "Guardado",
+  });
+  const guardarLitrosHaTipo = (nombre, litrosHa) => guardarLitrosHaTipoMut.mutate({ nombre, litrosHa });
+
+  /* Primera vez que un tipo trae diésel real y el catálogo no tiene L/ha: se
+     ofrece dejarlo de referencia. Si ya hay referencia, se ve si las últimas
+     3 capturas (incluida la de hoy) convergen entre sí y se apartan de lo
+     configurado — ahí se ofrece actualizar. Todo con lo que ya está en
+     memoria, sin esperar a que refresque la consulta. */
+  function decidirAvisoDiesel(tipo, parcelaId, litrosGuardados) {
+    const litros = Number(litrosGuardados) || 0;
+    if (litros <= 0) return null;
+    const parcela = parcelasT.find((p) => p.id === parcelaId);
+    if (!parcela || !parcela.ha) return null;
+    const real = litros / parcela.ha;
+    const clave = claveTipo(tipo);
+    const catalogo = litrosHaPorTipo[clave];
+    if (catalogo == null) return { tipo, valor: Math.round(real * 10) / 10 };
+    const previas = laboresHechas
+      .filter((l) => claveTipo(l.tipo) === clave && Number(l.litrosDiesel) > 0)
+      .slice(-2)
+      .map((l) => l.litrosDiesel / (parcelasT.find((p) => p.id === l.parcelaId)?.ha || 1));
+    const muestra = [...previas, real];
+    if (muestra.length < 3) return null;
+    const media = muestra.reduce((a, b) => a + b, 0) / muestra.length;
+    const spread = Math.max(...muestra) - Math.min(...muestra);
+    const convergen = spread <= media * 0.2;
+    const difiere = Math.abs(media - catalogo) > catalogo * 0.15;
+    if (convergen && difiere) return { tipo, valor: Math.round(media * 10) / 10, actualizar: true };
+    return null;
+  }
+  function avisarDiesel(aviso) {
+    if (!aviso) return;
+    if (aviso.actualizar) {
+      toast(`${aviso.tipo} está saliendo a ${aviso.valor} L/ha, distinto de lo que tienes de referencia.`, {
+        action: { label: "Actualizar", onClick: () => guardarLitrosHaTipo(aviso.tipo, aviso.valor) },
+        cancel: { label: "Dejarlo así", onClick: () => {} },
+      });
+    } else {
+      toast(`${aviso.tipo} salió a ${aviso.valor} L/ha. ¿Lo dejo de referencia en tu predio?`, {
+        action: { label: "Sí, dejarlo", onClick: () => guardarLitrosHaTipo(aviso.tipo, aviso.valor) },
+        cancel: { label: "No", onClick: () => {} },
+      });
+    }
+  }
 
   /* Catálogo de cultivos: los comunes del valle + los del predio. */
   const cultivosQ = useOrgRead(["cultivos"], "cultivo", { build: (q) => q.is("eliminado_en", null).order("nombre") });
@@ -1852,8 +1935,10 @@ function AgroCicloApp() {
         {rapida.orden ? `Cerrar orden: ${rapida.orden.tipo}` : "Labor de hoy"}
       </div>
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
-        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor}
-        onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, { onSuccess: () => setRapida(null) })}
+        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo}
+        onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, {
+          onSuccess: () => { setRapida(null); avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+        })}
         onGuardarRepetir={guardarLaborRepetir}
         onCancelar={() => setRapida(null)} />
     </Tarjeta>
@@ -2048,7 +2133,7 @@ function AgroCicloApp() {
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />
 
           {/* ===== LABORES ===== */}
-          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir }} />
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }} />
 
           {/* ===== INVENTARIO / COMPRAS ===== */}
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra }} />
@@ -2080,7 +2165,7 @@ function AgroCicloApp() {
           {/* ===== REPORTES + SIMULADOR ===== */}
           <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }} />
 
-          <VistaAjustes {...{ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo }} />
+          <VistaAjustes {...{ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }} />
         </main>
       </div>
 

@@ -167,3 +167,11 @@ export const CULTIVOS_VALLE = ["Maíz blanco", "Maíz amarillo", "Frijol", "Garb
    (tabla tipo_trabajo, ambito "raya"). */
 export const ACTIVIDADES_RAYA = ["Deshierbe", "Riego", "Aplicación", "Cosecha", "Acarreo"];
 export const TIPOS_LABOR = ["Preparación de tierra", "Siembra", "Fertilización", "Riego", "Aplicación fitosanitaria", "Labores culturales", "Cosecha", "Flete / maquila", "Otro"];
+
+/* Quita acentos y mayúsculas para comparar nombres de catálogo: "Deshierbe"
+   == "desierbe". Compartida por los catálogos de tipo de labor, cultivo y
+   rentero para que el anti-duplicados sea el mismo en todos. */
+/** @param {string} n */
+export function claveTipo(n) {
+  return String(n || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}

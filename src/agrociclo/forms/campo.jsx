@@ -3,8 +3,8 @@
    flaca), parcelas, guía de arranque y tareas por WhatsApp. */
 import { useState, useEffect, useRef } from "react";
 import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy } from "lucide-react";
-import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR } from "../base";
-import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm } from "../ui";
+import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, claveTipo } from "../base";
+import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm, Vacio } from "../ui";
 import { CampoProductor, CampoFinanciamiento } from "./comunes";
 
 /* ---------- Tareas del día por WhatsApp ---------- */
@@ -71,7 +71,7 @@ export function TareasWhatsApp({ labores, parcelas, insumos }) {
   );
 }
 
-export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true }) {
+export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true, litrosHaPorTipo = {} }) {
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
@@ -83,6 +83,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
     cantidad: inicial?.cantidad ?? "",
     litrosDiesel: inicial?.litrosDiesel ?? "",
   });
+  const [dieselManual, setDieselManual] = useState(!!inicial);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
   const diesel = insumos.find(i => i.categoria === "Diésel");
 
@@ -93,6 +94,17 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   const dispDiesel = diesel ? diesel.stock + (inicial?.litrosDiesel || 0) : 0;
   const faltaInsumo = insSel && cantNum > dispInsumo;
   const faltaDiesel = litrosNum > dispDiesel;
+
+  const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  const litrosHaTipo = f.tipo !== "__nuevo" ? litrosHaPorTipo[claveTipo(f.tipo)] : null;
+  const haySugerencia = !inicial && !!parcelaSel && litrosHaTipo != null && litrosHaTipo > 0;
+  const litrosSugeridos = haySugerencia ? Math.round(parcelaSel.ha * litrosHaTipo) : null;
+
+  useEffect(() => { setDieselManual(!!inicial); }, [f.parcelaId, f.tipo]);
+  useEffect(() => {
+    if (haySugerencia && !dieselManual) setF(prev => ({ ...prev, litrosDiesel: String(litrosSugeridos) }));
+    // eslint-disable-next-line
+  }, [haySugerencia, litrosSugeridos, dieselManual]);
   const costoPrev =
     (Number(f.costoOp) || 0) +
     litrosNum * (diesel?.costoUnitario || 0) +
@@ -117,9 +129,21 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       {veFinanzas && (
         <Campo label="Costo de operación / máquina (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
       )}
-      <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`}>
-        <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
-      </Campo>
+      {haySugerencia && !dieselManual ? (
+        <div className="md:col-span-1" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: C.tinta }}>
+            {num(parcelaSel.ha, 1)} ha × {num(litrosHaTipo, 1)} L/ha
+          </div>
+          <div className="flex items-center justify-between gap-2" style={{ marginTop: 2 }}>
+            <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, color: C.bosque }}>{num(litrosSugeridos, 0)} L</span>
+            <Boton chico secundario onClick={() => setDieselManual(true)}>Cambiar</Boton>
+          </div>
+        </div>
+      ) : (
+        <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`}>
+          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+        </Campo>
+      )}
       <Campo label="Insumo que baja de bodega">
         <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
           <option value="">— Ninguno —</option>
@@ -174,11 +198,6 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
 }
 
 /* ---------- Hoy: form corto y órdenes flacas ---------- */
-
-/* Quita acentos y mayúsculas para comparar: "Fertirriego" == "fertirriego". */
-function claveTipo(n) {
-  return String(n || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-}
 
 export function ChipsTipoLabor({ tipos, value, onChange, onAgregar }) {
   const [nuevoAbierto, setNuevoAbierto] = useState(false);
@@ -235,7 +254,7 @@ export function ChipsTipoLabor({ tipos, value, onChange, onAgregar }) {
    bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
    form completo de Labores). Si el plan pide más de lo que hay, no niega en
    seco: dice cuánto hay y lo pone en un toque. */
-export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, onCancelar }) {
+export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, onCancelar, litrosHaPorTipo = {} }) {
   const [f, set, setF] = useForm({
     parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
     tipo: orden?.tipo || "",
@@ -243,6 +262,7 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
     insumoId: orden?.planInsumoId || "",
     cantidad: orden?.planCantidad || "",
   });
+  const [dieselManual, setDieselManual] = useState(!!orden?.planLitrosDiesel);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
   const diesel = insumos.find(i => i.categoria === "Diésel");
   const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
@@ -253,14 +273,38 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
   const faltaInsumo = !!insSel && cantNum > dispInsumo;
   const faltaDiesel = litrosNum > dispDiesel;
   const listo = f.parcelaId && f.tipo && !faltaInsumo && !faltaDiesel;
+
+  const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  const litrosHaTipo = f.tipo ? litrosHaPorTipo[claveTipo(f.tipo)] : null;
+  const haySugerencia = !orden?.planLitrosDiesel && !!parcelaSel && litrosHaTipo != null && litrosHaTipo > 0;
+  const litrosSugeridos = haySugerencia ? Math.round(parcelaSel.ha * litrosHaTipo) : null;
+
+  useEffect(() => { setDieselManual(!!orden?.planLitrosDiesel); }, [f.parcelaId, f.tipo]);
+  useEffect(() => {
+    if (haySugerencia && !dieselManual) setF(prev => ({ ...prev, litrosDiesel: String(litrosSugeridos) }));
+    // eslint-disable-next-line
+  }, [haySugerencia, litrosSugeridos, dieselManual]);
+
   return (
     <div className="flex flex-col gap-3">
       <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
       <Campo label="Qué se hizo"><ChipsTipoLabor tipos={tipos} onAgregar={onAgregarTipo} value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
       <div className="grid md:grid-cols-3 gap-3">
-        <Campo label={`Diésel (L) · hay ${num(dispDiesel, 0)}`}>
-          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
-        </Campo>
+        {haySugerencia && !dieselManual ? (
+          <div style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
+            <div style={{ fontSize: 13, fontWeight: 600, color: C.tinta }}>
+              {num(parcelaSel.ha, 1)} ha × {num(litrosHaTipo, 1)} L/ha
+            </div>
+            <div className="flex items-center justify-between gap-2" style={{ marginTop: 2 }}>
+              <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, color: C.bosque }}>{num(litrosSugeridos, 0)} L</span>
+              <Boton chico secundario onClick={() => setDieselManual(true)}>Cambiar</Boton>
+            </div>
+          </div>
+        ) : (
+          <Campo label={`Diésel (L) · hay ${num(dispDiesel, 0)}`}>
+            <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
+          </Campo>
+        )}
         <Campo label="Insumo de bodega">
           <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
             <option value="">— Ninguno —</option>
@@ -344,6 +388,38 @@ export function FormOrdenLabor({ inicial, parcelas, insumos, tipos, onAgregarTip
         <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar orden"}</Boton>
         <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
       </div>
+    </div>
+  );
+}
+
+/* Ajustes: cuánto diésel por hectárea gasta normalmente cada tipo de labor.
+   "—" = nunca capturado o borrado; 0 = confirmado que no usa diésel (no
+   volver a preguntar). Se llena solo con las capturas reales; aquí solo se
+   revisa o se corrige. */
+export function CatalogoLitrosHaLabor({ tipos, litrosHaPorTipo, onGuardar }) {
+  const lista = (tipos || []).filter((t) => t !== "Otro");
+  return (
+    <div className="flex flex-col gap-2">
+      {lista.length === 0 && <Vacio texto="Agrega tipos de labor en Campo → Labores." />}
+      {lista.map((t) => {
+        const actual = litrosHaPorTipo[claveTipo(t)];
+        return (
+          <div key={t} className="flex items-center justify-between gap-3 py-2 border-t" style={{ borderColor: C.linea }}>
+            <div style={{ fontWeight: 600, fontSize: 14, minWidth: 0 }}>{t}</div>
+            <div className="flex items-center gap-2" style={{ flexShrink: 0 }}>
+              <input type="number" inputMode="decimal" defaultValue={actual ?? ""} placeholder="—"
+                style={{ ...estiloInput, width: 90, textAlign: "right" }}
+                onBlur={(e) => {
+                  const v = e.target.value.trim();
+                  const n = v === "" ? null : Number(v);
+                  if (n === actual || (n == null && actual == null)) return;
+                  onGuardar(t, n);
+                }} />
+              <span style={{ fontSize: 12, color: C.gris }}>L/ha</span>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }

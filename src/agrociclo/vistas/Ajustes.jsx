@@ -2,11 +2,12 @@
 import { C } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo } from "../ui";
 import { CatalogoInsumos } from "../forms/almacen";
+import { CatalogoLitrosHaLabor } from "../forms/campo";
 import { CiclosAdmin } from "../forms/ciclo";
 import { EquipoPanel, RolesPanel } from "../session";
 import { Copy } from "lucide-react";
 
-export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo }) {
+export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }) {
   return (
     <>
           {vista === "ajustes" && rol === "Dueño" && (
@@ -127,6 +128,14 @@ export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjuste
                   Nombres y unidades del predio. El stock nace cuando registras una compra. Aquí no hay existencias inventadas.
                 </p>
                 <CatalogoInsumos insumos={insumos} onGuardar={guardarInsumo} onEliminar={eliminarInsumo} />
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Diésel por tipo de labor</div>
+                <p style={{ margin: "6px 0 12px", fontSize: 13, color: C.gris }}>
+                  Cuántos litros por hectárea gasta normalmente cada labor en tu predio. Se llena solo con lo que capturas; aquí solo la revisas o la corriges.
+                </p>
+                <CatalogoLitrosHaLabor tipos={tiposLabor} litrosHaPorTipo={litrosHaPorTipo} onGuardar={guardarLitrosHaTipo} />
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>

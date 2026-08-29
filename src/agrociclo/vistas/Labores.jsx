@@ -3,14 +3,14 @@ import { C, money, num, costoLabor } from "../base";
 import { Tarjeta, Acciones, Seccion, Vacio } from "../ui";
 import { TareasWhatsApp, FormLabor } from "../forms/campo";
 
-export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir }) {
+export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }) {
   return (
     <>
           {vista === "labores" && (
             <Seccion titulo="Labores y aplicaciones" accion="Registrar labor" puedeEditar={puedeEditar}
               abierto={form?.tipo === "labor"} onAbrir={() => setForm({ tipo: "labor", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} veFinanzas={veFinanzas} tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} onGuardar={(f) => guardarLabor(f, form?.item)} onGuardarRepetir={guardarLaborRepetir} />}>
+              form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} veFinanzas={veFinanzas} tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo} onGuardar={(f) => guardarLabor(f, form?.item)} onGuardarRepetir={guardarLaborRepetir} />}>
 
               <TareasWhatsApp labores={laboresT} parcelas={parcelas} insumos={insumos} />
 
