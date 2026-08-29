@@ -178,11 +178,20 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
     capturar"; **7 días** desde el alta sin ninguna parcela = "a medias" (3
     días marcaba como perdido a quien solo no había vuelto desde el fin de
     semana).
+- **Nada falla en silencio.** Los tres bugs más serios de este proyecto
+  (guardado sin conexión, encimado con números grandes, updates que no
+  guardaban) tenían en común que no avisaban. Cualquier operación que no logra
+  su efecto tiene que decirlo — un update que toca 0 filas es un error, no un
+  éxito. Ya está cableado: `applyTableToLedger` rechaza el update de 0 filas,
+  y ninguna RPC corre sin la organización del predio (`callRpc` truena en vez
+  de caer al default de fábrica de `lib/org.ts` — ese default silencioso fue
+  el bug de "Marcar pagada"). Si agregas un punto de escritura, mantén esa
+  regla.
 
 ## Cómo trabajar
 
 - **Verifica siempre antes de entregar**: `npm run typecheck` y
-  `node --test scripts/agrociclo-*.test.mjs` (42 tests, deben pasar todos).
+  `node --test scripts/agrociclo-*.test.mjs` (67 tests, deben pasar todos).
   Levanta la app (`npm run dev`, puerto 8080) y **mira la pantalla** que tocaste.
 - Al terminar un cambio: di **en qué menú se ve** y **4 pasos para probarlo**.
   Miguel no lee commits ni diffs.

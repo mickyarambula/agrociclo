@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
+// Contrato nuevo: NINGUNA RPC corre sin organización (el servidor la inyecta
+// desde la membresía; aquí se pasa explícita — es el org del predio de prueba).
+const { ORG_ID: ORG_PRUEBA } = await jiti.import("../src/agrociclo/lib/org.ts");
 const { allowRpc, allowTable, veFinanzasOf, presetPermisos, presetMatriz } = await jiti.import("../src/agrociclo/server/roles.ts");
 const { rolDeEntrada, debePromoverADueño, etiquetaDueño } = await jiti.import("../src/agrociclo/server/dueno.ts");
 
@@ -83,6 +86,7 @@ describe("Etapa 4a · ciclo vacío", () => {
     assert.equal(runCanarios().allOk, true);
 
     const { result, ledger } = await applyRpcToLedger(base, "fn_abrir_ciclo", {
+      p_org: ORG_PRUEBA,
       p_clave: "pv27",
       p_nombre: "Primavera–Verano 2027",
       p_fecha_inicio: "2027-03-01",
@@ -154,6 +158,7 @@ describe("Rancho de producción · sin demo", () => {
     const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
     const base = ranchoVacioLedger();
     const abierto = await applyRpcToLedger(base, "fn_abrir_ciclo", {
+      p_org: ORG_PRUEBA,
       p_clave: "pv27",
       p_nombre: "Primavera–Verano 2027",
       p_fecha_inicio: "2027-03-01",
@@ -162,6 +167,7 @@ describe("Rancho de producción · sin demo", () => {
     assert.equal(abierto.result.error, null);
     const id = abierto.result.data.id;
     const editado = await applyRpcToLedger(abierto.ledger, "fn_editar_ciclo", {
+      p_org: ORG_PRUEBA,
       p_id: id,
       p_clave: "pv27",
       p_nombre: "PV 2027 Valle",
@@ -172,9 +178,9 @@ describe("Rancho de producción · sin demo", () => {
     assert.equal(row.nombre, "PV 2027 Valle");
     assert.equal(Number(row.presupuesto), 1500000);
     const ultimo = ranchoVacioLedger();
-    const no = await applyRpcToLedger(ultimo, "fn_eliminar_ciclo", { p_id: ultimo.ciclo[0].id });
+    const no = await applyRpcToLedger(ultimo, "fn_eliminar_ciclo", { p_org: ORG_PRUEBA, p_id: ultimo.ciclo[0].id });
     assert.ok(no.result.error);
-    const okDel = await applyRpcToLedger(editado.ledger, "fn_eliminar_ciclo", { p_id: id });
+    const okDel = await applyRpcToLedger(editado.ledger, "fn_eliminar_ciclo", { p_org: ORG_PRUEBA, p_id: id });
     assert.equal(okDel.result.error, null);
     assert.equal(okDel.ledger.ciclo.filter((c) => !c.eliminado_en).length, 1);
   });

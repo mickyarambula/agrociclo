@@ -4,6 +4,9 @@ import { createJiti } from "jiti";
 import { sobreprecioCompra, costoFinCompra } from "../src/agrociclo/base.js";
 
 const jiti = createJiti(import.meta.url);
+// Contrato nuevo: NINGUNA RPC corre sin organización (el servidor la inyecta
+// desde la membresía; aquí se pasa explícita — es el org del predio de prueba).
+const { ORG_ID: ORG_PRUEBA } = await jiti.import("../src/agrociclo/lib/org.ts");
 
 describe("Sobreprecio de casa comercial (base.js)", () => {
   it("sobreprecioCompra es fija y no depende de la fecha", () => {
@@ -50,6 +53,7 @@ describe("¿Cómo te financias? — respuesta del ciclo (solo preselecciona)", (
     const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
     const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
     const abierto = await applyRpcToLedger(ranchoVacioLedger(), "fn_abrir_ciclo", {
+      p_org: ORG_PRUEBA,
       p_clave: "pv27", p_nombre: "PV 2027", p_fin_modo: "propio", p_fin_valor: null,
     });
     assert.equal(abierto.result.error, null);
@@ -62,10 +66,12 @@ describe("¿Cómo te financias? — respuesta del ciclo (solo preselecciona)", (
     const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
     const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
     const abierto = await applyRpcToLedger(ranchoVacioLedger(), "fn_abrir_ciclo", {
+      p_org: ORG_PRUEBA,
       p_clave: "pv27", p_nombre: "PV 2027", p_fin_modo: "tasa", p_fin_valor: 22,
     });
     const id = abierto.result.data.id;
     const editado = await applyRpcToLedger(abierto.ledger, "fn_editar_ciclo", {
+      p_org: ORG_PRUEBA,
       p_id: id, p_clave: "pv27", p_nombre: "PV 2027 Valle", p_presupuesto: 500000,
     });
     assert.equal(editado.result.error, null);
@@ -78,10 +84,12 @@ describe("¿Cómo te financias? — respuesta del ciclo (solo preselecciona)", (
     const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
     const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
     const abierto = await applyRpcToLedger(ranchoVacioLedger(), "fn_abrir_ciclo", {
+      p_org: ORG_PRUEBA,
       p_clave: "pv27", p_nombre: "PV 2027", p_fin_modo: "tasa", p_fin_valor: 22,
     });
     const id = abierto.result.data.id;
     const editado = await applyRpcToLedger(abierto.ledger, "fn_editar_ciclo", {
+      p_org: ORG_PRUEBA,
       p_id: id, p_clave: "pv27", p_nombre: "PV 2027", p_fin_modo: "sobreprecio", p_fin_valor: 8,
     });
     const row = editado.ledger.ciclo.find((c) => c.id === id);
@@ -97,6 +105,7 @@ describe("Compra con sobreprecio de casa comercial", () => {
     const ciclo = IDS.cicloOi2627;
 
     const conSobreprecio = await applyRpcToLedger(ranchoVacioLedger(), "fn_guardar_compra", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo, p_insumo_id: IDS.diesel, p_insumo_nombre: "Diésel",
       p_cantidad: 100, p_unidad: "L", p_costo_unitario: 24, p_fecha: "2026-10-05",
       p_origen: "externo", p_modo: "sobreprecio", p_pct_externo: 8,
@@ -107,6 +116,7 @@ describe("Compra con sobreprecio de casa comercial", () => {
     assert.equal(Number(fila.pct_externo), 8);
 
     const sinModo = await applyRpcToLedger(ranchoVacioLedger(), "fn_guardar_compra", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo, p_insumo_id: IDS.diesel, p_insumo_nombre: "Diésel",
       p_cantidad: 50, p_unidad: "L", p_costo_unitario: 24, p_fecha: "2026-10-05",
       p_origen: "externo", p_tasa_externa: 22,
@@ -119,6 +129,7 @@ describe("Compra con sobreprecio de casa comercial", () => {
     const { ranchoVacioLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
     const { applyRpcToLedger, applyTableToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
     const compra = await applyRpcToLedger(ranchoVacioLedger(), "fn_guardar_compra", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: IDS.cicloOi2627, p_insumo_id: IDS.diesel, p_insumo_nombre: "Diésel",
       p_cantidad: 100, p_unidad: "L", p_costo_unitario: 24, p_fecha: "2026-10-05",
       p_origen: "externo", p_modo: "sobreprecio", p_pct_externo: 8,
@@ -150,6 +161,7 @@ describe("Compra con sobreprecio de casa comercial", () => {
     const ciclo = IDS.cicloOi2627;
 
     const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo, p_solicitante: "Encargado", p_insumo_id: IDS.diesel,
       p_insumo_nombre: "Diésel", p_unidad: "L", p_cantidad: 200,
     });
@@ -158,12 +170,14 @@ describe("Compra con sobreprecio de casa comercial", () => {
     const solId = sol.result.data;
 
     const cot = await applyRpcToLedger(ledger, "fn_agregar_cotizacion", {
+      p_org: ORG_PRUEBA,
       p_solicitud_id: solId, p_proveedor_texto: "Agroinsumos", p_costo_unitario: 24,
     });
     ledger = cot.ledger;
     const cotId = ledger.solicitud_cotizacion.find((c) => c.solicitud_id === solId).id;
 
     const aut = await applyRpcToLedger(ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA,
       p_solicitud_id: solId, p_cotizacion_id: cotId, p_origen: "externo",
       p_modo: "sobreprecio", p_pct: 8, p_fecha: "2026-10-05",
     });
@@ -171,6 +185,7 @@ describe("Compra con sobreprecio de casa comercial", () => {
     ledger = aut.ledger;
 
     const recibido = await applyRpcToLedger(ledger, "fn_recibir_solicitud", {
+      p_org: ORG_PRUEBA,
       p_solicitud_id: solId, p_ciclo_id: ciclo, p_fecha: "2026-10-06",
     });
     assert.equal(recibido.result.error, null);
@@ -221,12 +236,14 @@ describe("Regresión — la compra queda en el organizacion_id real, no en uno d
     const solId = sol.result.data;
 
     const cot = await applyRpcToLedger(ledger, "fn_agregar_cotizacion", {
+      p_org: ORG_PRUEBA,
       p_solicitud_id: solId, p_proveedor_texto: "Agroinsumos", p_costo_unitario: 24,
     });
     ledger = cot.ledger;
     const cotId = ledger.solicitud_cotizacion.find((c) => c.solicitud_id === solId).id;
 
     const aut = await applyRpcToLedger(ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA,
       p_solicitud_id: solId, p_cotizacion_id: cotId, p_origen: "propio", p_fecha: "2026-10-05",
     });
     ledger = aut.ledger;

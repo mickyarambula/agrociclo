@@ -1167,3 +1167,31 @@ export function ledgerListoParaProduccion(ledger: Ledger): Ledger {
   return stripDemoCiclo(ledger);
 }
 
+/* Reparación de ledgers viejos: durante meses las RPC estamparon las filas con
+   el organizacion_id de fábrica (el del predio de prueba, lib/org.ts) en vez
+   del org real del predio, y cualquier update filtrado por organización no las
+   encontraba — "Renta pagada", eliminar boleta, liquidar préstamo y editar un
+   insumo del productor fallaban sin avisar. El org dueño del ledger es la
+   verdad (la columna organizacion_id de agrociclo_ledger): al cargar, toda
+   fila se re-estampa con él, y la reparación se persiste sola con la
+   siguiente captura. No hace falta migración SQL. */
+export function normalizarLedgerOrg(ledger: Ledger, orgId: string): Ledger {
+  if (!orgId) return ledger;
+  let cambio = false;
+  const out: Record<string, unknown> = { ...ledger };
+  for (const [tabla, rows] of Object.entries(ledger)) {
+    if (!Array.isArray(rows)) continue;
+    let tocada = false;
+    const nuevas = (rows as Row[]).map((r) => {
+      if (!r || typeof r !== "object" || r.organizacion_id === orgId) return r;
+      tocada = true;
+      return { ...r, organizacion_id: orgId };
+    });
+    if (tocada) {
+      out[tabla] = nuevas;
+      cambio = true;
+    }
+  }
+  return cambio ? (out as unknown as Ledger) : ledger;
+}
+

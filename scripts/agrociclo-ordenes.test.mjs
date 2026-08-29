@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
+// Contrato nuevo: NINGUNA RPC corre sin organización (el servidor la inyecta
+// desde la membresía; aquí se pasa explícita — es el org del predio de prueba).
+const { ORG_ID: ORG_PRUEBA } = await jiti.import("../src/agrociclo/lib/org.ts");
 
 function stockDe(ledger, insumoId, cicloId) {
   let s = 0;
@@ -23,6 +26,7 @@ async function base() {
   let ledger = ranchoVacioLedger();
 
   const parc = await applyRpcToLedger(ledger, "fn_guardar_parcela", {
+    p_org: ORG_PRUEBA,
     p_ciclo_id: ciclo,
     p_nombre: "Lote 1",
     p_cultivo: "Maíz",
@@ -33,6 +37,7 @@ async function base() {
   ledger = parc.ledger;
 
   const compra = await applyRpcToLedger(ledger, "fn_guardar_compra", {
+    p_org: ORG_PRUEBA,
     p_ciclo_id: ciclo,
     p_insumo_id: IDS.diesel,
     p_insumo_nombre: "Diésel",
@@ -51,6 +56,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await base();
 
     const orden = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -74,6 +80,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await base();
 
     const orden = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -84,6 +91,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const laborId = orden.result.data;
 
     const hecha = await applyRpcToLedger(orden.ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_labor_id: laborId,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
@@ -111,6 +119,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await base();
 
     const orden = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -121,6 +130,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const laborId = orden.result.data;
 
     const excede = await applyRpcToLedger(orden.ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_labor_id: laborId,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
@@ -133,6 +143,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     assert.equal(stockDe(excede.ledger, IDS.diesel, ciclo), 100);
 
     const real = await applyRpcToLedger(orden.ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_labor_id: laborId,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
@@ -149,6 +160,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await base();
 
     const orden = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -157,7 +169,7 @@ describe("Orden flaca de labor (estado pendiente/hecha)", () => {
     });
     const laborId = orden.result.data;
 
-    const borra = await applyRpcToLedger(orden.ledger, "fn_eliminar_labor", { p_labor_id: laborId });
+    const borra = await applyRpcToLedger(orden.ledger, "fn_eliminar_labor", { p_org: ORG_PRUEBA, p_labor_id: laborId });
     assert.equal(borra.result.error, null);
     const l2 = borra.ledger;
     assert.ok(l2.labor.find((x) => x.id === laborId).eliminado_en, "soft-delete");

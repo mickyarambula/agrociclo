@@ -8,7 +8,6 @@ import {
   snapshotLedger,
 } from "../data/db";
 import { uid } from "../lib/ids";
-import { ORG_ID } from "../lib/org";
 import type { Ledger, Row, TableName } from "../data/types";
 
 type Filter =
@@ -53,24 +52,35 @@ export function applyTableToLedger(
   return serialize("agc-ledger", () => {
     const prev = snapshotLedger();
     replaceLedger(structuredClone(ledger));
+    // Criterio del predio: nada falla en silencio. Un update que no encuentra
+    // su fila, o un insert sin organización, es un ERROR que el productor ve —
+    // no un éxito vacío que lo deja creyendo que quedó registrado.
+    let resultado: { data: boolean | null; error: { message: string } | null } = { data: true, error: null };
     if (op === "update") {
-      patchWhere(table, (r) => matches(r, filters), payload as Record<string, unknown>);
+      const n = patchWhere(table, (r) => matches(r, filters), payload as Record<string, unknown>);
+      if (n === 0) {
+        resultado = { data: null, error: { message: "No se encontró qué actualizar — no se guardó nada. Recarga la app e intenta de nuevo." } };
+      }
     } else {
       const rows = Array.isArray(payload) ? payload : [payload];
-      for (const r of rows) {
-        const extra = table === "productor" && r && r.activo === undefined ? { activo: true } : {};
-        insertRow(table, {
-          id: (r?.id as string) || uid(),
-          organizacion_id: (r?.organizacion_id as string) || ORG_ID,
-          eliminado_en: null,
-          ...extra,
-          ...(r as Record<string, unknown>),
-        } as Row);
+      const sinOrg = rows.some((r) => !r || !(r.organizacion_id as string));
+      if (sinOrg) {
+        resultado = { data: null, error: { message: "Falta la organización del predio — no se guardó nada. Recarga la app e intenta de nuevo." } };
+      } else {
+        for (const r of rows) {
+          const extra = table === "productor" && r && r.activo === undefined ? { activo: true } : {};
+          insertRow(table, {
+            id: (r?.id as string) || uid(),
+            eliminado_en: null,
+            ...extra,
+            ...(r as Record<string, unknown>),
+          } as Row);
+        }
       }
     }
     const next = snapshotLedger();
     replaceLedger(prev);
-    return { result: { data: true, error: null as null }, ledger: next };
+    return { result: resultado, ledger: resultado.error ? ledger : next };
   });
 }
 

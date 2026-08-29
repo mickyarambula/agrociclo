@@ -1,4 +1,4 @@
-import { CICLO_ID, ORG_ID } from "../lib/org";
+import { CICLO_ID } from "../lib/org";
 import { diasEntre, hoyMochis, uid } from "../lib/ids";
 import {
   getById,
@@ -24,9 +24,18 @@ function ok<T>(data: T = null as T): { data: T; error: null } {
   return { data, error: null };
 }
 
-function ensureOrg(p: Record<string, unknown>): string | null {
-  const org = String(p.p_org ?? p.p_organizacion_id ?? ORG_ID);
-  return org || null;
+/* El org del RPC en curso. runAgroRpc (fns.ts) SIEMPRE lo inyecta desde la
+   membresía del usuario — pisando lo que mande el cliente — y callRpc lo fija
+   aquí antes de correr cualquier RPC. Si falta, NADA corre: error visible en
+   vez de default de fábrica. Ese default silencioso (ORG_ID de lib/org.ts) fue
+   el bug de los updates que no guardaban — las filas nacían con el org del
+   predio de prueba y ningún update filtrado por organización las encontraba. */
+let orgEnCurso: string | null = null;
+function orgActual(): string {
+  if (!orgEnCurso) {
+    throw new Error("Falta la organización del predio — no se guardó nada. Recarga la app e intenta de nuevo.");
+  }
+  return orgEnCurso;
 }
 
 function findOrCreate(table: TableName, nombre: string): string {
@@ -34,7 +43,7 @@ function findOrCreate(table: TableName, nombre: string): string {
   const existing = live(table).find((r) => String(r.nombre).toLowerCase() === n.toLowerCase());
   if (existing) return existing.id;
   const id = uid();
-  insertRow(table, { id, organizacion_id: ORG_ID, nombre: n, eliminado_en: null });
+  insertRow(table, { id, organizacion_id: orgActual(), nombre: n, eliminado_en: null });
   return id;
 }
 
@@ -53,7 +62,7 @@ function upsertDisposicion(opts: {
   const id = existing?.id ?? uid();
   upsert("disposicion", {
     id,
-    organizacion_id: ORG_ID,
+    organizacion_id: orgActual(),
     ciclo_id: opts.ciclo_id,
     linea_credito_id: opts.linea_id,
     origen_tipo: opts.origen_tipo,
@@ -127,7 +136,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     if (p.p_estado === "pendiente") {
       upsert("labor", {
         id: laborId,
-        organizacion_id: ORG_ID,
+        organizacion_id: orgActual(),
         ciclo_id: cicloLabor,
         parcela_id: parcela,
         fecha: p.p_fecha,
@@ -166,7 +175,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
 
     upsert("labor", {
       id: laborId,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: cicloLabor,
       parcela_id: parcela,
       fecha: p.p_fecha,
@@ -197,12 +206,12 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         cantidad: cant,
         costo_unitario: cu,
         costo_total: cant * cu,
-        organizacion_id: ORG_ID,
+        organizacion_id: orgActual(),
         eliminado_en: null,
       });
       inv.push({
         id: uid(),
-        organizacion_id: ORG_ID,
+        organizacion_id: orgActual(),
         ciclo_id: cicloLabor,
         insumo_id: li.insumo_id,
         tipo: "salida",
@@ -253,7 +262,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("parcela", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       productor_id: p.p_productor_id ?? null,
       nombre: p.p_nombre,
@@ -322,7 +331,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("compra", {
       id,
-      organizacion_id: ensureOrg(p) ?? ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       insumo_id: insumoId,
       insumo_nombre: insumoNombre,
@@ -348,7 +357,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       replaceInvOrigen("compra", id, [
         {
           id: uid(),
-          organizacion_id: ORG_ID,
+          organizacion_id: orgActual(),
           ciclo_id: p.p_ciclo_id ?? CICLO_ID,
           insumo_id: insumoId,
           tipo: "entrada",
@@ -382,7 +391,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       v === null || v === undefined ? (Number(anterior) || 0) : (Number(v) || 0);
     upsert("boleta", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: cicloDe(p, String(p.p_parcela_id ?? "")),
       parcela_id: p.p_parcela_id,
       fecha: p.p_fecha,
@@ -428,7 +437,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("gasto", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       fecha: p.p_fecha,
       categoria: p.p_categoria,
@@ -477,7 +486,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("dispersion", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       productor_id: p.p_productor_id,
       fecha: p.p_fecha,
@@ -520,7 +529,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("prestamo", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       productor_id: p.p_productor_id,
       fecha: p.p_fecha,
@@ -547,7 +556,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const id = String(p.p_id ?? "") || uid();
     upsert("linea_credito", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       tipo_credito: p.p_tipo_credito,
       fuente: p.p_fuente,
@@ -594,7 +603,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     if (monto - saldo > 0.01) return err(`El abono (${monto}) excede el saldo (${saldo}).`);
     insertRow("pago_disposicion", {
       id: uid(),
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       disposicion_id: dispId,
       fecha,
       monto,
@@ -626,7 +635,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const prev = getById("solicitud_compra", id);
     upsert("solicitud_compra", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       fecha: p.p_fecha ?? hoyMochis(),
       solicitante: p.p_solicitante,
@@ -664,7 +673,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const solId = String(p.p_solicitud_id);
     insertRow("solicitud_cotizacion", {
       id: uid(),
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       solicitud_id: solId,
       proveedor_texto: p.p_proveedor_texto ?? "",
       costo_unitario: Number(p.p_costo_unitario) || 0,
@@ -731,7 +740,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       : null;
     insertRow("compra", {
       id: compraId,
-      organizacion_id: ensureOrg(p) ?? ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       insumo_id: insumoId,
       insumo_nombre: sol.insumo_nombre,
@@ -761,7 +770,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       });
       insertRow("inventario_movimiento", {
         id: uid(),
-        organizacion_id: ORG_ID,
+        organizacion_id: orgActual(),
         ciclo_id: p.p_ciclo_id ?? CICLO_ID,
         insumo_id: insumoId,
         tipo: "entrada",
@@ -800,7 +809,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     }
     upsert("caja_movimiento", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       tipo: "fondeo",
       fecha: p.p_fecha,
@@ -827,7 +836,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const prev = getById("caja_movimiento", id);
     upsert("caja_movimiento", {
       id,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: p.p_ciclo_id ?? CICLO_ID,
       tipo: "salida",
       fecha: p.p_fecha,
@@ -864,7 +873,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     const gastoId = uid();
     insertRow("gasto", {
       id: gastoId,
-      organizacion_id: ORG_ID,
+      organizacion_id: orgActual(),
       ciclo_id: mov.ciclo_id ?? CICLO_ID,
       fecha: p.p_fecha_autorizacion ?? hoyMochis(),
       categoria: "Caja chica",
@@ -905,8 +914,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
   },
 
   fn_abrir_ciclo(p) {
-    const org = ensureOrg(p);
-    if (!org) return err("Falta organización");
+    const org = orgActual();
     const clave = String(p.p_clave ?? "").trim().toLowerCase();
     const nombre = String(p.p_nombre ?? "").trim();
     if (!clave || !nombre) return err("Faltan clave y nombre del ciclo.");
@@ -1001,11 +1009,14 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
 export function callRpc(name: string, params: Record<string, unknown> = {}): RpcResult {
   const fn = rpcs[name];
   if (!fn) return err(`RPC no implementada: ${name}`);
+  orgEnCurso = String(params.p_org ?? params.p_organizacion_id ?? "").trim() || null;
   try {
-    ensureOrg(params);
+    orgActual(); // sin organización no corre NINGUNA RPC — truena aquí, no cae a un default
     return fn(params);
   } catch (e) {
     return err(e instanceof Error ? e.message : String(e));
+  } finally {
+    orgEnCurso = null;
   }
 }
 

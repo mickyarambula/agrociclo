@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { createJiti } from "jiti";
 
 const jiti = createJiti(import.meta.url);
+// Contrato nuevo: NINGUNA RPC corre sin organización (el servidor la inyecta
+// desde la membresía; aquí se pasa explícita — es el org del predio de prueba).
+const { ORG_ID: ORG_PRUEBA } = await jiti.import("../src/agrociclo/lib/org.ts");
 
 function stockDe(ledger, insumoId, cicloId) {
   let s = 0;
@@ -24,6 +27,7 @@ describe("Compra entra · labor sale", () => {
     const ciclo = IDS.cicloOi2627;
 
     const parc = await applyRpcToLedger(ledger, "fn_guardar_parcela", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo,
       p_nombre: "Lote 1",
       p_cultivo: "Maíz",
@@ -35,6 +39,7 @@ describe("Compra entra · labor sale", () => {
     ledger = parc.ledger;
 
     const compra = await applyRpcToLedger(ledger, "fn_guardar_compra", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo,
       p_insumo_id: IDS.diesel,
       p_insumo_nombre: "Diésel",
@@ -51,6 +56,7 @@ describe("Compra entra · labor sale", () => {
     assert.equal(Number(diesel.costo_unitario_ref), 24);
 
     const vacia = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -62,6 +68,7 @@ describe("Compra entra · labor sale", () => {
     assert.equal(vacia.result.error, null, "una labor de campo puede quedar sin costo; el Encargado anota lo que pasó");
 
     const labor = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-06",
@@ -78,6 +85,7 @@ describe("Compra entra · labor sale", () => {
     assert.equal(Number(li.costo_total), 960);
 
     const deMas = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA,
       p_parcela_id: parcelaId,
       p_ciclo_id: ciclo,
       p_fecha: "2026-10-07",
@@ -88,6 +96,7 @@ describe("Compra entra · labor sale", () => {
     assert.match(String(deMas.result.error.message), /Stock insuficiente/i);
 
     const urea = await applyRpcToLedger(ledger, "fn_guardar_compra", {
+      p_org: ORG_PRUEBA,
       p_ciclo_id: ciclo,
       p_insumo_nombre: "Urea extra",
       p_categoria: "Fertilizante",

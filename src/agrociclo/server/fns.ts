@@ -1,7 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
-import { demoLedger, IDS, ledgerListoParaProduccion, ranchoVacioLedger, esLedgerDemo } from "../data/seed";
+import { demoLedger, IDS, ledgerListoParaProduccion, normalizarLedgerOrg, ranchoVacioLedger, esLedgerDemo } from "../data/seed";
 import type { Ledger, TableName } from "../data/types";
 import { serialize } from "../lib/serialize.mjs";
 import { applyRpcToLedger, applyTableToLedger } from "./apply";
@@ -214,7 +214,11 @@ async function loadLedger(orgId: string): Promise<Ledger> {
   return (await loadLedgerConVersion(orgId)).ledger;
 }
 
-/** Carga el ledger junto con su número de versión (candado optimista). */
+/** Carga el ledger junto con su número de versión (candado optimista).
+ *  El org dueño de la fila de agrociclo_ledger es la verdad: toda fila del
+ *  payload se re-estampa con él (normalizarLedgerOrg) — repara los ledgers
+ *  viejos donde las RPC guardaban el organizacion_id de fábrica, y la
+ *  reparación se persiste sola con la siguiente captura. */
 async function loadLedgerConVersion(orgId: string): Promise<{ ledger: Ledger; version: number }> {
   const sql = await getSql();
   const rows = await sql<{ payload: unknown; version: unknown }>`
@@ -222,7 +226,7 @@ async function loadLedgerConVersion(orgId: string): Promise<{ ledger: Ledger; ve
     from agrociclo_ledger where organizacion_id = ${orgId} limit 1
   `;
   return {
-    ledger: parseLedger(rows[0]?.payload) ?? ranchoVacioLedger(),
+    ledger: normalizarLedgerOrg(parseLedger(rows[0]?.payload) ?? ranchoVacioLedger(orgId), orgId),
     version: Number(rows[0]?.version) || 0,
   };
 }
@@ -673,10 +677,22 @@ export const runAgroTable = createServerFn({ method: "POST" })
     const filters = data.filters.map((f) =>
       f.type === "in" ? { type: "in" as const, col: f.col, vals: f.vals ?? [] } : { type: f.type, col: f.col, val: f.val },
     );
+    // El org de cada fila insertada lo pone el SERVIDOR desde la membresía —
+    // el cliente no puede estamparlo mal ni dejarlo caer a un default.
+    const payload =
+      data.op === "insert"
+        ? (Array.isArray(data.payload) ? data.payload : [data.payload]).map((r) => ({
+            ...r,
+            organizacion_id: row.organizacion_id,
+          }))
+        : data.payload;
     const REINTENTOS = 4;
     for (let intento = 0; intento < REINTENTOS; intento += 1) {
       const { ledger: current, version } = await loadLedgerConVersion(row.organizacion_id);
-      const { ledger } = await applyTableToLedger(current, data.table, data.op, data.payload, filters);
+      const { result, ledger } = await applyTableToLedger(current, data.table, data.op, payload, filters);
+      // Nada falla en silencio: un update que tocó 0 filas regresa como error,
+      // no como éxito — y no se guarda ni se audita nada.
+      if (result.error) return { error: result.error, data: null as boolean | null, ledger: null as Json | null };
       const guardado = await saveLedgerSiVersion(row.organizacion_id, ledger, version);
       if (guardado) {
         void auditar(row.organizacion_id, context.userId, row.email ?? null, `tabla:${data.table}.${data.op}`, {
