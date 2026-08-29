@@ -11,6 +11,7 @@ import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
 import { supabase } from "./lib/supabase";
 import { runCanarios } from "./data/canarios";
 import { EquipoPanel, RolesPanel, salirAgro, useAgroSession } from "./session";
+import { listEquipo } from "./server/fns";
 import { AyudaBoton } from "./Ayuda";
 import { Onboarding } from "./Onboarding";
 import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
@@ -54,7 +55,7 @@ import {
 } from "./forms/almacen";
 import {
   TareasWhatsApp, FormLabor, FormLaborRapida, FormOrdenLabor,
-  PorHacerLabores, GuiaCiclo, FormParcela, CatalogoLitrosHaLabor,
+  PorHacerLabores, GuiaCiclo, AvisoInvitarEquipo, FormParcela, CatalogoLitrosHaLabor,
 } from "./forms/campo";
 import { CampoProductor, CampoFinanciamiento } from "./forms/comunes";
 
@@ -160,6 +161,18 @@ function AgroCicloApp() {
   // Guía de arranque de El ciclo: "Ocultar" solo vive esta sesión (sin flag en
   // el ledger); al volver a entrar sin captura, reaparece.
   const [guiaCicloOculta, setGuiaCicloOculta] = useState(false);
+
+  // Aviso "pásale el código de equipo": mismo criterio de sesión que la guía.
+  // equipoCount arranca en null (aún no se sabe) para no destellar el aviso
+  // antes de confirmar que el Dueño sigue solo en el predio.
+  const [equipoCount, setEquipoCount] = useState(null);
+  const [avisoEquipoOculta, setAvisoEquipoOculta] = useState(false);
+  useEffect(() => {
+    if (rol !== "Dueño") return;
+    let vivo = true;
+    listEquipo().then((m) => { if (vivo) setEquipoCount(m.length); }).catch(() => {});
+    return () => { vivo = false; };
+  }, [rol]);
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
   // B2a: `id` ES EL UUID real (se eliminó el id sintético i+1 y el puente por fuente).
@@ -2011,6 +2024,14 @@ function AgroCicloApp() {
     ? <GuiaCiclo pasos={pasosGuiaCiclo} onOcultar={() => setGuiaCicloOculta(true)} />
     : null;
 
+  // Sale cuando el Dueño ya lleva varias labores capturadas él mismo y
+  // sigue solo en el predio (equipoCount === 1). En cuanto alguien se une
+  // con el código, equipoCount sube y el aviso deja de aparecer para siempre
+  // — no hace falta que lo haya "descartado" antes.
+  const tarjetaInvitarEquipo = rol === "Dueño" && equipoCount === 1 && laboresHechas.length >= 5 && !avisoEquipoOculta
+    ? <AvisoInvitarEquipo codigo={profile.codigoInvitacion} onOcultar={() => setAvisoEquipoOculta(true)} />
+    : null;
+
   const tarjetaPorHacer = (
     <PorHacerLabores ordenes={ordenesLabor} parcelas={parcelas} insumos={insumos}
       puedeLabores={puedeLabores} puedeOrdenar={puedeOrdenar}
@@ -2154,7 +2175,7 @@ function AgroCicloApp() {
           <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
 
           {/* ===== PANEL ===== */}
-          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
+          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, tarjetaInvitarEquipo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
 
           {/* ===== PARCELAS ===== */}
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />

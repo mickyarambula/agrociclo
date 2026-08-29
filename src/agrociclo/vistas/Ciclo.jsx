@@ -3,7 +3,7 @@ import { C, money, num, hoyStr } from "../base";
 import { fuente, Tarjeta, Etiqueta, Boton, estiloInput } from "../ui";
 import { Sprout, Plus, ChevronRight, Bell, CalendarClock } from "lucide-react";
 
-export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }) {
+export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, tarjetaInvitarEquipo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }) {
   return (
     <>
           {vista === "panel" && (
@@ -44,6 +44,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                 )}
               </div>
               {tarjetaGuiaCiclo}
+              {tarjetaInvitarEquipo}
                   {/* ===== TIRA DE PLATA: el pulso del dinero en una franja ===== */}
                   {veFinanzas && (
                     <Tarjeta style={{ padding: "12px 16px", background: C.bosque }}>

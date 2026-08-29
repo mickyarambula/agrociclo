@@ -2,7 +2,7 @@
 /* Formularios y tarjetas del campo: labores (completo, 3 toques y orden
    flaca), parcelas, guía de arranque y tareas por WhatsApp. */
 import { useState, useEffect, useRef } from "react";
-import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy } from "lucide-react";
+import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy, X } from "lucide-react";
 import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, claveTipo } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm, Vacio } from "../ui";
 import { CampoProductor, CampoFinanciamiento } from "./comunes";
@@ -509,6 +509,52 @@ export function GuiaCiclo({ pasos, onOcultar }) {
           </div>
         );
       })}
+    </Tarjeta>
+  );
+}
+
+/* Aviso para pasarle el código de equipo a alguien más: sale solo cuando el
+   Dueño ya lleva varias labores capturadas él mismo (sigue solo en el
+   predio). Descartable por la sesión; en cuanto alguien se une con el
+   código, App.jsx deja de mandarlo — no vuelve a aparecer. */
+export function AvisoInvitarEquipo({ codigo, onOcultar }) {
+  const [copiado, setCopiado] = useState(false);
+  const copiar = async () => {
+    try {
+      await navigator.clipboard.writeText(codigo || "");
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      /* sin permiso de portapapeles, queda el botón de WhatsApp */
+    }
+  };
+  const msg = `Te invito a mi predio en AgroCiclo. Entra con el código ${codigo} para capturar las labores del campo.`;
+  return (
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
+      <div className="flex items-start justify-between gap-2">
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>¿Alguien más anda en el campo?</div>
+          <div style={{ fontSize: 13, color: C.gris, marginTop: 2, lineHeight: 1.4 }}>
+            Pásale este código y él captura las labores; tú sigues viendo los números.
+          </div>
+        </div>
+        <button type="button" onClick={onOcultar} aria-label="Ocultar"
+          style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+          <X size={18} />
+        </button>
+      </div>
+      <div className="flex items-center gap-2 flex-wrap" style={{ marginTop: 10 }}>
+        <div
+          className="font-mono"
+          style={{ fontWeight: 800, fontSize: 20, letterSpacing: "0.18em", background: "#EEF4EB", border: `1px solid ${C.linea}`, borderRadius: 10, padding: "8px 16px", color: C.bosque }}
+        >
+          {codigo || "————"}
+        </div>
+        <Boton chico onClick={copiar}><Copy size={14} /> {copiado ? "¡Copiado!" : "Copiar"}</Boton>
+        <a href={`https://wa.me/?text=${encodeURIComponent(msg)}`} target="_blank" rel="noreferrer" style={{ textDecoration: "none" }}>
+          <Boton chico secundario><MessageCircle size={14} /> Compartir</Boton>
+        </a>
+      </div>
     </Tarjeta>
   );
 }
