@@ -157,24 +157,27 @@ export function renderInstallPageHtml(template, { host, url } = {}) {
     .replaceAll("{{APP_URL}}", escapeHtml(stripInstallParams(url)));
 }
 
+/**
+ * AgroCiclo dejó de ser un host genérico de Grok — vive en su propio dominio
+ * fijo (agrociclo.vercel.app), así que el nombre y los íconos son los de la
+ * marca, no derivados del host como en el resto de esta plantilla compartida.
+ */
 export function renderWebManifest(hostHeader) {
-  const name = appNameFromHost(hostHeader);
+  void hostHeader;
   return JSON.stringify(
     {
-      name,
-      short_name: name,
+      name: "AgroCiclo",
+      short_name: "AgroCiclo",
       id: "/",
       start_url: "/",
       scope: "/",
       display: "standalone",
-      background_color: "#000000",
-      theme_color: "#000000",
+      background_color: "#F7F8F3",
+      theme_color: "#1E4429",
       icons: [
-        {
-          src: "/__grok/icon-180.png",
-          sizes: "180x180",
-          type: "image/png",
-        },
+        { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+        { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+        { src: "/icon-512-maskable.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
       ],
     },
     null,
@@ -187,7 +190,7 @@ export function grokPwaHeadTags(appName = DEFAULT_APP_NAME) {
     // Standalone display comes from the manifest ("display": "standalone");
     // the legacy *-web-app-capable metas it replaces are deliberately absent.
     ["manifest", '<link rel="manifest" href="/__grok/manifest.webmanifest">'],
-    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/__grok/icon-180.png">'],
+    ["apple-touch-icon", '<link rel="apple-touch-icon" href="/apple-touch-icon.png">'],
     [
       "apple-mobile-web-app-title",
       `<meta name="apple-mobile-web-app-title" content="${escapeHtml(appName)}">`,
@@ -437,7 +440,7 @@ export function injectGrokPwaHead(html, ctx = {}) {
   const missing = grokPwaHeadTags(appName)
     .filter(([key]) => {
       if (key === "manifest") return !next.includes('href="/__grok/manifest.webmanifest"');
-      if (key === "apple-touch-icon") return !next.includes('href="/__grok/icon-180.png"');
+      if (key === "apple-touch-icon") return !next.includes('href="/apple-touch-icon.png"');
       return !next.includes(`name="${key}"`);
     })
     .map(([, tag]) => tag);
