@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createFileRoute, Navigate } from "@tanstack/react-router";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff, Share, MoreVertical, SquarePlus, Download, Check, ChevronRight } from "lucide-react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
 
@@ -73,6 +73,88 @@ function CampoClave({
         </button>
       </span>
     </label>
+  );
+}
+
+type Dispositivo = "ios" | "android";
+
+/* Ya abierta como app instalada: iOS usa navigator.standalone (no soporta la
+   media query estándar), el resto usa display-mode. No mostrar la tarjeta
+   en ninguno de los dos casos — ya está instalada. */
+function yaInstalada(): boolean {
+  if (typeof window === "undefined") return false;
+  const standalone = window.matchMedia?.("(display-mode: standalone)").matches;
+  const iosStandalone = (window.navigator as unknown as { standalone?: boolean }).standalone === true;
+  return !!standalone || !!iosStandalone;
+}
+
+/* Detecta iOS (iPhone/iPad, cualquier navegador — todos usan el mismo Compartir
+   del sistema) o Android (cualquier navegador, se enseña el paso de Chrome por
+   ser el mayoritario). Escritorio o lo no reconocido: null → no se muestra
+   nada. Enseñarle los pasos de otro teléfono es peor que no poner nada. */
+function detectarDispositivo(): Dispositivo | null {
+  if (typeof navigator === "undefined") return null;
+  const ua = navigator.userAgent || "";
+  const esIPad = /iPad/.test(ua) || (/Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1);
+  const esIPhone = /iPhone|iPod/.test(ua);
+  if (esIPhone || esIPad) return "ios";
+  if (/Android/i.test(ua)) return "android";
+  return null;
+}
+
+const PASOS: Record<Dispositivo, { Icono: typeof Share; texto: string }[]> = {
+  ios: [
+    { Icono: Share, texto: "Compartir" },
+    { Icono: SquarePlus, texto: "Agregar a inicio" },
+    { Icono: Check, texto: "Agregar" },
+  ],
+  android: [
+    { Icono: MoreVertical, texto: "Menú (⋮)" },
+    { Icono: Download, texto: "Instalar app" },
+    { Icono: Check, texto: "Instalar" },
+  ],
+};
+
+/* Debajo del formulario, no adentro: es un aparte, no parte de entrar a la
+   cuenta. Cliente-only a propósito — navigator/UA no existen en el server, y
+   un usuario ni instalado ni de escritorio nunca debe ver el destello. */
+function TarjetaInstalarApp() {
+  const [dispositivo, setDispositivo] = useState<Dispositivo | null>(null);
+
+  useEffect(() => {
+    if (yaInstalada()) return;
+    setDispositivo(detectarDispositivo());
+  }, []);
+
+  if (!dispositivo) return null;
+  const pasos = PASOS[dispositivo];
+
+  return (
+    <div className="mt-4 rounded-2xl p-4" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}` }}>
+      <p className="text-sm font-semibold" style={{ color: C.bosque, margin: 0 }}>
+        Agrégala a tu inicio
+      </p>
+      <p className="text-xs" style={{ color: C.gris, margin: "2px 0 10px" }}>
+        Ábrela como app, con un solo toque.
+      </p>
+      <div className="flex flex-wrap items-center gap-x-1.5 gap-y-2">
+        {pasos.map((p, i) => (
+          <span key={p.texto} className="flex items-center gap-1.5">
+            {i > 0 && <ChevronRight size={13} color={C.hoja} style={{ flexShrink: 0 }} />}
+            <span
+              className="flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold"
+              style={{ background: C.blanco, color: C.bosque, border: `1px solid ${C.linea}` }}
+            >
+              <p.Icono size={13} color={C.hoja} style={{ flexShrink: 0 }} />
+              {p.texto}
+            </span>
+          </span>
+        ))}
+      </div>
+      <p className="text-xs" style={{ color: C.gris, margin: "10px 0 0", lineHeight: 1.5 }}>
+        Más ligera que una app normal: casi no ocupa memoria de tu celular y siempre está actualizada.
+      </p>
+    </div>
   );
 }
 
@@ -298,6 +380,8 @@ function Login() {
             {modo === "entrar" ? "¿Primera vez? Crear cuenta" : "Ya tengo cuenta"}
           </button>
         </div>
+
+        <TarjetaInstalarApp />
       </div>
     </main>
   );
