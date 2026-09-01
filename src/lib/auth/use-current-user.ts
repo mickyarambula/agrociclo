@@ -5,6 +5,8 @@ export type AppUser = {
   id: string;
   displayName: string | null;
   primaryEmail: string | null;
+  /** Del plugin `phoneNumber` (ver `@/lib/auth/server`) — null si nunca lo agregó. */
+  phoneNumber: string | null;
   profileImageUrl: string | null;
   /** True when this is the sandbox/dev fallback (auth not configured). */
   isDevFallback: boolean;
@@ -21,6 +23,7 @@ export const DEV_USER: AppUser = {
   id: "dev-user",
   displayName: "Dev User",
   primaryEmail: "dev@example.com",
+  phoneNumber: null,
   profileImageUrl: null,
   isDevFallback: true,
 };
@@ -65,6 +68,7 @@ export function useCurrentUserState(): CurrentUserState {
           id: user.id,
           displayName: user.name ?? null,
           primaryEmail: user.email ?? null,
+          phoneNumber: (user as { phoneNumber?: string | null }).phoneNumber ?? null,
           profileImageUrl: user.image ?? null,
           isDevFallback: false,
         }

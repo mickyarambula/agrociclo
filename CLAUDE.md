@@ -51,7 +51,8 @@ solamente el Postgres donde vive todo.
 **Todo el predio vive en UN blob JSONB**: tabla `agrociclo_ledger`, un ledger por
 organización. No hay tablas por entidad. Las tablas reales son solo: `user`,
 `session`, `account`, `verification`, `agrociclo_org`, `usuario_rol`, `user_ciclo`,
-`agrociclo_ledger`, `agrociclo_auditoria` y las `plataforma_*`.
+`agrociclo_ledger`, `agrociclo_auditoria`, `agrociclo_sms_envio` (candado de
+SMS) y las `plataforma_*`.
 
 Archivos clave:
 - `src/agrociclo/App.jsx` (~1,900 líneas) — capa de datos y navegación: sesión,
@@ -98,8 +99,12 @@ directo (ese solo sirve para reemplazo total: crear, vaciar, demo).
 
 ## Estado: qué ya está
 
-Login correo/contraseña. Código de equipo (Ajustes → sin código, el Encargado
-abre OTRO predio). Ajustes: nombre, ciclos, roles, guía, WhatsApp de atención.
+Login con celular por SMS (principal, OTP de 6 dígitos) o correo/contraseña
+(secundario, "También puedo entrar con correo"). Al entrar por primera vez sin
+predio, la pantalla "¿Cómo entras?" pregunta: únete con el código de tu equipo
+o da de alta el tuyo — ya no se regala un predio sin preguntar, ni por celular
+ni por correo. Ajustes: nombre, ciclos, roles, guía, WhatsApp de atención,
+agregar celular a una cuenta de correo.
 El ciclo / Panel con presupuesto vs real y tira de plata. Hoy con tarja y toques.
 Parcelas (propia/rentada, renta a línea o aparte). Labores con diésel e insumo y
 candado de stock. Insumos + kardex. Solicitudes de compra. Raya / cuadrillas.
@@ -129,7 +134,21 @@ totales, cultivos en uso, y las dos listas-termómetro "quién dejó de capturar
 (5 días sin auditoría) y "predios a medias" (cuenta abierta ≥7 días, cero
 parcelas); Errores conectado de punta a punta — `useOrgWrite` y el
 `ErrorBoundary` mandan cada falla a `reportarError` y aparece en la pestaña
-Salud y en el detalle de Soporte del predio afectado.
+Salud y en el detalle de Soporte del predio afectado. · **Entrar con celular**
+(agosto 2026): plugin `phoneNumber` de Better Auth (`src/lib/auth/server.ts`),
++52 y 10 dígitos, OTP de 6 con autocompletado (`autocomplete="one-time-code"`
+sobre un solo input real, no seis). Envío de SMS desacoplado en
+`src/lib/auth/sms-provider.ts` (`enviarSms`: Twilio por `fetch` si
+`TWILIO_ACCOUNT_SID`/`TWILIO_AUTH_TOKEN`/`TWILIO_FROM` están puestas, si no
+consola en dev y truena en producción) — para migrar a WhatsApp después, ese
+es el único archivo que cambia. Candado anti-quema de saldo en
+`agrociclo_sms_envio` (`src/lib/auth/sms-throttle.server.ts`): 1 envío/60s y
+5/día por teléfono, 10/hora por IP. Sesión a 90 días con renovación (no vuelve
+a pedir código salvo que borre la app o cambie de teléfono). El código de
+predio salió del login: `bootstrap()` en `fns.ts` ya no crea un predio solo
+sin código — `abrirPredioNuevo`/`unirsePredioConCodigo` son las nuevas puertas,
+disparadas desde la pantalla "¿Cómo entras?" en `session.tsx`. Ajustes tiene
+"Agregar mi celular" para cuentas de correo existentes.
 
 1. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
    su parafinanciera.
@@ -211,7 +230,9 @@ código mágico dentro de la app del productor; tratar a Miguel como productor.
 - **GitHub**: `mickyarambula/agrociclo` (público). Push a `main` → Vercel despliega solo.
 - **Vercel**: proyecto `agrociclo` → https://agrociclo.vercel.app
   Variables ya puestas: `DATABASE_URL`, `BETTER_AUTH_URL`, `BETTER_AUTH_SECRET`,
-  `VITE_AUTH_ENABLED`.
+  `VITE_AUTH_ENABLED`. Pendientes de Miguel para el SMS real: `TWILIO_ACCOUNT_SID`,
+  `TWILIO_AUTH_TOKEN`, `TWILIO_FROM` (ver `src/lib/auth/sms-provider.ts`; sin
+  ellas en producción, el envío truena en vez de fallar en silencio).
 - **Supabase**: proyecto `agro-charay` (id `oryixvodfqojunnqbkln`). El esquema nuevo
   está en `public`; la base vieja (demo 25/26, arquitectura de tablas anterior)
   quedó archivada en el esquema `legado` — no la uses, y no la borres sin preguntar.

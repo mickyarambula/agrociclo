@@ -5,12 +5,14 @@ import { useCurrentUserState } from "@/lib/auth/use-current-user";
 import { replaceLedger } from "./data/db";
 import type { Ledger } from "./data/types";
 import {
+  abrirPredioNuevo,
   asignarRol,
   getAgroSession,
   listEquipo,
   resetAgroDemo,
   setAgroCiclo,
   setOrgConfig,
+  unirsePredioConCodigo,
   vaciarRancho,
   regenerarInvitacion,
   marcarOnboarding,
@@ -161,9 +163,185 @@ function EsperandoDueño({ orgNombre, dueñoEtiqueta }: { orgNombre: string; due
   );
 }
 
+/**
+ * Pantalla "¿Cómo entras?": primera decisión real de un productor nuevo (sea
+ * que haya entrado con celular o con correo — una sola puerta para los dos).
+ * No se le regala un predio sin preguntar.
+ */
+function ElegirCamino({ nombreSugerido, onListo }: { nombreSugerido: string | null; onListo: () => void }) {
+  const [camino, setCamino] = useState<"elegir" | "codigo" | "nuevo">("elegir");
+  const [nombrePersona, setNombrePersona] = useState(nombreSugerido ?? "");
+  const [nombrePredio, setNombrePredio] = useState("");
+  const [codigo, setCodigo] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const wrap = (children: ReactNode) => (
+    <div
+      className="flex min-h-dvh flex-col items-center justify-center px-6 text-center"
+      style={{ background: C.papel, color: C.tinta, fontFamily: "'IBM Plex Sans', system-ui, sans-serif" }}
+    >
+      <p style={{ fontFamily: "'Bricolage Grotesque', system-ui, sans-serif", fontWeight: 800, fontSize: 24 }}>
+        ¿Cómo entras?
+      </p>
+      <div className="mt-6 w-full max-w-sm text-left">{children}</div>
+      {err ? (
+        <p className="mt-3 max-w-sm text-xs font-semibold" style={{ color: "#B5482E" }}>
+          {err}
+        </p>
+      ) : null}
+    </div>
+  );
+
+  const boton = (texto: string, onClick: () => void) => (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full rounded-xl px-5 py-4 text-left text-sm font-semibold"
+      style={{ background: C.blanco, border: `1px solid ${C.linea}`, color: C.tinta, minHeight: 56 }}
+    >
+      {texto}
+    </button>
+  );
+
+  if (camino === "elegir") {
+    return wrap(
+      <div className="flex flex-col gap-3">
+        {boton("Me invitaron: tengo un código", () => setCamino("codigo"))}
+        {boton("Voy a dar de alta mi predio", () => setCamino("nuevo"))}
+      </div>,
+    );
+  }
+
+  if (camino === "codigo") {
+    return wrap(
+      <form
+        className="flex flex-col gap-3"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (busy) return;
+          const c = codigo.trim();
+          if (!c) {
+            setErr("Escribe el código que te pasaron.");
+            return;
+          }
+          setBusy(true);
+          setErr(null);
+          void unirsePredioConCodigo({ data: { codigo: c, displayName: nombrePersona.trim() || null } })
+            .then(onListo)
+            .catch((e: Error) => setErr(e.message))
+            .finally(() => setBusy(false));
+        }}
+      >
+        <label className="text-xs font-semibold" style={{ color: C.gris }}>
+          Código de predio
+        </label>
+        <input
+          autoFocus
+          value={codigo}
+          onChange={(e) => setCodigo(e.target.value.toUpperCase())}
+          placeholder="Ej. AB12CD"
+          disabled={busy}
+          className="min-h-14 rounded-xl border px-4 text-center text-2xl font-bold tracking-[0.3em]"
+          style={{ borderColor: C.linea, background: C.blanco, color: C.tinta }}
+        />
+        <button
+          type="submit"
+          disabled={busy || !codigo.trim()}
+          className="min-h-12 rounded-xl px-5 text-sm font-semibold"
+          style={{ background: C.bosque, color: C.blanco, border: "none", opacity: busy ? 0.7 : 1 }}
+        >
+          {busy ? "Entrando…" : "Entrar"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setErr(null);
+            setCamino("elegir");
+          }}
+          disabled={busy}
+          className="text-xs font-semibold"
+          style={{ background: "none", border: "none", color: C.bosque, padding: 0 }}
+        >
+          ← Regresar
+        </button>
+      </form>,
+    );
+  }
+
+  return wrap(
+    <form
+      className="flex flex-col gap-3"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (busy) return;
+        const persona = nombrePersona.trim();
+        if (!persona) {
+          setErr("Dinos tu nombre.");
+          return;
+        }
+        setBusy(true);
+        setErr(null);
+        void Promise.resolve(authClient.updateUser({ name: persona }).catch(() => undefined))
+          .then(() =>
+            abrirPredioNuevo({ data: { nombre: nombrePredio.trim(), displayName: persona } }),
+          )
+          .then(onListo)
+          .catch((e: Error) => setErr(e.message))
+          .finally(() => setBusy(false));
+      }}
+    >
+      <label className="text-xs font-semibold" style={{ color: C.gris }}>
+        Tu nombre
+      </label>
+      <input
+        autoFocus
+        value={nombrePersona}
+        onChange={(e) => setNombrePersona(e.target.value)}
+        placeholder="Ej. Juan Pérez"
+        disabled={busy}
+        className="min-h-14 rounded-xl border px-4 text-base"
+        style={{ borderColor: C.linea, background: C.blanco, color: C.tinta, fontSize: 16 }}
+      />
+      <label className="mt-2 text-xs font-semibold" style={{ color: C.gris }}>
+        Nombre de tu predio (opcional)
+      </label>
+      <input
+        value={nombrePredio}
+        onChange={(e) => setNombrePredio(e.target.value)}
+        placeholder="Ej. Predio de Juan"
+        disabled={busy}
+        className="min-h-14 rounded-xl border px-4 text-base"
+        style={{ borderColor: C.linea, background: C.blanco, color: C.tinta, fontSize: 16 }}
+      />
+      <button
+        type="submit"
+        disabled={busy || !nombrePersona.trim()}
+        className="mt-1 min-h-12 rounded-xl px-5 text-sm font-semibold"
+        style={{ background: C.bosque, color: C.blanco, border: "none", opacity: busy ? 0.7 : 1 }}
+      >
+        {busy ? "Abriendo…" : "Abrir mi predio"}
+      </button>
+      <button
+        type="button"
+        onClick={() => {
+          setErr(null);
+          setCamino("elegir");
+        }}
+        disabled={busy}
+        className="text-xs font-semibold"
+        style={{ background: "none", border: "none", color: C.bosque, padding: 0 }}
+      >
+        ← Regresar
+      </button>
+    </form>,
+  );
+}
+
 export function AgroGate({ children }: { children: ReactNode }) {
   const { user, isPending } = useCurrentUserState();
   const [profile, setProfile] = useState<AgroProfile | null>(null);
+  const [sinPredio, setSinPredio] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [stale, setStale] = useState(false);
@@ -174,6 +352,7 @@ export function AgroGate({ children }: { children: ReactNode }) {
       data: { email: user.primaryEmail, displayName: user.displayName },
     });
     setProfile(res.profile);
+    setSinPredio(Boolean(res.sinPredio));
     if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
   }, [user]);
 
@@ -188,15 +367,13 @@ export function AgroGate({ children }: { children: ReactNode }) {
     const timer = window.setTimeout(() => {
       if (!cancelled) setErr("Tardó demasiado abrir el ciclo.");
     }, 12000);
-    const inviteCode =
-      typeof window !== "undefined" ? window.sessionStorage.getItem("agrociclo-invite") : null;
     getAgroSession({
-      data: { email: user.primaryEmail, displayName: user.displayName, inviteCode },
+      data: { email: user.primaryEmail, displayName: user.displayName },
     })
       .then((res) => {
         if (cancelled) return;
-        if (inviteCode && typeof window !== "undefined") window.sessionStorage.removeItem("agrociclo-invite");
         setProfile(res.profile);
+        setSinPredio(Boolean(res.sinPredio));
         if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
         setErr(null);
       })
@@ -322,6 +499,17 @@ export function AgroGate({ children }: { children: ReactNode }) {
             </button>
           </div>
         }
+      />
+    );
+  }
+  if (sinPredio) {
+    const esNombreTelefono = /^\+?\d{10,13}$/.test((user?.displayName ?? "").trim());
+    return (
+      <ElegirCamino
+        nombreSugerido={esNombreTelefono ? null : user?.displayName ?? null}
+        onListo={() => {
+          void reload();
+        }}
       />
     );
   }
@@ -486,6 +674,16 @@ export function RolesPanel() {
   );
 }
 
+/** Cuentas de celular usan un correo sintético (ver signUpOnVerification en
+ *  auth/server.ts); nunca se le muestra eso a nadie — se ve el teléfono. */
+export function contactoVisible(email: string | null): string | null {
+  if (!email) return null;
+  const m = /^(\d{10,13})@telefono\.agrociclo\.app$/.exec(email);
+  if (!m) return email;
+  const local = m[1].slice(-10);
+  return `+52 ${local.slice(0, 3)} ${local.slice(3, 6)} ${local.slice(6)}`;
+}
+
 export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () => void; variante?: "popover" | "pagina" }) {
   const { profile } = useAgroSession();
   const [members, setMembers] = useState<Member[]>([]);
@@ -540,9 +738,11 @@ export function EquipoPanel({ onClose, variante = "popover" }: { onClose?: () =>
       {members.map((m) => (
         <div key={m.userId} className="flex flex-col gap-2 border-t py-3" style={{ borderColor: C.linea }}>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{m.displayName || m.email || m.userId.slice(0, 8)}</div>
+            <div className="truncate text-sm font-semibold">
+              {m.displayName || contactoVisible(m.email) || m.userId.slice(0, 8)}
+            </div>
             <div className="truncate text-xs" style={{ color: C.gris }}>
-              {m.email || "sin correo"}
+              {contactoVisible(m.email) || "sin correo"}
             </div>
           </div>
           {m.userId === profile.userId ? (

@@ -1,11 +1,108 @@
 // @ts-nocheck
+import { useState } from "react";
 import { C } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo } from "../ui";
 import { CatalogoInsumos } from "../forms/almacen";
 import { CatalogoLitrosHaLabor } from "../forms/campo";
 import { CiclosAdmin } from "../forms/ciclo";
-import { EquipoPanel, RolesPanel } from "../session";
+import { EquipoPanel, RolesPanel, contactoVisible } from "../session";
+import { authClient } from "@/lib/auth/client";
 import { Copy } from "lucide-react";
+
+/** Deja a alguien que entró con correo agregar su celular para entrar más
+ *  fácil después. `PHONE_NUMBER_EXIST` sale cuando ese número ya es la
+ *  cuenta de otra persona — el error tiene que decir qué hacer, no solo que
+ *  no se pudo (caso típico: comparte celular con su hijo). */
+function AgregarCelular({ telefonoActual }) {
+  const [digitos, setDigitos] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [ok, setOk] = useState(false);
+  const [error, setError] = useState(null);
+
+  if (telefonoActual) {
+    return (
+      <p style={{ margin: "8px 0 0", fontSize: 13, color: C.gris }}>
+        Celular para entrar: <strong style={{ color: C.tinta }}>{telefonoActual}</strong>
+      </p>
+    );
+  }
+
+  if (ok) {
+    return (
+      <p style={{ margin: "8px 0 0", fontSize: 13, color: C.bosque, fontWeight: 600 }}>
+        Listo. Ya puedes entrar con ese celular la próxima vez.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-2">
+      <p style={{ margin: "0 0 8px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+        Agrega tu celular para entrar sin correo ni contraseña la próxima vez.
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <span
+          className="rounded-[10px] px-3 font-bold"
+          style={{ ...estiloInput, width: "auto", display: "flex", alignItems: "center" }}
+        >
+          +52
+        </span>
+        <input
+          value={digitos}
+          onChange={(e) => {
+            setDigitos(e.target.value.replace(/\D/g, "").slice(0, 10));
+            setError(null);
+          }}
+          placeholder="6681234567"
+          inputMode="numeric"
+          style={{ ...estiloInput, maxWidth: 180 }}
+        />
+        <Boton
+          disabled={busy || digitos.length !== 10}
+          onClick={() => {
+            setBusy(true);
+            setError(null);
+            void authClient.phoneNumber
+              .sendOtp({ phoneNumber: `+52${digitos}` })
+              .then(({ error: err }) => {
+                if (err) throw new Error(err.message);
+                const codigo = window.prompt("Escribe el código de 6 dígitos que te llegó por SMS:");
+                if (!codigo) return;
+                return authClient.phoneNumber
+                  .verify({ phoneNumber: `+52${digitos}`, code: codigo.trim(), updatePhoneNumber: true })
+                  .then(({ error: err2 }) => {
+                    if (err2) throw new Error(err2.message);
+                    setOk(true);
+                  });
+              })
+              .catch((e) => {
+                const msg = e instanceof Error ? e.message : "";
+                if (msg === "Phone number already exists") {
+                  setError(
+                    "Ese celular ya abre otra cuenta. La cuenta es del número, no de la persona: si lo comparten (por ejemplo con un hijo), solo uno de los dos puede usarlo para entrar. Pide que lo quite de la suya, o agrega uno distinto.",
+                  );
+                } else if (msg === "Invalid OTP") {
+                  setError("Ese código no es correcto.");
+                } else if (msg === "OTP expired") {
+                  setError("El código ya venció. Intenta de nuevo.");
+                } else {
+                  setError(msg || "No se pudo agregar el celular.");
+                }
+              })
+              .finally(() => setBusy(false));
+          }}
+        >
+          {busy ? "Enviando…" : "Agregar"}
+        </Boton>
+      </div>
+      {error ? (
+        <p className="mt-2" style={{ fontSize: 12, fontWeight: 600, color: "#B5482E", lineHeight: 1.5 }}>
+          {error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }) {
   return (
@@ -30,7 +127,7 @@ export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjuste
               <Tarjeta style={{ padding: 18 }}>
                 <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Predio</div>
                 <p style={{ margin: "8px 0 12px", fontSize: 12, color: C.gris }}>
-                  Tú eres Dueño · {user?.primaryEmail || user?.displayName || "cuenta"}
+                  Tú eres Dueño · {user?.displayName || contactoVisible(user?.primaryEmail) || "cuenta"}
                 </p>
                 <Campo label="Nombre del predio">
                   <input
@@ -42,6 +139,7 @@ export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjuste
                     }}
                   />
                 </Campo>
+                <AgregarCelular telefonoActual={user?.phoneNumber} />
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>

@@ -320,10 +320,9 @@ async function orgPorCodigo(codigo: string) {
   return rows[0] ?? null;
 }
 
-async function crearRancho(userId: string, email: string | null, displayName: string | null) {
+async function crearRancho(userId: string, email: string | null, displayName: string | null, nombre: string) {
   const sql = await getSql();
   const orgId = crypto.randomUUID();
-  const nombre = nombreRanchoNuevo(displayName);
   const codigo = await codigoUnico();
   await sql.query(
     `insert into agrociclo_org (id, nombre, creado_por, codigo_invitacion) values ($1, $2, $3, $4)`,
@@ -399,6 +398,9 @@ async function promoverADueño(
   );
 }
 
+/** Solo une con código de invitación. Sin código, deja al usuario sin predio —
+ *  ya no le regala uno: elige en la pantalla "¿Cómo entras?" (ver
+ *  abrirPredioNuevo / unirsePredioConCodigo). */
 async function bootstrap(
   userId: string,
   email: string | null,
@@ -406,16 +408,14 @@ async function bootstrap(
   inviteCode: string | null,
 ) {
   const codigo = normalizarCodigo(inviteCode);
-  const orgInv = codigo ? await orgPorCodigo(codigo) : null;
+  if (!codigo) return;
+  const orgInv = await orgPorCodigo(codigo);
   const destino = destinoAlta(false, Boolean(orgInv));
   if (destino === "unirse" && orgInv) {
     await unirseARancho(userId, orgInv.id, email, displayName);
     return;
   }
-  if (codigo && !orgInv) {
-    throw new Error("Ese código de predio no existe. Revísalo o déjalo vacío para abrir el tuyo.");
-  }
-  await crearRancho(userId, email, displayName);
+  throw new Error("Ese código de predio no existe. Revísalo o déjalo vacío para abrir el tuyo.");
 }
 
 async function countPlataformaAdmin(): Promise<number> {
@@ -540,6 +540,39 @@ function toProfile(
   };
 }
 
+/** Pantalla "¿Cómo entras?": la persona decide abrir su propio predio. */
+export const abrirPredioNuevo = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { nombre: string; displayName?: string | null }) => p)
+  .handler(async ({ context, data }) => {
+    return serialize("agc-org-boot", async () => {
+      await asegurarEsquemaPlataforma();
+      await asegurarEsquemaRoles();
+      if (await loadOrg(context.userId)) return { ok: true as const };
+      const displayName = (data.displayName || "").trim() || null;
+      const nombre = (data.nombre || "").trim() || nombreRanchoNuevo(displayName);
+      await crearRancho(context.userId, null, displayName, nombre);
+      return { ok: true as const };
+    });
+  });
+
+/** Pantalla "¿Cómo entras?": la persona ya tiene un código de quien la invitó. */
+export const unirsePredioConCodigo = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { codigo: string; displayName?: string | null }) => p)
+  .handler(async ({ context, data }) => {
+    return serialize("agc-org-boot", async () => {
+      await asegurarEsquemaPlataforma();
+      await asegurarEsquemaRoles();
+      if (await loadOrg(context.userId)) return { ok: true as const };
+      const codigo = normalizarCodigo(data.codigo);
+      const org = codigo ? await orgPorCodigo(codigo) : null;
+      if (!org) throw new Error("Ese código de predio no existe. Revísalo con quien te invitó.");
+      await unirseARancho(context.userId, org.id, null, (data.displayName || "").trim() || null);
+      return { ok: true as const };
+    });
+  });
+
 export const getAgroSession = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((p: { email?: string | null; displayName?: string | null; inviteCode?: string | null }) => p ?? {})
@@ -560,7 +593,11 @@ export const getAgroSession = createServerFn({ method: "POST" })
         );
         row = await loadOrg(context.userId);
       }
-      if (!row) throw new Error("No se pudo abrir la sesión de predio.");
+      if (!row) {
+        // Sin código de invitación no se le regala un predio: la pantalla
+        // "¿Cómo entras?" (session.tsx) le pregunta antes de abrir uno.
+        return { profile: null as AgroProfile | null, ledger: null as Json | null, sinPredio: true };
+      }
       if (debePromoverADueño(row.rol, await countLivingDueños(row.organizacion_id))) {
         await promoverADueño(context.userId, row.organizacion_id, data.email ?? row.email, data.displayName ?? row.display_name);
         row = await loadOrg(context.userId);

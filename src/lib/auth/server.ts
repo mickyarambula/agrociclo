@@ -30,7 +30,7 @@
  * a verified id via `@/lib/auth/middleware`.
  */
 import { betterAuth } from "better-auth";
-import { bearer, genericOAuth } from "better-auth/plugins";
+import { bearer, genericOAuth, phoneNumber } from "better-auth/plugins";
 import { tanstackStartCookies } from "better-auth/tanstack-start";
 import { getCookie } from "@tanstack/react-start/server";
 import { randomBytes } from "node:crypto";
@@ -40,6 +40,9 @@ import { emailAndPasswordEnabled } from "./email-password";
 import { GATE_PROVIDER_ID, gateIdentitySessions } from "./gate-session.server";
 import { GROK_PROVIDERS } from "./providers";
 import { pgliteDialect } from "./pglite-dialect";
+import { telefonoMxValido } from "./phone";
+import { enviarSms } from "./sms-provider";
+import { ipDeSolicitud, verificarThrottleSms } from "./sms-throttle.server";
 import {
   GROK_ISSUER_DEFAULT,
   PREVIEW_ALLOWED_HOSTS,
@@ -208,7 +211,16 @@ export const auth = betterAuth({
   // (incl. the client's `/get-session`) skip the DB — this shrinks the "loading"
   // window and reduces auth flicker. See the `auth` skill for the full
   // flicker-prevention guidance (gate on `isPending`; SSR the session).
-  session: { cookieCache: { enabled: true, maxAge: 300 } },
+  //
+  // `expiresIn`/`updateAge` extended to ~90 días: el productor entra con su
+  // celular y no lo vuelve a hacer salvo que borre la app o cambie de teléfono.
+  // La sesión se renueva sola (rolling) mientras abra la app al menos cada
+  // ~83 días; solo expira de veras si la deja quieta más que eso.
+  session: {
+    expiresIn: 60 * 60 * 24 * 90,
+    updateAge: 60 * 60 * 24 * 7,
+    cookieCache: { enabled: true, maxAge: 300 },
+  },
 
   // Local email/password — toggled only via `./email-password` (not a plugin).
   ...(emailAndPasswordEnabled ? { emailAndPassword: { enabled: true } } : {}),
@@ -237,6 +249,28 @@ export const auth = betterAuth({
     // One genericOAuth provider per upstream (when auth is on), all federating
     // to the broker with the SAME client and differing only by the `idp` hint.
     ...(grokOAuthPlugin ? [grokOAuthPlugin] : []),
+
+    // Entrar con celular: código de 6 dígitos por SMS. El envío está
+    // desacoplado en `./sms-provider` (hoy Twilio) — este plugin solo genera y
+    // verifica el código; ver la migración 0008 para las columnas que agrega
+    // a `user`.
+    phoneNumber({
+      otpLength: 6,
+      expiresIn: 300,
+      allowedAttempts: 3,
+      phoneNumberValidator: telefonoMxValido,
+      sendOTP: async ({ phoneNumber: telefono, code }, ctx) => {
+        const ip = ipDeSolicitud((key) => ctx?.getHeader(key) ?? null);
+        await verificarThrottleSms(telefono, ip);
+        await enviarSms({ telefono, mensaje: `${code} es tu código de AgroCiclo.` });
+      },
+      signUpOnVerification: {
+        // Temporal hasta que la persona ponga su nombre al dar de alta su
+        // predio — ver session.tsx y la pantalla "¿Cómo entras?".
+        getTempEmail: (telefono) => `${telefono.replace(/\D/g, "")}@telefono.agrociclo.app`,
+        getTempName: (telefono) => telefono,
+      },
+    }),
 
     // Accept `Authorization: Bearer <session-token>` as an alternative to the
     // cookie. Needed for the LIVE PREVIEW: the app runs in an embedded iframe
