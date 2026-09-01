@@ -3,6 +3,7 @@ import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { Eye, EyeOff, Share, MoreVertical, SquarePlus, Download, Check } from "lucide-react";
 import { GROK_PROVIDERS, authClient, authEnabled, signIn } from "@/lib/auth/client";
 import { useCurrentUserState } from "@/lib/auth/use-current-user";
+import { telefonoTieneCuenta } from "@/lib/auth/phone-lookup";
 
 export const Route = createFileRoute("/login")({ component: Login });
 
@@ -317,9 +318,11 @@ function PasoCodigo({
   busy,
   error,
   segundos,
+  numeroDesconocido,
   onVerificar,
   onReenviar,
   onCambiarNumero,
+  onUsarCorreo,
 }: {
   telefonoVisible: string;
   codigo: string;
@@ -327,9 +330,11 @@ function PasoCodigo({
   busy: boolean;
   error: string | null;
   segundos: number;
+  numeroDesconocido: boolean;
   onVerificar: () => void;
   onReenviar: () => void;
   onCambiarNumero: () => void;
+  onUsarCorreo: () => void;
 }) {
   return (
     <div className="rounded-2xl p-5" style={{ background: C.blanco, border: `1px solid ${C.linea}` }}>
@@ -391,6 +396,18 @@ function PasoCodigo({
           </button>
         )}
       </div>
+      {numeroDesconocido ? (
+        <button
+          type="button"
+          onClick={onUsarCorreo}
+          disabled={busy}
+          className="mt-4 w-full rounded-xl px-3 py-2.5 text-left text-xs"
+          style={{ background: "#F5F1E6", border: `1px solid ${C.linea}`, color: C.gris, lineHeight: 1.5, cursor: "pointer" }}
+        >
+          ¿Ya tienes cuenta con correo? Entra con tu correo y liga tu celular desde Ajustes, para no acabar con dos
+          cuentas.
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -586,6 +603,7 @@ function Login() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [segundos, setSegundos] = useState(0);
+  const [numeroDesconocido, setNumeroDesconocido] = useState(false);
   const autoEnviado = useRef(false);
 
   useEffect(() => {
@@ -604,8 +622,14 @@ function Login() {
     setBusy(true);
     setError(null);
     try {
-      const { error: err } = await authClient.phoneNumber.sendOtp({ phoneNumber: telefono });
+      const [{ error: err }, lookup] = await Promise.all([
+        authClient.phoneNumber.sendOtp({ phoneNumber: telefono }),
+        // Si la consulta falla, no mostramos el aviso — mejor callado que
+        // molestar a alguien que sí tiene cuenta ligada a ese número.
+        telefonoTieneCuenta({ data: { telefono } }).catch(() => ({ existe: true })),
+      ]);
       if (err) throw new Error(err.message);
+      setNumeroDesconocido(!lookup.existe);
       setCodigo("");
       setSegundos(REENVIO_SEG);
       setPaso("codigo");
@@ -689,11 +713,16 @@ function Login() {
             busy={busy}
             error={error}
             segundos={segundos}
+            numeroDesconocido={numeroDesconocido}
             onVerificar={() => void verificarCodigo(codigo)}
             onReenviar={() => void enviarCodigo()}
             onCambiarNumero={() => {
               setError(null);
               setPaso("telefono");
+            }}
+            onUsarCorreo={() => {
+              setError(null);
+              setPaso("correo");
             }}
           />
         )}
