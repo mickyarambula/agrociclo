@@ -22,6 +22,7 @@ import {
   costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
   ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE, claveTipo,
+  mondayOf,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -409,7 +410,7 @@ function AgroCicloApp() {
      `id`/`_uuid` = uuid del jornal. Se filtran los jornales cuya parcela no está en parcelasT.
      `seedNomina` quedó eliminado. */
   const nominaQ = useOrgRead(["nomina", CICLO_ID], "jornal", {
-    columns: "id, parcela_id, fecha, tipo, cuadrilla, actividad, personas, dias, pago_diario, pagado, fecha_pago",
+    columns: "id, parcela_id, fecha, tipo, cuadrilla, actividad, actividades, personas, dias, dias_detalle, pago_diario, pagado, fecha_pago",
     build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha"),
   });
   const nomina = useMemo(() => {
@@ -419,7 +420,9 @@ function AgroCicloApp() {
         id: r.id, _uuid: r.id,
         parcelaId: r.parcela_id,
         fecha: r.fecha, tipo: r.tipo, cuadrilla: r.cuadrilla ?? "", actividad: r.actividad ?? "",
+        actividades: Array.isArray(r.actividades) ? r.actividades : [],
         personas: Number(r.personas) || 0, dias: Number(r.dias) || 0,
+        diasDetalle: Array.isArray(r.dias_detalle) ? r.dias_detalle : null,
         pago: Number(r.pago_diario) || 0,
         pagado: !!r.pagado, fechaPago: r.fecha_pago ?? null,
       };
@@ -1000,6 +1003,46 @@ function AgroCicloApp() {
   const agregarTipoLabor = (nombre) => agregarTipoMut.mutate({ ambito: "labor", nombre });
   const agregarActividadRaya = (nombre) => agregarTipoMut.mutate({ ambito: "raya", nombre });
 
+  /* Directorio ligero de raya (tabla persona, a nivel predio como tipo_trabajo):
+     nombre + tipo (Operador/Jornalero) + pago por día de referencia. Las RPC de
+     asistencia dan de alta sola a la primera persona nueva que capturan;
+     este catálogo es además editable a mano (corregir tipo/pago, dar de baja). */
+  const personasQ = useOrgRead(["personas"], "persona", { build: (q) => q.is("eliminado_en", null).order("nombre") });
+  const personas = personasQ.data ?? [];
+  const guardarPersonaMut = useOrgWrite({
+    op: "tabla:persona",
+    mutationFn: async ({ f, original }) => {
+      const nombre = (f.nombre || "").trim();
+      if (!nombre) throw new Error("Escribe el nombre.");
+      const clave = claveTipo(nombre);
+      const dup = personas.find((p) => p.id !== original?.id && claveTipo(p.nombre) === clave);
+      if (dup) throw new Error(`Ya existe "${dup.nombre}" en el directorio.`);
+      const reg = { nombre, tipo: f.tipo || "Jornalero", pago: Number(f.pago) || 0 };
+      if (original) {
+        const { error } = await supabase.from("persona").update(reg).eq("id", original.id).eq("organizacion_id", ORG_ID);
+        if (error) throw new Error(error.message);
+      } else {
+        const { error } = await supabase.from("persona").insert({ id: crypto.randomUUID(), ...reg, organizacion_id: ORG_ID });
+        if (error) throw new Error(error.message);
+      }
+    },
+    invalidate: [["personas"]],
+    successMsg: "Directorio guardado",
+  });
+  const bajaPersonaMut = useOrgWrite({
+    op: "tabla:persona",
+    mutationFn: async (per) => {
+      const { error } = await supabase.from("persona")
+        .update({ eliminado_en: new Date().toISOString() })
+        .eq("id", per.id).eq("organizacion_id", ORG_ID);
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["personas"]],
+    successMsg: "Persona dada de baja",
+  });
+  const guardarPersona = (f, original) => guardarPersonaMut.mutate({ f, original });
+  const eliminarPersona = (per) => bajaPersonaMut.mutate(per);
+
   /* Guarda el L/ha "de referencia" de un tipo de labor. Si el tipo es de
      fábrica (TIPOS_LABOR) y aún no tiene fila propia en el catálogo, la crea
      como fila de configuración (no altera la lista visible: tiposLabor la
@@ -1289,10 +1332,16 @@ function AgroCicloApp() {
     invalidate: [["nomina", CICLO_ID]],
     successMsg: "Jornal eliminado",
   });
+  /* Pagar raya es por PERSONA y por SEMANA — no "todo lo pendiente de ese
+     nombre" (ese era el bug: pagaba jornales de semanas que no tocaban).
+     La semana de cada renglón se deriva de su fecha (mondayOf), así que
+     también agrupa correcto a los jornales viejos (formato cuadrilla). */
   const pagarRayaMut = useOrgWrite({
     op: "tabla:jornal",
-    mutationFn: async (nombre) => {
-      const ids = nominaT.filter(n => !n.pagado && n.cuadrilla === nombre).map(n => n._uuid);
+    mutationFn: async ({ nombre, semana }) => {
+      const ids = nominaT
+        .filter(n => !n.pagado && n.cuadrilla === nombre && mondayOf(n.fecha) === semana)
+        .map(n => n._uuid);
       if (!ids.length) return;
       const { error } = await supabase.from("jornal")
         .update({ pagado: true, fecha_pago: hoyStr })
@@ -1302,9 +1351,37 @@ function AgroCicloApp() {
     invalidate: [["nomina", CICLO_ID]],
     successMsg: "Raya pagada",
   });
+  const guardarAsistenciaSemanaMut = useOrgWrite({
+    op: "rpc:fn_guardar_asistencia_semana",
+    mutationFn: async ({ parcelaId, semana, actividades, filas }) => {
+      const { error } = await supabase.rpc("fn_guardar_asistencia_semana", {
+        p_organizacion_id: ORG_ID, p_ciclo_id: CICLO_ID,
+        p_parcela_id: parcelaId, p_semana_inicio: semana,
+        p_actividades: actividades, p_filas: filas,
+      });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["nomina", CICLO_ID], ["personas"]],
+    successMsg: "Semana guardada",
+  });
+  const registrarAsistenciaDiaMut = useOrgWrite({
+    op: "rpc:fn_registrar_asistencia_dia",
+    mutationFn: async ({ parcelaId, fecha, actividades, personas: filas }) => {
+      const { error } = await supabase.rpc("fn_registrar_asistencia_dia", {
+        p_organizacion_id: ORG_ID, p_ciclo_id: CICLO_ID,
+        p_parcela_id: parcelaId, p_fecha: fecha,
+        p_actividades: actividades, p_personas: filas,
+      });
+      if (error) throw new Error(error.message);
+    },
+    invalidate: [["nomina", CICLO_ID], ["personas"]],
+    successMsg: "Día guardado",
+  });
   const guardarNomina = (f, original) => guardarNominaMut.mutate({ f, original }, { onSuccess: cerrar });
   const eliminarNomina = (n) => eliminarNominaMut.mutate(n);
-  const pagarRayaPersona = (nombre) => pagarRayaMut.mutate(nombre);
+  const pagarRayaPersona = (nombre, semana) => pagarRayaMut.mutate({ nombre, semana }, { onSuccess: cerrar });
+  const guardarAsistenciaSemana = (vars) => guardarAsistenciaSemanaMut.mutate(vars, { onSuccess: cerrar });
+  const registrarAsistenciaDia = (vars) => registrarAsistenciaDiaMut.mutate(vars, { onSuccess: cerrar });
 
   const directorio = useMemo(() => {
     const map = {};
@@ -1314,16 +1391,19 @@ function AgroCicloApp() {
     return Object.values(map);
   }, [nomina]);
 
-  const rayaPorPersona = useMemo(() => {
+  /* Hoja del sábado: para cada persona, cuánto le toca ESA SEMANA sumando
+     entre parcelas (si trabajó en dos lotes la misma semana, se paga junto). */
+  const rayaSemanal = useMemo(() => {
     const map = {};
     nominaT.filter(n => !n.pagado).forEach(n => {
-      const t = n.personas * n.dias * n.pago;
-      if (!map[n.cuadrilla]) map[n.cuadrilla] = { nombre: n.cuadrilla, tipo: n.tipo, total: 0, registros: 0, jornales: 0 };
-      map[n.cuadrilla].total += t;
-      map[n.cuadrilla].registros += 1;
-      map[n.cuadrilla].jornales += n.personas * n.dias;
+      const semana = mondayOf(n.fecha);
+      const key = semana + "|" + n.cuadrilla;
+      if (!map[key]) map[key] = { semana, nombre: n.cuadrilla, tipo: n.tipo, total: 0, dias: 0, filas: [] };
+      map[key].total += n.personas * n.dias * n.pago;
+      map[key].dias += n.personas * n.dias;
+      map[key].filas.push(n);
     });
-    return Object.values(map).sort((a, b) => b.total - a.total);
+    return Object.values(map).sort((a, b) => b.semana === a.semana ? b.total - a.total : b.semana.localeCompare(a.semana));
   }, [nominaT]);
 
   /* --- CRÉDITOS (base de datos) --- */
@@ -2187,7 +2267,7 @@ function AgroCicloApp() {
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
-          <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaPorPersona, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya }} />
+          <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaSemanal, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya, personas, guardarPersona, eliminarPersona, guardarAsistenciaSemana, registrarAsistenciaDia }} />
 
           {/* ===== COSECHA ===== */}
           <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }} />

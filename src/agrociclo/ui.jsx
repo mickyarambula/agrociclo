@@ -294,13 +294,26 @@ export function BarraLista({ datos }) {
 }
 
 /* ---------- Componentes de apoyo ---------- */
-/** @param {{titulo?: any, accion?: any, abierto?: any, editando?: any, onAbrir?: any, onCerrar?: any, form?: any, children?: any, puedeEditar?: boolean}} props */
-export function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true }) {
+/** `accion` acepta el string de siempre (un botón, con `onAbrir`) o un arreglo
+ *  `[{id, label, onClick}]` para más de un botón de alta (ej. Raya: "Semana" /
+ *  "Día suelto") — cada uno abre su propio formulario. `tituloForm` manda
+ *  sobre el rótulo del modal cuando hay más de una acción, para poder decir
+ *  cuál de las dos está abierta.
+ *  @param {{titulo?: any, accion?: any, tituloForm?: any, abierto?: any, editando?: any, onAbrir?: any, onCerrar?: any, form?: any, children?: any, puedeEditar?: boolean}} props */
+export function Seccion({ titulo, accion, tituloForm, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true }) {
+  const acciones = Array.isArray(accion) ? accion : accion ? [{ id: "_unica", label: accion, onClick: onAbrir }] : [];
+  const encabezado = tituloForm || (editando ? "Editar registro" : (typeof accion === "string" ? accion : ""));
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 24, margin: 0 }}>{titulo}</h1>
-        {!abierto && puedeEditar && <Boton onClick={onAbrir}><Plus size={15} /> {accion}</Boton>}
+        {!abierto && puedeEditar && acciones.length > 0 && (
+          <div className="flex gap-2 flex-wrap">
+            {acciones.map((a) => (
+              <Boton key={a.id ?? a.label} onClick={a.onClick}><Plus size={15} /> {a.label}</Boton>
+            ))}
+          </div>
+        )}
       </div>
       {abierto && puedeEditar && (
         <>
@@ -309,7 +322,7 @@ export function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, 
             style={{ background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}
           >
             <div className="flex items-center justify-between px-4 py-3" style={{ background: C.bosque, color: C.blanco }}>
-              <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>{editando ? "Editar registro" : accion}</span>
+              <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>{encabezado}</span>
               <button type="button" onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.blanco, minWidth: 44, minHeight: 44 }} aria-label="Cerrar formulario">
                 <X size={20} />
               </button>
@@ -318,7 +331,7 @@ export function Seccion({ titulo, accion, abierto, editando, onAbrir, onCerrar, 
           </div>
           <Tarjeta className="hidden md:block" style={{ padding: 18, borderLeft: `3px solid ${C.hoja}` }}>
             <div className="flex justify-between items-center mb-3">
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{editando ? "Editar registro" : accion}</span>
+              <span style={{ fontWeight: 700, fontSize: 14 }}>{encabezado}</span>
               <button onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar formulario"><X size={17} /></button>
             </div>
             {form}

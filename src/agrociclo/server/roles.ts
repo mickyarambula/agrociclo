@@ -38,9 +38,11 @@ export const ENCARGADO_RPC = new Set([
   "fn_eliminar_cotizacion",
   "fn_guardar_boleta",
   "fn_hoy_mochis",
+  "fn_guardar_asistencia_semana",
+  "fn_registrar_asistencia_dia",
 ]);
 
-export const ENCARGADO_TABLES = new Set(["jornal", "tipo_trabajo"]);
+export const ENCARGADO_TABLES = new Set(["jornal", "tipo_trabajo", "persona"]);
 
 export type AccionModulo = "oculto" | "ver" | "editar";
 
@@ -95,10 +97,13 @@ const RPC_MODULO: Record<string, ModuloId> = {
   fn_guardar_caja_fondeo: "caja",
   fn_autorizar_caja_salida: "caja",
   fn_eliminar_caja_mov: "caja",
+  fn_guardar_asistencia_semana: "cuadrillas",
+  fn_registrar_asistencia_dia: "cuadrillas",
 };
 
 const TABLE_MODULO: Record<string, ModuloId> = {
   jornal: "cuadrillas",
+  persona: "cuadrillas",
   productor: "productores",
   parcela: "parcelas",
   cultivo: "parcelas",

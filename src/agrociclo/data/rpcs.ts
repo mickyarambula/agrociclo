@@ -47,6 +47,49 @@ function findOrCreate(table: TableName, nombre: string): string {
   return id;
 }
 
+/* Anti-duplicados sin acentos ni mayúsculas — mismo criterio que claveTipo en
+   base.js (duplicado aquí porque rpcs.ts no importa código de UI). */
+function claveNombre(n: unknown): string {
+  return String(n ?? "").trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+}
+
+/** Directorio ligero de raya: da de alta a la persona en el catálogo si es la
+ *  primera vez que se captura su nombre. No pisa tipo/pago si ya existía —
+ *  el catálogo es la referencia, un ajuste puntual en una captura no lo mueve. */
+function altaPersonaSiNueva(nombre: string, tipo: string, pago: number): void {
+  const clave = claveNombre(nombre);
+  if (!clave) return;
+  if (live("persona").some((per) => claveNombre(per.nombre) === clave)) return;
+  insertRow("persona", {
+    id: uid(),
+    organizacion_id: orgActual(),
+    nombre: nombre.trim(),
+    tipo,
+    pago: Number(pago) || 0,
+    eliminado_en: null,
+  });
+}
+
+/** Lunes de la semana que contiene `fechaISO` (mismo cálculo que
+ *  `mondayOf` en base.js — ver ese comentario para el porqué de UTC puro). */
+function mondayOf(fechaISO: string): string {
+  const [y, m, d] = String(fechaISO || "").split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay();
+  date.setUTCDate(date.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return date.toISOString().slice(0, 10);
+}
+
+function diasDeSemana(mondayISO: string): string[] {
+  const [y, m, d] = String(mondayISO || "").split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  return Array.from({ length: 7 }, (_, i) => {
+    const dt = new Date(base);
+    dt.setUTCDate(dt.getUTCDate() + i);
+    return dt.toISOString().slice(0, 10);
+  });
+}
+
 function upsertDisposicion(opts: {
   id?: string | null;
   origen_tipo: string;
@@ -237,6 +280,126 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       ),
     }));
     return ok(true);
+  },
+
+  /** Captura semanal de asistencia (oficina, viernes/sábado): reemplaza el
+   *  estado completo de la semana para cada persona en esa parcela — la
+   *  pantalla ya muestra la semana entera, así que "lo que se ve" es "lo que
+   *  se guarda". Un renglón de `jornal` por (parcela, persona, semana). */
+  fn_guardar_asistencia_semana(p) {
+    const parcela = String(p.p_parcela_id ?? "");
+    if (!parcela) return err("Selecciona una parcela.");
+    if (!getById("parcela", parcela)) return err("Esa parcela no existe.");
+    const monday = mondayOf(String(p.p_semana_inicio ?? ""));
+    if (!monday) return err("Semana inválida.");
+    const semanaValida = new Set(diasDeSemana(monday));
+    const actividades = (Array.isArray(p.p_actividades) ? p.p_actividades : [])
+      .map((a) => String(a).trim())
+      .filter(Boolean);
+    const cicloAsis = cicloDe(p, parcela);
+    const filas = (Array.isArray(p.p_filas) ? p.p_filas : []) as {
+      nombre: string;
+      tipo: string;
+      pago: number;
+      dias: string[];
+    }[];
+    if (!filas.length) return err("Elige al menos una persona.");
+    for (const fila of filas) {
+      const nombre = String(fila.nombre ?? "").trim();
+      if (!nombre) continue;
+      const tipo = String(fila.tipo ?? "Jornalero");
+      const pago = Number(fila.pago) || 0;
+      const dias = Array.from(new Set((Array.isArray(fila.dias) ? fila.dias : []).map(String)))
+        .filter((d) => semanaValida.has(d))
+        .sort();
+      altaPersonaSiNueva(nombre, tipo, pago);
+      const clave = claveNombre(nombre);
+      const existente = live("jornal").find(
+        (j) => j.parcela_id === parcela && j.fecha === monday && claveNombre(j.cuadrilla) === clave,
+      );
+      if (dias.length === 0) {
+        if (existente) softDelete("jornal", existente.id);
+        continue;
+      }
+      upsert("jornal", {
+        id: existente?.id ?? uid(),
+        organizacion_id: orgActual(),
+        ciclo_id: cicloAsis,
+        parcela_id: parcela,
+        fecha: monday,
+        tipo,
+        cuadrilla: nombre,
+        actividad: actividades.join(", "),
+        actividades,
+        personas: 1,
+        dias: dias.length,
+        dias_detalle: dias,
+        pago_diario: pago,
+        pagado: existente?.pagado ?? false,
+        fecha_pago: existente?.fecha_pago ?? null,
+        eliminado_en: null,
+        creado_en: existente?.creado_en ?? new Date().toISOString(),
+      });
+    }
+    return ok(monday);
+  },
+
+  /** Captura de un día suelto (encargado, en el lote): SUMA ese día a lo que
+   *  ya tenga la persona esa semana en esa parcela, sin tocar los demás días
+   *  — a diferencia de la semanal, aquí no se ve la semana completa, así que
+   *  reemplazar borraría lo que otra captura ya haya anotado. */
+  fn_registrar_asistencia_dia(p) {
+    const parcela = String(p.p_parcela_id ?? "");
+    if (!parcela) return err("Selecciona una parcela.");
+    if (!getById("parcela", parcela)) return err("Esa parcela no existe.");
+    const fecha = String(p.p_fecha ?? "");
+    if (!fecha) return err("Elige la fecha.");
+    const monday = mondayOf(fecha);
+    const actividades = (Array.isArray(p.p_actividades) ? p.p_actividades : [])
+      .map((a) => String(a).trim())
+      .filter(Boolean);
+    const cicloAsis = cicloDe(p, parcela);
+    const personas = (Array.isArray(p.p_personas) ? p.p_personas : []) as {
+      nombre: string;
+      tipo: string;
+      pago: number;
+    }[];
+    if (!personas.length) return err("Marca quién trabajó.");
+    for (const persona of personas) {
+      const nombre = String(persona.nombre ?? "").trim();
+      if (!nombre) continue;
+      const tipo = String(persona.tipo ?? "Jornalero");
+      const pago = Number(persona.pago) || 0;
+      altaPersonaSiNueva(nombre, tipo, pago);
+      const clave = claveNombre(nombre);
+      const existente = live("jornal").find(
+        (j) => j.parcela_id === parcela && j.fecha === monday && claveNombre(j.cuadrilla) === clave,
+      );
+      const diasPrevios = Array.isArray(existente?.dias_detalle) ? (existente.dias_detalle as string[]) : [];
+      const dias = Array.from(new Set([...diasPrevios, fecha])).sort();
+      const actividadesPrevias = Array.isArray(existente?.actividades) ? (existente.actividades as string[]) : [];
+      const actividadesFinal = Array.from(new Set([...actividadesPrevias, ...actividades]));
+      upsert("jornal", {
+        id: existente?.id ?? uid(),
+        organizacion_id: orgActual(),
+        ciclo_id: cicloAsis,
+        parcela_id: parcela,
+        fecha: monday,
+        tipo: existente?.tipo ?? tipo,
+        cuadrilla: nombre,
+        actividad: actividadesFinal.join(", "),
+        actividades: actividadesFinal,
+        personas: 1,
+        dias: dias.length,
+        dias_detalle: dias,
+        pago_diario: existente?.pago_diario ?? pago,
+        pagado: existente?.pagado ?? false,
+        fecha_pago: existente?.fecha_pago ?? null,
+        eliminado_en: null,
+        creado_en: existente?.creado_en ?? new Date().toISOString(),
+      });
+    }
+    return ok(monday);
   },
 
   fn_guardar_parcela(p) {

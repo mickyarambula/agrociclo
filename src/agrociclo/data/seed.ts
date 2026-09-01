@@ -1056,6 +1056,7 @@ export function demoLedger(): Ledger {
     tipo_trabajo: [],
     cultivo: [],
     rentero: [],
+    persona: [],
   };
 }
 
@@ -1111,6 +1112,7 @@ export function ranchoVacioLedger(orgId: string = ORG, nombre = "Agroempresa Val
     tipo_trabajo: [],
     cultivo: [],
     rentero: [],
+    persona: [],
   };
 }
 

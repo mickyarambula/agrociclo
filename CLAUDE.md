@@ -114,7 +114,9 @@ ni por correo. Ajustes: nombre, ciclos, roles, guía, WhatsApp de atención,
 agregar celular a una cuenta de correo.
 El ciclo / Panel con presupuesto vs real y tira de plata. Hoy con tarja y toques.
 Parcelas (propia/rentada, renta a línea o aparte). Labores con diésel e insumo y
-candado de stock. Insumos + kardex. Solicitudes de compra. Raya / cuadrillas.
+candado de stock. Insumos + kardex. Solicitudes de compra. Raya por persona
+(directorio ligero, asistencia semanal con días pre-palomeados, día suelto,
+hoja del sábado para pagar por persona-semana).
 Cosecha con boletas + **cierre de venta** (vendido/costó/quedó + ton/ha).
 Productores y cuenta corriente. Gastos, caja, crédito, costo financiero, reportes.
 
@@ -155,7 +157,25 @@ a pedir código salvo que borre la app o cambie de teléfono). El código de
 predio salió del login: `bootstrap()` en `fns.ts` ya no crea un predio solo
 sin código — `abrirPredioNuevo`/`unirsePredioConCodigo` son las nuevas puertas,
 disparadas desde la pantalla "¿Cómo entras?" en `session.tsx`. Ajustes tiene
-"Agregar mi celular" para cuentas de correo existentes.
+"Agregar mi celular" para cuentas de correo existentes. · **Raya rediseñada**
+(septiembre 2026, de un productor real): dejó de pensarse como nómina de
+cuadrilla y pasó a pagarle a cada persona por separado. Catálogo `persona`
+(nombre + Operador/Jornalero + pago por día, org-level como `tipo_trabajo`,
+alta al vuelo desde la captura). Dos formas de capturar, mismo destino
+(`jornal`, siempre de una persona con `dias_detalle`): `fn_guardar_asistencia_semana`
+(oficina, la semana completa por parcela, días lunes–sábado pre-palomeados y
+domingo apagado — REEMPLAZA el estado de esa persona/parcela/semana porque la
+pantalla ya muestra la semana entera) y `fn_registrar_asistencia_dia`
+(encargado, un día suelto — SUMA ese día a lo que la persona ya tenga esa
+semana, nunca reemplaza, porque ahí no se ve la semana completa). La semana de
+cualquier jornal —viejo o nuevo— se deriva con `mondayOf(fecha)` en vez de
+guardarse aparte; así "Hoja del sábado" agrupa y paga por persona-semana
+sumando entre parcelas, arreglando el bug de "Pagar raya" viejo (pagaba TODO
+lo pendiente de ese nombre, de cualquier semana). Jornales del formato viejo
+(`personas`/`dias` como cuadrilla, sin `dias_detalle`) se quedan intactos y
+siguen editándose con el formulario viejo — la fórmula de costo
+(`personas × dias × pago`) no cambió, solo cómo se llena para captura nueva.
+Actividad pasó de obligatoria-única a opcional-múltiple (`actividades[]`).
 
 1. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
    su parafinanciera.

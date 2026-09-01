@@ -190,3 +190,66 @@ export const TIPOS_LABOR = ["Preparación de tierra", "Siembra", "Fertilización
 export function claveTipo(n) {
   return String(n || "").trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 }
+
+/* Directorio de raya (tabla persona): Operador (fijo, tractorista, etc.) o
+   Jornalero (suelto, seg\u00fan etapa). "Cuadrilla" del formato viejo se queda
+   como dato hist\u00f3rico, ya no se ofrece para captura nueva. */
+export const TIPOS_PERSONA = ["Operador", "Jornalero"];
+
+export const DIAS_SEMANA = ["Lun", "Mar", "Mi\u00e9", "Jue", "Vie", "S\u00e1b", "Dom"];
+
+/* Lunes de la semana calendario que contiene `fechaISO`. Aritm\u00e9tica en UTC
+   puro (sin horas) para que no dependa de la zona horaria del navegador. */
+/** @param {string} fechaISO */
+export function mondayOf(fechaISO) {
+  const [y, m, d] = String(fechaISO || "").split("-").map(Number);
+  if (!y || !m || !d) return fechaISO;
+  const date = new Date(Date.UTC(y, m - 1, d));
+  const dow = date.getUTCDay(); // 0=domingo \u2026 6=s\u00e1bado
+  date.setUTCDate(date.getUTCDate() + (dow === 0 ? -6 : 1 - dow));
+  return date.toISOString().slice(0, 10);
+}
+
+/** Los 7 d\u00edas (lunes a domingo) de la semana que empieza en `mondayISO`.
+ *  @param {string} mondayISO */
+export function diasDeSemana(mondayISO) {
+  const [y, m, d] = String(mondayISO || "").split("-").map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  return Array.from({ length: 7 }, (_, i) => {
+    const dt = new Date(base);
+    dt.setUTCDate(dt.getUTCDate() + i);
+    return dt.toISOString().slice(0, 10);
+  });
+}
+
+/** Suma (o resta) `n` d\u00edas a una fecha ISO, en UTC puro.
+ *  @param {string} fechaISO @param {number} n */
+export function desplazarDia(fechaISO, n) {
+  const [y, m, d] = String(fechaISO || "").split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  date.setUTCDate(date.getUTCDate() + n);
+  return date.toISOString().slice(0, 10);
+}
+
+/** "L, M, J" o "General" si no se captur\u00f3 actividad \u2014 el jornal viejo trae
+ *  `actividad` (texto \u00fanico); el nuevo trae `actividades` (arreglo, opcional).
+ *  @param {any} n */
+export function actividadTexto(n) {
+  if (Array.isArray(n?.actividades) && n.actividades.length) return n.actividades.join(", ");
+  if (n?.actividad) return n.actividad;
+  return "General";
+}
+
+/** Rango legible de una semana para encabezados: "25\u201331 ago" o "29 ago \u2013 4 sep".
+ *  @param {string} mondayISO */
+export function rangoSemana(mondayISO) {
+  const dias = diasDeSemana(mondayISO);
+  const ini = new Date(dias[0] + "T00:00:00Z");
+  const fin = new Date(dias[6] + "T00:00:00Z");
+  /** @param {Date} d */
+  const mesCorto = (d) => d.toLocaleDateString("es-MX", { month: "short", timeZone: "UTC" }).replace(".", "");
+  if (ini.getUTCMonth() === fin.getUTCMonth()) {
+    return `${ini.getUTCDate()}\u2013${fin.getUTCDate()} ${mesCorto(ini)}`;
+  }
+  return `${ini.getUTCDate()} ${mesCorto(ini)} \u2013 ${fin.getUTCDate()} ${mesCorto(fin)}`;
+}
