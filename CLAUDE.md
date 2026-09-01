@@ -10,6 +10,13 @@ Miguel **no es productor**: está construyendo la herramienta para vendérsela a
 productores. Su predio "Predio de Miguel" existe solo para probar. No lo trates
 como si él fuera el que siembra.
 
+**Ya hay un productor real usando la app (desde agosto/septiembre 2026):
+Rodolfo, con su predio y sus datos.** La base de datos local (`.env` con
+`DATABASE_URL`) apunta a la MISMA base de producción — no es un ambiente de
+prueba aparte. No captures, edites ni borres nada que no sea de una cuenta de
+prueba propia contra esa base. Para experimentar, quita `DATABASE_URL` del
+`.env` (cae al PGLite local, desechable) en vez de probar contra producción.
+
 **El producto**: del lote a la venta con el costo real del ciclo (directo + renta
 + raya + insumos + financiero). Valle del Fuerte, **productores de granos**
 (maíz, frijol, garbanzo, trigo). Crédito de avío FIRA / parafinanciera, boletas
@@ -247,6 +254,5 @@ código mágico dentro de la app del productor; tratar a Miguel como productor.
 
 ## Pendiente de seguridad
 
-La contraseña de la base quedó expuesta en un chat. Cuando Miguel pueda:
-Supabase → Settings → Database → Reset database password, y actualizar
-`DATABASE_URL` en Vercel.
+Resuelto (2026-09-01): la contraseña de la base que había quedado expuesta en
+un chat ya se reseteó en Supabase y se actualizó `DATABASE_URL` en Vercel.
