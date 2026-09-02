@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, TrendingUp, CalendarClock, Banknote, LogOut, ListTodo, Menu
+  ClipboardList, PackageCheck, Coins, CalendarClock, Banknote, LogOut, ListTodo, Menu
 } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
@@ -30,7 +30,6 @@ import {
 } from "./ui";
 import { VistaAjustes } from "./vistas/Ajustes";
 import { VistaReportes } from "./vistas/VistaReportes";
-import { VistaCostoFin } from "./vistas/CostoFin";
 import { VistaCredito } from "./vistas/Credito";
 import { VistaCaja } from "./vistas/Caja";
 import { VistaGastos } from "./vistas/Gastos";
@@ -112,7 +111,7 @@ function AgroCicloApp() {
     let v = f || hoyStr;
     if (v < corteMin) v = corteMin;
     if (corteMax && v > corteMax) v = corteMax;
-    setFechaObjetivo(v); // el what-if de Costo financiero se para en la misma fecha
+    setFechaObjetivo(v); // el simulador "¿Y si liquido...?" de Crédito se para en la misma fecha
   };
   const [pagoSupuesto, setPagoSupuesto] = useState({});
   // Pagos parciales: monto del abono por renglón (clave de dispsDeLinea). El input de fecha
@@ -856,7 +855,7 @@ function AgroCicloApp() {
         const tasa = tasaPorLineaId[pp.creditoId] || 0;
         const interes = pp.monto * (tasa / 100 / 365) * Math.max(0, dias);
         a.push({ nivel: "ambar", ambito: "fin",
-          texto: `Préstamo de ${prod ? prod.codigo : "productor"} marcado como pagado el ${pp.fechaPago}, pero su disposición de línea sigue sin liquidar (${money(pp.monto)}) — lleva ${dias} día${dias !== 1 ? "s" : ""} devengando (~${money(interes)} de interés adicional). Ve a Costo financiero y liquídala.` });
+          texto: `Préstamo de ${prod ? prod.codigo : "productor"} marcado como pagado el ${pp.fechaPago}, pero su disposición de línea sigue sin liquidar (${money(pp.monto)}) — lleva ${dias} día${dias !== 1 ? "s" : ""} devengando (~${money(interes)} de interés adicional). Ve a Crédito y liquídala.` });
       });
     parcelasT
       .filter(p => p.tenencia === "Rentada" && p.rentaOrigen === "linea"
@@ -868,7 +867,7 @@ function AgroCicloApp() {
         const tasa = tasaPorLineaId[p.rentaCreditoId] || 0;
         const interes = monto * (tasa / 100 / 365) * Math.max(0, dias);
         a.push({ nivel: "ambar", ambito: "fin",
-          texto: `Renta de "${p.nombre}" marcada como pagada el ${p.fechaPagoRenta}, pero su disposición de línea sigue sin liquidar (${money(monto)}) — lleva ${dias} día${dias !== 1 ? "s" : ""} devengando (~${money(interes)} de interés adicional). Ve a Costo financiero y liquídala.` });
+          texto: `Renta de "${p.nombre}" marcada como pagada el ${p.fechaPagoRenta}, pero su disposición de línea sigue sin liquidar (${money(monto)}) — lleva ${dias} día${dias !== 1 ? "s" : ""} devengando (~${money(interes)} de interés adicional). Ve a Crédito y liquídala.` });
       });
     const porAutorizar = solicitudesT.filter(s => s.estado === "cotizado").length;
     const porCotizar = solicitudesT.filter(s => s.estado === "solicitado").length;
@@ -1985,7 +1984,6 @@ function AgroCicloApp() {
     { id: "gastos", nombre: "Gastos", icono: Wallet, soloFinanzas: true },
     { id: "caja", nombre: "Caja chica", icono: Coins, soloFinanzas: true },
     { id: "credito", nombre: "Crédito", icono: Landmark, soloFinanzas: true },
-    { id: "costofin", nombre: "Costo financiero", icono: TrendingUp, soloFinanzas: true },
     { id: "reportes", nombre: "Reportes", icono: BarChart3, soloFinanzas: true },
     { id: "ajustes", nombre: "Ajustes", icono: SlidersHorizontal, soloDueno: true },
   ];
@@ -1994,7 +1992,7 @@ function AgroCicloApp() {
     { etiqueta: null, ids: ["captura", "panel"] },
     { etiqueta: "Campo", ids: ["parcelas", "inventario", "labores", "solicitudes", "cuadrillas"] },
     { etiqueta: "Venta", ids: ["cosecha", "productores"] },
-    { etiqueta: "Números", ids: ["gastos", "caja", "credito", "costofin", "reportes"] },
+    { etiqueta: "Números", ids: ["gastos", "caja", "credito", "reportes"] },
   ];
   // Abajo en el celular solo lo que se usa parado en la parcela, con una mano
   // y sol encima — una sola fila, ícono grande. Todo lo demás (lo que se
@@ -2325,10 +2323,7 @@ function AgroCicloApp() {
           <VistaCaja {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov }} />
 
           {/* ===== FINANCIAMIENTO ===== */}
-          <VistaCredito {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva, creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta }} />
-
-          {/* ===== COSTO FINANCIERO (desglose por disposición + simulador de fecha) ===== */}
-          <VistaCostoFin {...{ vista, veFinanzas, fechaObjetivo, pagoSupuesto, creditosT, dispsDeLinea, interesInsoluto, comprasT, gastosT, parcelasT, interesDisp, setPagoSupuesto, abonoMonto, puedeEditar, revertirLiquidacion, setAbonoMonto, liquidarDisposicion, setFechaObjetivo }} />
+          <VistaCredito {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva, creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta, fechaObjetivo, setFechaObjetivo, pagoSupuesto, setPagoSupuesto, interesInsoluto, gastosT, interesDisp, abonoMonto, setAbonoMonto, revertirLiquidacion, liquidarDisposicion }} />
 
           {/* ===== REPORTES + SIMULADOR ===== */}
           <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }} />

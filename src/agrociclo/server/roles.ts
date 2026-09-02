@@ -59,14 +59,13 @@ export const MODULOS = [
   { id: "gastos", nombre: "Gastos" },
   { id: "caja", nombre: "Caja chica" },
   { id: "credito", nombre: "Crédito" },
-  { id: "costofin", nombre: "Costo financiero" },
   { id: "reportes", nombre: "Reportes" },
 ] as const;
 
 export type ModuloId = (typeof MODULOS)[number]["id"];
 export type Matriz = Record<string, AccionModulo>;
 
-const FINANCE_MODULOS = new Set(["productores", "gastos", "caja", "credito", "costofin", "reportes"]);
+const FINANCE_MODULOS = new Set(["productores", "gastos", "caja", "credito", "reportes"]);
 
 export type Permisos = { veFinanzas: boolean; puedeEditar: boolean; matriz: Matriz };
 
@@ -146,7 +145,6 @@ export function presetMatriz(rol: Rol): Matriz {
         gastos: "oculto",
         caja: "oculto",
         credito: "oculto",
-        costofin: "oculto",
         reportes: "oculto",
       };
     case "Consulta": {

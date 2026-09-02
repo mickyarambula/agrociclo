@@ -68,7 +68,7 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                         dispSinLiquidar(p.rentaOrigen, p.fechaPagoRenta, p.disposicionId)
                           ? <div className="mt-3 flex items-center gap-2" style={{ background: "#FBF4E3", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: C.barrial }}>
                               <span style={{ fontWeight: 700 }}>● Disposición sin liquidar</span>
-                              <span style={{ color: C.gris }}>· renta pagada al productor, pero su disposición sigue sin liquidar en Costo financiero.</span>
+                              <span style={{ color: C.gris }}>· renta pagada al productor, pero su disposición sigue sin liquidar en Crédito.</span>
                             </div>
                           : <div className="mt-3" style={{ background: "#EEF2E6", borderRadius: 8, padding: "8px 10px", fontSize: 12, color: C.bosque }}>
                               Renta sobre línea registrada · su interés ya corre en la línea, no se cuenta aparte.
