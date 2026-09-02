@@ -17,7 +17,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                     <Boton chico secundario onClick={() => accionRapida("labores", "labor")}><Plus size={13} /> Labor</Boton>
                     {veFinanzas && <Boton chico secundario onClick={() => accionRapida("inventario", "compra")}><Plus size={13} /> Compra</Boton>}
                     <Boton chico secundario onClick={() => accionRapida("solicitudes", "solicitud")}><Plus size={13} /> Solicitud</Boton>
-                    <Boton chico secundario onClick={() => accionRapida("cuadrillas", "nomina")}><Plus size={13} /> Trabajo</Boton>
+                    <Boton chico secundario onClick={() => accionRapida("cuadrillas", "asistencia-semana")}><Plus size={13} /> Raya</Boton>
                     <Boton chico secundario onClick={() => accionRapida("cosecha", "boleta")}><Plus size={13} /> Boleta</Boton>
                   </div>
                 )}

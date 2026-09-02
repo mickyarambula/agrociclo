@@ -38,7 +38,7 @@ export function DirectorioPersonas({ personas, onGuardar, onEliminar }) {
   const [alta, setAlta] = useState(false);
   return (
     <div className="flex flex-col gap-2">
-      {personas.length === 0 && <Vacio texto="Sin gente en el directorio todavía. Se llena solo cuando capturas asistencia, o agrégala aquí." />}
+      {personas.length === 0 && <Vacio texto="Sin gente todavía. Se llena sola cuando capturas asistencia, o agrégala aquí." />}
       {personas.map((per) => (
         <div key={per.id} className="flex items-center justify-between gap-2 py-2 border-t" style={{ borderColor: C.linea }}>
           <div className="min-w-0">
@@ -47,7 +47,7 @@ export function DirectorioPersonas({ personas, onGuardar, onEliminar }) {
           </div>
           <div className="flex gap-1">
             <button type="button" aria-label="Editar" onClick={() => { setAlta(false); setEdit(per); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.bosque }}><Pencil size={15} /></button>
-            <button type="button" aria-label="Eliminar" onClick={() => { if (window.confirm(`¿Dar de baja a ${per.nombre} del directorio?`)) onEliminar(per); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.rojo }}><Trash2 size={15} /></button>
+            <button type="button" aria-label="Eliminar" onClick={() => { if (window.confirm(`¿Dar de baja a ${per.nombre}?`)) onEliminar(per); }} style={{ border: "none", background: "transparent", cursor: "pointer", minWidth: 44, minHeight: 44, color: C.rojo }}><Trash2 size={15} /></button>
           </div>
         </div>
       ))}
@@ -178,7 +178,7 @@ function AgregarPersona({ personas, yaAgregados, onAgregar }) {
           const p = disponibles.find((x) => x.id === e.target.value);
           if (p) onAgregar({ nombre: p.nombre, tipo: p.tipo, pago: Number(p.pago) || 0 });
         }}>
-        <option value="">+ Agregar persona del directorio…</option>
+        <option value="">+ Agregar persona…</option>
         {disponibles.map((p) => <option key={p.id} value={p.id}>{p.nombre} ({p.tipo})</option>)}
         <option value="__nueva">+ Nueva persona…</option>
       </select>

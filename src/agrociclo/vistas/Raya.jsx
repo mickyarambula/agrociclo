@@ -60,7 +60,7 @@ export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT
   const tipoForm = form?.tipo;
   const tituloForm = tipoForm === "asistencia-semana" ? "Captura semanal"
     : tipoForm === "asistencia-dia" ? "Día suelto"
-    : tipoForm === "nomina" ? (form?.item ? "Editar registro" : "Registrar trabajo")
+    : tipoForm === "nomina" ? "Editar raya (formato anterior)"
     : "";
   return (
     <>
@@ -95,7 +95,7 @@ export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT
                 <button type="button" onClick={() => setDirectorioAbierto((v) => !v)}
                   className="flex w-full items-center justify-between"
                   style={{ background: "none", border: "none", cursor: "pointer", padding: 0, color: C.tinta }}>
-                  <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Directorio ({personas.length})</span>
+                  <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Gente ({personas.length})</span>
                   {directorioAbierto ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
                 </button>
                 {directorioAbierto && (

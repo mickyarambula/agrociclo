@@ -67,7 +67,7 @@ export function FormNomina({ inicial, parcelas, directorio, actividades, onAgreg
           const actividad = f.actividad === "__nueva" ? f.actividadNueva.trim() : f.actividad;
           if (f.actividad === "__nueva" && onAgregarActividad) onAgregarActividad(actividad);
           onGuardar({ ...f, actividad });
-        }}>{inicial ? "Guardar cambios" : "Guardar trabajo"}</Boton>
+        }}>{inicial ? "Guardar cambios" : "Guardar raya"}</Boton>
       </div>
     </div>
   );

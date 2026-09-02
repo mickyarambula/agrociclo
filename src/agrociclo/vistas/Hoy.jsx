@@ -83,7 +83,7 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
                   <div className="grid grid-cols-2 gap-3">
                     {[
                       { id: "labor", vista: "labores", titulo: "Labor", desc: "Riego, rastreo, aplicación", Ic: Tractor },
-                      { id: "nomina", vista: "cuadrillas", titulo: "Raya", desc: "Jornales del día", Ic: Users },
+                      { id: "raya", vista: "cuadrillas", titulo: "Raya", desc: "Quién vino hoy", Ic: Users },
                       { id: "boleta", vista: "cosecha", titulo: "Boleta", desc: "Entrega en bodega", Ic: Wheat },
                       { id: "solicitud", vista: "solicitudes", titulo: "Solicitud", desc: "Pedir insumo", Ic: ClipboardList },
                     ].map((a) => {
@@ -94,6 +94,7 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
                           type="button"
                           onClick={() => {
                             if (a.id === "labor" && puedeLabores) { cerrar(); setRapida({ orden: null }); return; }
+                            if (a.id === "raya") { accionRapida(a.vista, "asistencia-dia"); return; }
                             accionRapida(a.vista, a.id);
                           }}
                           className="text-left"

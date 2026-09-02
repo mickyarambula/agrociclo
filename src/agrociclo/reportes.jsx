@@ -269,7 +269,7 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
     { nombre: "Maquila y servicios", valor: opTotal, color: C.hoja, movimientos: movMaquila },
     ...Object.entries(porCategoriaInsumo).map(([k, v]) => ({ nombre: k, valor: v, color: C.bosque, movimientos: movInsumosPorCat[k] || [] })),
     { nombre: "Diésel", valor: dieselCosto, color: C.barrial, movimientos: movDiesel },
-    { nombre: "Jornales (raya)", valor: nominaTotal, color: C.azul, movimientos: movNomina },
+    { nombre: "Raya", valor: nominaTotal, color: C.azul, movimientos: movNomina },
     { nombre: "Renta de tierra", valor: rentaTotal, color: "#8C7A4A", movimientos: movRenta },
     ...Object.entries(porCatGasto).map(([k, v]) => ({ nombre: k, valor: v, color: "#7E8B9A", movimientos: movGastosPorCat[k] || [] })),
     { nombre: "Aplicaciones de préstamos (productivas)", valor: apsProductivas.reduce((s, a) => s + a.monto, 0), color: C.barrial,
@@ -297,7 +297,7 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
     { l: "Costo completo / ha", v: money(haTotal ? inversionTotal / haTotal : 0) },
     { l: "% costo financiero", v: `${num(inversionTotal ? (costoFinTotal / inversionTotal) * 100 : 0, 1)}%` },
     { l: "% gastos indirectos", v: `${num(inversionTotal ? (gastosIndTotal / inversionTotal) * 100 : 0, 1)}%` },
-    { l: "Jornales totales", v: num(jornalesTot, 0) },
+    { l: "Días de raya", v: num(jornalesTot, 0) },
   ];
 
   return (

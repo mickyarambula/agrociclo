@@ -37,7 +37,7 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                       {veFinanzas ? (
                         <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-3" style={{ fontSize: 13 }}>
                           <Fila l="Labores e insumos" v={money(c.labores)} />
-                          <Fila l="Jornales" v={money(c.nomina)} />
+                          <Fila l="Raya" v={money(c.nomina)} />
                           {p.tenencia === "Rentada" && <Fila l={`Renta de tierra${nombreRenteroDe && nombreRenteroDe(p) ? ` · a ${nombreRenteroDe(p)}` : ""}`} v={money(c.renta)} resalta />}
                           <Fila l="Gastos indirectos" v={money(c.gastoInd)} />
                           <Fila l="Costo financiero" v={money(c.interes)} resalta />

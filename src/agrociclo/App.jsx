@@ -1318,7 +1318,7 @@ function AgroCicloApp() {
       }
     },
     invalidate: [["nomina", CICLO_ID]],
-    successMsg: "Trabajo guardado",
+    successMsg: "Raya guardada",
   });
   const eliminarNominaMut = useOrgWrite({
     op: "tabla:jornal",
@@ -1329,7 +1329,7 @@ function AgroCicloApp() {
       if (error) throw new Error(error.message);
     },
     invalidate: [["nomina", CICLO_ID]],
-    successMsg: "Jornal eliminado",
+    successMsg: "Raya eliminada",
   });
   /* Pagar raya es por PERSONA y por SEMANA — no "todo lo pendiente de ese
      nombre" (ese era el bug: pagaba jornales de semanas que no tocaban).
