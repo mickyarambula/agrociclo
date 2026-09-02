@@ -10,12 +10,20 @@ Miguel **no es productor**: está construyendo la herramienta para vendérsela a
 productores. Su predio "Predio de Miguel" existe solo para probar. No lo trates
 como si él fuera el que siembra.
 
-**Ya hay un productor real usando la app (desde agosto/septiembre 2026):
-Rodolfo, con su predio y sus datos.** La base de datos local (`.env` con
+**Ya hay cuatro predios reales usando la app (desde agosto/septiembre 2026),
+no uno solo — Rodolfo fue el primero.** La base de datos local (`.env` con
 `DATABASE_URL`) apunta a la MISMA base de producción — no es un ambiente de
 prueba aparte. No captures, edites ni borres nada que no sea de una cuenta de
 prueba propia contra esa base. Para experimentar, quita `DATABASE_URL` del
 `.env` (cae al PGLite local, desechable) en vez de probar contra producción.
+
+**Con gente real capturando, cualquier cambio de aquí en adelante pega en
+producción de verdad.** Nada de migraciones destructivas (nunca `DROP`/`TRUNCATE`
+ni reescribir el ledger de un predio sin candado de versión). Nada de esconder
+o descartar un dato que un predio ya tenga capturado — si una pantalla o campo
+deja de mostrarse por un criterio nuevo (rol, interruptor, catálogo), el dato
+sigue vivo y recuperable, nunca se borra ni se trunca en la migración. Ver el
+patrón ya usado para esto en "Interruptores de tres estados" más abajo.
 
 **El producto**: del lote a la venta con el costo real del ciclo (directo + renta
 + raya + insumos + financiero). Valle del Fuerte, **productores de granos**
@@ -121,9 +129,17 @@ Cosecha con boletas + **cierre de venta** (vendido/costó/quedó + ton/ha).
 Productores y cuenta corriente. Gastos, caja, crédito, costo financiero, reportes.
 
 Menú que debe verse (si no coincide, algo se rompió — para y avisa):
-Hoy · El ciclo · CAMPO (Parcelas, Labores, Insumos, Solicitudes, Raya) ·
-VENTA (Cosecha, Productores) · NÚMEROS (Gastos, Caja chica, Crédito,
-Costo financiero, Reportes). Header: selector de ciclo · Ajustes · Ayuda · nombre · Salir.
+Hoy · El ciclo · CAMPO (Parcelas, Insumos, Labores, Raya) ·
+VENTA (Cosecha, Productores) · NÚMEROS (Gastos, Caja chica, Crédito, Reportes).
+Header: selector de ciclo · Ajustes · Ayuda · nombre · Salir.
+
+Ya no son pantallas propias — se fusionaron o se esconden:
+- **Solicitudes** vive dentro de Insumos, como la sección "Pedidos del campo"
+  (solo aparece si el predio tiene más de una persona o ya tiene pedidos).
+- **Costo financiero** vive dentro de Crédito, como la lista "Qué debes y qué
+  te cuesta" más el simulador colapsado "¿Y si liquido todo el…?".
+- **Caja chica** y **Productores** solo aparecen si el interruptor
+  correspondiente en Ajustes está en Sí (ver "Interruptores de tres estados").
 
 ## Cola de trabajo
 
@@ -176,6 +192,27 @@ lo pendiente de ese nombre, de cualquier semana). Jornales del formato viejo
 siguen editándose con el formulario viejo — la fórmula de costo
 (`personas × dias × pago`) no cambió, solo cómo se llena para captura nueva.
 Actividad pasó de obligatoria-única a opcional-múltiple (`actividades[]`).
+· **Auditoría de claridad + tres tandas de arreglos** (septiembre 2026): con
+productor real ya adentro, se auditó la ruta completa (duplicidades, huérfanos,
+falta de instrucción) y se ejecutó en tres tandas. **Tanda A** (urgente):
+demo/vaciar predio solo para Miguel (bloqueado también en el servidor, no nada
+más en la UI); Insumos antes que Labores en CAMPO; el aviso de stock insuficiente
+dice a quién pedirle ("pide a la oficina que registre… en Insumos"); 3 FAQ del
+portal corregidas (con migración para lo ya sembrado en producción); subtítulo
+de Hoy ya no dice que nunca se ve dinero (Encargado sí ve la plata de Raya).
+**Tanda C**: se quitó el recorrido inicial de 4 pantallas; la guía de El ciclo
+se volvió "La ruta del ciclo" — 6 pasos derivados del estado real para
+Dueño/Oficina (parcelas→crédito→compra→labor→raya→boleta), 3 para Encargado
+(labor→raya→boleta), reabrible desde Ayuda y desde Ajustes. **Tanda B**
+(consolidación estructural): Raya redujo sus entradas a una sola palabra en
+pantalla — Hoy abre "Día suelto", El ciclo abre "Captura semanal", el formulario
+viejo de cuadrilla quedó solo para editar registros viejos, y "Trabajo"/
+"Jornales"/"Nómina" salieron del texto visible; Costo financiero se fusionó
+dentro de Crédito (sin tocar la matemática de interés); Solicitudes se fusionó
+dentro de Insumos como "Pedidos del campo" (ya se puede autorizar sin cotización
+previa: la RPC crea la cotización en el mismo paso); Caja chica y Productores
+pasaron a esconderse por interruptor de tres estados en Ajustes (ver criterio
+abajo) sin borrar nada de lo que ya exista.
 
 1. **Reportes de verdad**: estado de cuenta que le cuadre al productor con el de
    su parafinanciera.
@@ -224,6 +261,17 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
     capturar"; **7 días** desde el alta sin ninguna parcela = "a medias" (3
     días marcaba como perdido a quien solo no había vuelto desde el fin de
     semana).
+- **Interruptores de tres estados para lo que no todos usan** (Caja chica,
+  Productores — Ajustes, septiembre 2026): tres respuestas posibles, nunca dos.
+  "Sin contestar" decide solo, viendo si el predio ya tiene datos de ese tipo
+  (movimientos de caja, productores o dispersiones) — así un predio que ya lo
+  usa no tiene que ir a prender nada. "Sí"/"No" es la respuesta explícita del
+  Dueño y manda sobre los datos. Apagar un interruptor solo esconde la pantalla
+  del menú (y el campo relacionado en los formularios, p. ej. "A nombre de
+  productor") — nunca borra lo que ya estaba capturado, y un registro que ya
+  traía ese dato lo sigue mostrando aunque el interruptor esté en No. Este es
+  el patrón a copiar para cualquier futura pantalla que no todos los predios
+  necesiten.
 - **Nada falla en silencio.** Los tres bugs más serios de este proyecto
   (guardado sin conexión, encimado con números grandes, updates que no
   guardaban) tenían en común que no avisaban. Cualquier operación que no logra
