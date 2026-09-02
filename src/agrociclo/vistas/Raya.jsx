@@ -46,6 +46,9 @@ function HojaSabado({ rayaSemanal, pagarRayaPersona, puedeEditar }) {
             <span style={{ fontSize: 13, color: C.gris }}>Total de la semana</span>
             <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 18 }}>{money(total)}</span>
           </div>
+          {puedeEditar && (
+            <p style={{ margin: "6px 0 0", fontSize: 12, color: C.gris }}>“Marcar pagado” no se puede desmarcar. Revisa los días antes de pagar.</p>
+          )}
         </>
       )}
     </Tarjeta>
@@ -80,6 +83,11 @@ export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT
                   <FormNomina key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} directorio={directorio} actividades={actividadesRaya} onAgregarActividad={agregarActividadRaya} onGuardar={(f) => guardarNomina(f, form?.item)} />
                 ) : null
               }>
+              {puedeEditar && (
+                <p style={{ margin: "-6px 0 0", fontSize: 13, color: C.gris }}>
+                  <strong>Captura semanal</strong>: la oficina, el sábado, toda la semana de un jalón. <strong>Día suelto</strong>: quien anda en el lote, hoy, quién vino.
+                </p>
+              )}
 
               <HojaSabado rayaSemanal={rayaSemanal} pagarRayaPersona={pagarRayaPersona} puedeEditar={puedeEditar} />
 
@@ -97,7 +105,7 @@ export function VistaRaya({ vista, puedeEditar, form, setForm, cerrar, parcelasT
                 )}
               </Tarjeta>
 
-              {nominaT.length === 0 && <Vacio texto="Sin jornales registrados esta temporada." />}
+              {nominaT.length === 0 && <Vacio texto="Sin raya en este ciclo. Se captura por persona y por semana: la oficina con “Captura semanal”, quien anda en el lote con “Día suelto”." />}
               {nominaT.length > 0 && (
                 <Tarjeta>
                   {nominaT.slice().sort((a, b) => (a.pagado === b.pagado ? b.fecha.localeCompare(a.fecha) : a.pagado ? 1 : -1)).map((n, i) => {

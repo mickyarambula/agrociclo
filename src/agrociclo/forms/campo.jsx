@@ -400,7 +400,7 @@ export function CatalogoLitrosHaLabor({ tipos, litrosHaPorTipo, onGuardar }) {
   const lista = (tipos || []).filter((t) => t !== "Otro");
   return (
     <div className="flex flex-col gap-2">
-      {lista.length === 0 && <Vacio texto="Agrega tipos de labor en Campo → Labores." />}
+      {lista.length === 0 && <Vacio texto="Los tipos de labor se agregan al capturar una labor, con “+ Nuevo”." />}
       {lista.map((t) => {
         const actual = litrosHaPorTipo[claveTipo(t)];
         return (
@@ -463,26 +463,31 @@ export function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, pued
   );
 }
 
-/* Guía de arranque de El ciclo: 3 pasos derivados del estado real del ciclo
-   (sin flags en el ledger). Desaparece sola con la primera captura. */
-export function GuiaCiclo({ pasos, onOcultar }) {
-  const actual = pasos.findIndex((p) => !p.done);
+/* La ruta del ciclo: los pasos en el orden en que pasan en el campo, cada uno
+   marcado hecho o pendiente según lo que YA hay capturado (sin flags en el
+   ledger). El paso resaltado es el primero obligatorio que falta; los
+   opcionales ("si tienes avío") no detienen la ruta. "Ocultar" vive solo en la
+   sesión; desde Ayuda se vuelve a abrir. */
+export function RutaCiclo({ titulo, subtitulo, pasos, completa, onOcultar }) {
+  const actual = pasos.findIndex((p) => !p.done && !p.opcional);
   return (
-    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.hoja}` }}>
+    <Tarjeta style={{ padding: 16, borderTop: `3px solid ${completa ? C.bosque : C.hoja}` }}>
       <div className="flex items-center justify-between gap-2">
         <div>
-          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Arranca tu ciclo</div>
-          <div style={{ fontSize: 12, color: C.gris }}>Tres pasos y el panel empieza a decir la verdad.</div>
+          <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>{titulo}</div>
+          <div style={{ fontSize: 12, color: C.gris }}>
+            {completa ? "Ruta completa. Ya tienes con qué contestar si te quedó o no." : subtitulo}
+          </div>
         </div>
         <button type="button" onClick={onOcultar}
-          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: C.gris, fontFamily: fuente.cuerpo, padding: 4 }}>
+          style={{ background: "transparent", border: "none", cursor: "pointer", fontSize: 12, color: C.gris, fontFamily: fuente.cuerpo, padding: 4, minHeight: 44 }}>
           Ocultar
         </button>
       </div>
       {pasos.map((p, i) => {
         const esActual = i === actual;
         return (
-          <div key={p.titulo} className="flex items-start gap-3" style={{ padding: "12px 0 2px", borderTop: i ? `1px solid ${C.linea}` : "none", marginTop: 10, opacity: p.done || esActual ? 1 : 0.75 }}>
+          <div key={p.titulo} className="flex items-start gap-3" style={{ padding: "12px 0 2px", borderTop: i ? `1px solid ${C.linea}` : "none", marginTop: 10, opacity: p.done || esActual ? 1 : 0.8 }}>
             {p.done ? (
               <CheckCircle2 size={26} color={C.hoja} style={{ flexShrink: 0 }} />
             ) : (
@@ -497,7 +502,7 @@ export function GuiaCiclo({ pasos, onOcultar }) {
               <div className="flex items-center justify-between gap-2 flex-wrap">
                 <span style={{ fontWeight: 600, fontSize: 14, color: p.done ? C.gris : C.tinta }}>
                   {p.titulo}
-                  {p.opcional && !p.done ? <span style={{ fontWeight: 400, color: C.gris }}> · recomendado</span> : null}
+                  {p.opcional && !p.done ? <span style={{ fontWeight: 400, color: C.gris }}> · {p.opcional}</span> : null}
                 </span>
                 {!p.done && p.cta && (
                   <Boton chico secundario={!esActual} onClick={p.cta.onClick}>{p.cta.label} <ChevronRight size={13} /></Boton>
@@ -604,7 +609,7 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
       <div className="md:col-span-3" style={{ fontSize: 12, color: C.gris, marginTop: -6 }}>
         Sirven para calcular tu punto de equilibrio y la utilidad proyectada. Puedes ponerlos después, cuando tengas contrato o cotización.
       </div>
-      <Campo label="Tenencia de la tierra">
+      <Campo label="¿Propia o rentada?">
         <select style={estiloInput} value={f.tenencia} onChange={set("tenencia")}>
           <option>Propia</option>
           <option>Rentada</option>
@@ -637,7 +642,7 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
           <CampoFinanciamiento
             origen={f.rentaOrigen} creditoId={f.rentaCreditoId} tasa={f.tasaRenta}
             onOrigen={set("rentaOrigen")} onCredito={set("rentaCreditoId")} onTasa={set("tasaRenta")}
-            creditos={creditos} labelExterno="Financiamiento aparte (con tasa)" placeholderTasa="Ej. 16.5" />
+            creditos={creditos} labelExterno="Me la prestaron aparte, con tasa" placeholderTasa="Ej. 16.5" />
         </>
       )}
       {ingresoProy > 0 && (

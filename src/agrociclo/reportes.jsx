@@ -312,7 +312,7 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
       </div>
 
       <Tarjeta style={{ padding: 20 }}>
-        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Estado de resultados de la temporada</span>
+        <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Estado de resultados del ciclo</span>
         <div className="mt-3 max-w-md">
           <Fila l="Ingresos esperados (proyección)" v={ingresoTotal > 0 ? money(ingresoTotal) : "—"} />
           <div style={{ height: 6 }} />

@@ -108,15 +108,15 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       {esNuevo && (
         <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}</select></Campo>
       )}
-      <Campo label="Unidad"><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
+      <Campo label="Unidad · la misma con la que se gasta en la labor"><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
-      <Campo label="Costo unitario (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
+      <Campo label={`Costo por ${f.unidad || "unidad"} (MXN)`}><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
       <Campo label="Proveedor"><input style={estiloInput} placeholder="Ej. Agroinsumos del Fuerte" value={f.proveedor} onChange={set("proveedor")} /></Campo>
       <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
-        creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22"
+        creditos={creditos} labelExterno="Me lo fió el proveedor" placeholderTasa="Ej. 22"
         permiteSobreprecio modo={f.modo} pct={f.pct} onModo={set("modo")} onPct={(v) => setF(prev => ({ ...prev, pct: v }))} />
       <div className="flex items-end gap-3 md:col-span-3 flex-wrap">
         {monto > 0 && (
@@ -133,10 +133,10 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
 }
 
 /* ---------- Solicitud de compra: formulario de alta ---------- */
-export function FormSolicitud({ inicial, insumos, parcelas, onGuardar }) {
+export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitanteDefault = "" }) {
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
-    solicitante: inicial?.solicitante || "",
+    solicitante: inicial?.solicitante || solicitanteDefault,
     insumoId: inicial?.insumoId || "",
     insumoNuevo: "",
     categoria: inicial?.categoria || "Fertilizante",
@@ -293,7 +293,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
               onOrigen={(e) => setAut({ ...aut, origen: e.target.value })}
               onCredito={(e) => setAut({ ...aut, creditoId: e.target.value })}
               onTasa={(e) => setAut({ ...aut, tasa: e.target.value })}
-              creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22"
+              creditos={creditos} labelExterno="Me lo fió el proveedor" placeholderTasa="Ej. 22"
               permiteSobreprecio modo={aut.modo} pct={aut.pct}
               onModo={(e) => setAut({ ...aut, modo: e.target.value })}
               onPct={(v) => setAut({ ...aut, pct: v })} />

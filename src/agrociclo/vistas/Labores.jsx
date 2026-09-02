@@ -18,7 +18,7 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
               {tarjetaOrden}
               {tarjetaPorHacer}
 
-              {laboresHechas.length === 0 && <Vacio texto="Aún no hay labores registradas en esta temporada." />}
+              {laboresHechas.length === 0 && <Vacio texto="Una labor es cada pasada: riego, rastreo, fertilizada. Se anota el mismo día, en Hoy, en tres toques." />}
               {laboresHechas.length > 0 && (
                 <Tarjeta>
                   {laboresHechas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {

@@ -18,7 +18,7 @@ const C = {
 
 /** variant "header" (default) = botón oscuro de la barra de arriba.
  * "menu" = renglón claro para el menú móvil de pantalla completa. */
-export function AyudaBoton({ variant = "header" }: { variant?: "header" | "menu" }) {
+export function AyudaBoton({ variant = "header", onVerRuta }: { variant?: "header" | "menu"; onVerRuta?: () => void }) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -53,12 +53,12 @@ export function AyudaBoton({ variant = "header" }: { variant?: "header" | "menu"
           <HelpCircle size={15} /> <span className="hidden md:inline">Ayuda</span>
         </button>
       )}
-      {open ? <AyudaPanel onClose={() => setOpen(false)} /> : null}
+      {open ? <AyudaPanel onClose={() => setOpen(false)} onVerRuta={onVerRuta} /> : null}
     </>
   );
 }
 
-function AyudaPanel({ onClose }: { onClose: () => void }) {
+function AyudaPanel({ onClose, onVerRuta }: { onClose: () => void; onVerRuta?: () => void }) {
   const { profile } = useAgroSession();
   const [faq, setFaq] = useState<{ id: string; pregunta: string; respuesta: string }[]>([]);
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -115,6 +115,25 @@ function AyudaPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <div className="flex flex-col gap-4 p-4">
+          {onVerRuta ? (
+            <div className="rounded-[14px] p-3" style={{ background: "#EEF4EB", border: `1px solid ${C.linea}` }}>
+              <div className="text-sm font-semibold">¿Por dónde empiezo?</div>
+              <p className="mt-1 text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
+                La ruta del ciclo: los pasos en el orden en que pasan en el campo, marcados según lo que ya llevas.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onVerRuta();
+                  onClose();
+                }}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl text-sm font-semibold"
+                style={{ background: C.bosque, color: C.blanco, border: "none" }}
+              >
+                Ver la ruta del ciclo
+              </button>
+            </div>
+          ) : null}
           <div>
             <div className="mb-2 text-sm font-semibold">Preguntas frecuentes</div>
             {faq.map((f) => (

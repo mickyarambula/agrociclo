@@ -81,7 +81,7 @@ export function CampoSobreprecio({ pct, onPct }) {
    labelExterno cambia según contexto (compra/gasto = "Crédito de proveedor"; renta = "Financiamiento aparte"). */
 export function CampoFinanciamiento({
   origen, creditoId, tasa, onOrigen, onCredito, onTasa, creditos,
-  labelExterno = "Crédito de proveedor", placeholderTasa = "Ej. 22",
+  labelExterno = "Me lo fió el proveedor", placeholderTasa = "Ej. 22",
   permiteSobreprecio = false, modo, pct, onModo, onPct,
 }) {
   const sinLineas = !creditos || creditos.length === 0;
@@ -89,14 +89,14 @@ export function CampoFinanciamiento({
   const modoActual = modo || "tasa";
   return (
     <>
-      <Campo label="Forma de pago / origen del recurso">
+      <Campo label="¿Con qué dinero se pagó?">
         <select
           style={estiloInput}
           value={sinLineas && origen === "linea" ? "propio" : (origen || "propio")}
           onChange={onOrigen}
         >
           <option value="propio">Recurso propio</option>
-          {mostrarLinea && !sinLineas ? <option value="linea">Línea de crédito registrada</option> : null}
+          {mostrarLinea && !sinLineas ? <option value="linea">Mi línea de avío registrada</option> : null}
           <option value="externo">{labelExterno}</option>
         </select>
       </Campo>

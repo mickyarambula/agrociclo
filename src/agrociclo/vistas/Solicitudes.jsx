@@ -3,7 +3,7 @@ import { C, ORDEN_ESTADO } from "../base";
 import { Seccion, Vacio } from "../ui";
 import { FormSolicitud, SolicitudCard } from "../forms/almacen";
 
-export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }) {
+export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, solicitanteDefault, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }) {
   return (
     <>
           {vista === "solicitudes" && (
@@ -15,7 +15,7 @@ export function VistaSolicitudes({ vista, puedeEditar, form, setForm, cerrar, in
               editando={!!form?.item}
               onAbrir={() => setForm({ tipo: "solicitud", item: null })}
               onCerrar={cerrar}
-              form={<FormSolicitud key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} parcelas={parcelasT} onGuardar={(f) => guardarSolicitud(f, form?.item)} />}>
+              form={<FormSolicitud key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} parcelas={parcelasT} solicitanteDefault={solicitanteDefault} onGuardar={(f) => guardarSolicitud(f, form?.item)} />}>
               <div style={{ background: C.papel, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: C.gris }}>
                 Flujo: <strong style={{ color: C.azul }}>Solicitado</strong> → <strong style={{ color: C.grano }}>Cotizado</strong> → <strong style={{ color: C.hoja }}>Autorizado</strong> → <strong style={{ color: C.bosque }}>Recibido</strong>. Al recibir, el insumo entra al almacén y se registra la compra automáticamente.
               </div>

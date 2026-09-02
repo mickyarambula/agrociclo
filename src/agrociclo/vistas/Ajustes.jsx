@@ -104,7 +104,7 @@ function AgregarCelular({ telefonoActual }) {
   );
 }
 
-export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }) {
+export function VistaAjustes({ vista, rol, onVerRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }) {
   return (
     <>
           {vista === "ajustes" && rol === "Dueño" && (
@@ -118,9 +118,9 @@ export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjuste
                   type="button"
                   className="mt-3 min-h-11 text-sm font-semibold"
                   style={{ background: "none", border: "none", color: C.hoja, padding: 0 }}
-                  onClick={() => setGuia(true)}
+                  onClick={onVerRuta}
                 >
-                  Ver guía de uso
+                  Ver la ruta del ciclo
                 </button>
               </div>
 

@@ -63,7 +63,7 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
                 })}
               </div>
 
-              {boletasT.length === 0 && <Vacio texto="Sin entregas registradas." />}
+              {boletasT.length === 0 && <Vacio texto="Cada boleta de la bodega es una entrega. Con la primera aparece cuánto te quedó." />}
               {boletasT.length > 0 && (
                 <Tarjeta>
                   {boletasT.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((b, i) => {

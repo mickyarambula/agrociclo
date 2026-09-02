@@ -22,7 +22,7 @@ export function VistaCredito({ vista, veFinanzas, puedeEditar, form, setForm, ce
               </Tarjeta>
 
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Líneas de crédito</div>
-              {creditosT.length === 0 && <Vacio texto="Sin créditos registrados en esta temporada." />}
+              {creditosT.length === 0 && <Vacio texto="Si tienes avío con financiera o parafinanciera, regístralo aquí antes de comprar. Así el interés se cuenta desde cada compra, no desde el día uno." />}
               <div className="grid md:grid-cols-2 gap-3">
                 {creditosT.map(cr => {
                   const dVenc = cr.fechaVencimiento ? diasHasta(cr.fechaVencimiento) : null;

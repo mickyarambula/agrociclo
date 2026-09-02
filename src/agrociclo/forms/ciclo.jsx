@@ -73,7 +73,7 @@ export function FormCiclo({ inicial, onListo, etiquetaSubmit }) {
       </Campo>
       <Campo label="Inicio"><input type="date" style={estiloInput} value={inicio} onChange={(e) => setInicio(e.target.value)} /></Campo>
       <Campo label="Fin"><input type="date" style={estiloInput} value={fin} onChange={(e) => setFin(e.target.value)} /></Campo>
-      <Campo label="Presupuesto del ciclo (pesos)">
+      <Campo label="Presupuesto del ciclo (pesos) · cuánto piensas gastar en todo el ciclo">
         <input
           type="number"
           min="0"

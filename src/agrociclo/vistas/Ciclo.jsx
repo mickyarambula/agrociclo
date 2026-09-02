@@ -27,7 +27,7 @@ export function VistaCiclo({ vista, nombreCiclo, puedeEditar, accionRapida, veFi
                 tarjetaGuiaCiclo || (
                   <Tarjeta style={{ padding: 32, textAlign: "center" }}>
                     <Sprout size={36} color={C.hoja} className="mx-auto" />
-                    <p style={{ fontWeight: 600, marginTop: 12 }}>Esta temporada todavía no tiene parcelas.</p>
+                    <p style={{ fontWeight: 600, marginTop: 12 }}>Este ciclo todavía no tiene parcelas.</p>
                     <div className="flex justify-center mt-3"><Boton onClick={() => setVista("parcelas")}>Ir a Parcelas <ChevronRight size={15} /></Boton></div>
                   </Tarjeta>
                 )

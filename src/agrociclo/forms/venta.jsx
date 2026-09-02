@@ -87,6 +87,11 @@ export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true }) 
   const c = calcBoleta(f);
   return (
     <div className="grid md:grid-cols-3 gap-3">
+      {!veFinanzas && (
+        <div className="md:col-span-3" style={{ fontSize: 13, color: C.gris, background: C.papel, borderRadius: 10, padding: "8px 12px" }}>
+          Tú anotas lo que dice el papel de la bodega: peso, tara, humedad e impurezas. La oficina pone precio y flete después.
+        </div>
+      )}
       <div className="md:col-span-3"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Bodega / almacén"><input style={estiloInput} placeholder="Ej. Almacenadora El Carrizo" value={f.bodega} onChange={set("bodega")} /></Campo>

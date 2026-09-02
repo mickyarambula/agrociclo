@@ -145,7 +145,7 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                         <div style={{ fontSize: 13, color: C.barrial, maxWidth: 560 }}>
                           Aquí está <strong>todo lo que traes a crédito</strong>: cada disposición devenga interés desde su fecha.
                           Pon una <strong>fecha de pago supuesta</strong> y verás cuánto te costaría si liquidaras todo ese día.
-                          También puedes fijar una fecha distinta <strong>por renglón</strong> (en la columna "Pago supuesto"); las que dejes en blanco usan la global. Las que ya tienen fecha de pago real se respetan.
+                          También puedes fijar una fecha distinta <strong>por renglón</strong> (en la columna "¿Y si pago el…?"); las que dejes en blanco usan la global. Las que ya tienen fecha de pago real se respetan.
                         </div>
                         <div>
                           <div className="flex items-center gap-2" style={{ fontSize: 12, color: C.gris, marginBottom: 4 }}>
@@ -181,7 +181,7 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                       </div>
                     </Tarjeta>
 
-                    {lineas.length === 0 && externos.length === 0 && <Vacio texto="No hay disposiciones a crédito registradas en esta temporada." />}
+                    {lineas.length === 0 && externos.length === 0 && <Vacio texto="No hay disposiciones a crédito registradas en este ciclo." />}
 
                     {lineas.map(L => (
                       <Tarjeta key={L.cr.id} style={{ padding: 0, overflow: "hidden", borderTop: `3px solid ${C.grano}` }}>
@@ -195,7 +195,7 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                               <thead><tr>
                                 <th style={th}>Concepto</th><th style={th}>Fecha</th><th style={thR}>Monto</th>
                                 <th style={thR}>Días a hoy</th><th style={thR}>Interés hoy</th>
-                                <th style={th}>Pago supuesto</th>
+                                <th style={th}>¿Y si pago el…?</th>
                                 <th style={thR}>Días al corte</th><th style={thR}>Interés al corte</th>
                               </tr></thead>
                               <tbody>
@@ -243,7 +243,7 @@ export function VistaCostoFin({ vista, veFinanzas, fechaObjetivo, pagoSupuesto, 
                             <thead><tr>
                               <th style={th}>Concepto</th><th style={th}>Fecha</th><th style={thR}>Monto</th><th style={thR}>Tasa</th>
                               <th style={thR}>Días a hoy</th><th style={thR}>Interés hoy</th>
-                              <th style={th}>Pago supuesto</th>
+                              <th style={th}>¿Y si pago el…?</th>
                               <th style={thR}>Días al corte</th><th style={thR}>Interés al corte</th>
                             </tr></thead>
                             <tbody>

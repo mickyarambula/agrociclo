@@ -3,7 +3,7 @@ import { C, num, hoyStr, calcBoleta } from "../base";
 import { fuente, Tarjeta, Boton, Vacio } from "../ui";
 import { Sprout, Tractor, Users, Wheat, ChevronRight, ClipboardList } from "lucide-react";
 
-export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }) {
+export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRuta, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }) {
   return (
     <>
           {vista === "captura" && (
@@ -12,6 +12,7 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
               <p style={{ margin: 0, fontSize: 14, color: C.gris }}>
                 {nombreCiclo}. Lo que pasó en el lote, en tres toques. Sin precios de compras ni crédito — el pago de raya sí se ve, porque hay que saber cuánto le toca a cada quien.
               </p>
+              {tarjetaRuta}
               {parcelasT.length === 0 ? (
                 <Tarjeta style={{ padding: 28, textAlign: "center" }}>
                   <Sprout size={36} color={C.hoja} className="mx-auto" />

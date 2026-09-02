@@ -12,7 +12,7 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
               abierto={form?.tipo === "parcela"} onAbrir={() => setForm({ tipo: "parcela", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
               form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} renteros={renteros} productores={productores} onAgregarRentero={agregarRentero} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
-              {parcelasT.length === 0 && <Vacio texto="Sin parcelas en esta temporada." />}
+              {parcelasT.length === 0 && <Vacio texto="Una parcela es el lote que se siembra y se cosecha junto, no el predio completo. Da de alta la primera con “Nueva parcela”." />}
               <div className="grid md:grid-cols-2 gap-3">
                 {parcelasT.map(p => {
                   const c = costosParcela[p.id];

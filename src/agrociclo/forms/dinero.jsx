@@ -24,6 +24,9 @@ export function FormCredito({ inicial, productores, onGuardar }) {
   const falta = [!f.fuente && "la fuente", !f.monto && "el monto", !f.fechaVencimiento && "la fecha de vencimiento"].filter(Boolean);
   return (
     <div className="grid md:grid-cols-3 gap-3">
+      <div className="md:col-span-3" style={{ fontSize: 13, color: C.gris, background: C.papel, borderRadius: 10, padding: "8px 12px" }}>
+        Todo esto viene en tu contrato o en el estado de cuenta de tu financiera. Si algo no lo tienes a la mano, ponlo en cero y corrígelo después.
+      </div>
       <Campo label="Tipo de financiamiento">
         <select style={estiloInput} value={f.tipoCredito} onChange={set("tipoCredito")}>
           <option>Directo</option>
@@ -33,7 +36,7 @@ export function FormCredito({ inicial, productores, onGuardar }) {
       <Campo label="Fuente"><input style={estiloInput} placeholder="Ej. Financiera fondeada FIRA" value={f.fuente} onChange={set("fuente")} /></Campo>
       <Campo label="Destino"><input style={estiloInput} placeholder="Ej. Maíz O-I" value={f.destino} onChange={set("destino")} /></Campo>
       <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
-      <Campo label="Monto ministrado (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.monto} onChange={set("monto")} /></Campo>
+      <Campo label="Monto autorizado (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.monto} onChange={set("monto")} /></Campo>
       <Campo label="Tasa de referencia (TIIE) %"><input type="number" style={estiloInput} placeholder="Ej. 11.25" value={f.tiie} onChange={set("tiie")} /></Campo>
       <Campo label="Spread (%) según contrato"><input type="number" style={estiloInput} placeholder="Ej. 5" value={f.spread} onChange={set("spread")} /></Campo>
       <Campo label="Comisión por apertura (%) · se liquida a cosecha"><input type="number" style={estiloInput} placeholder="Ej. 1" value={f.comision} onChange={set("comision")} /></Campo>
@@ -77,7 +80,7 @@ export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar 
         <select style={estiloInput} value={f.destino} onChange={set("destino")}>
           <option value="prorrateo">Prorratear por hectárea (todas las parcelas)</option>
           <option value="parcela">Asignar a una parcela específica</option>
-          <option value="general">General (no afecta costo/ha)</option>
+          <option value="general">General (no se reparte por parcela; sí resta en lo que te quedó)</option>
         </select>
       </Campo>
       {f.destino === "parcela" && (
@@ -87,7 +90,7 @@ export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar 
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
-        creditos={creditos} labelExterno="Crédito de proveedor" placeholderTasa="Ej. 22" />
+        creditos={creditos} labelExterno="Me lo fió el proveedor" placeholderTasa="Ej. 22" />
       <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar gasto"}</Boton></div>
     </div>
   );
@@ -154,7 +157,7 @@ export function FormCajaSalida({ inicial, parcelas, onGuardar }) {
         <select style={estiloInput} value={f.destino} onChange={set("destino")}>
           <option value="prorrateo">Prorratear por hectárea</option>
           <option value="parcela">Asignar a una parcela</option>
-          <option value="general">General (no afecta costo/ha)</option>
+          <option value="general">General (no se reparte por parcela; sí resta en lo que te quedó)</option>
         </select>
       </Campo>
       {f.destino === "parcela" && (
@@ -226,7 +229,7 @@ export function ProductorCard({ pr, cuenta, parcelasPr, creditosPr, infoLinea, p
 
       {abierto && (
         <div className="overflow-x-auto mt-3">
-          {movs.length === 0 && <div style={{ fontSize: 13, color: C.gris }}>Sin movimientos esta temporada.</div>}
+          {movs.length === 0 && <div style={{ fontSize: 13, color: C.gris }}>Sin movimientos en este ciclo.</div>}
           {movs.length > 0 && (
             <table className="w-full" style={{ fontSize: 12.5, borderCollapse: "collapse" }}>
               <thead>

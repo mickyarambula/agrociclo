@@ -13,7 +13,6 @@ import { runCanarios } from "./data/canarios";
 import { EquipoPanel, RolesPanel, salirAgro, useAgroSession } from "./session";
 import { listEquipo } from "./server/fns";
 import { AyudaBoton } from "./Ayuda";
-import { Onboarding } from "./Onboarding";
 import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
@@ -56,7 +55,7 @@ import {
 } from "./forms/almacen";
 import {
   TareasWhatsApp, FormLabor, FormLaborRapida, FormOrdenLabor,
-  PorHacerLabores, GuiaCiclo, AvisoInvitarEquipo, FormParcela, CatalogoLitrosHaLabor,
+  PorHacerLabores, RutaCiclo, AvisoInvitarEquipo, FormParcela, CatalogoLitrosHaLabor,
 } from "./forms/campo";
 import { CampoProductor, CampoFinanciamiento } from "./forms/comunes";
 
@@ -66,7 +65,6 @@ function AgroCicloApp() {
   const user = useCurrentUser();
   const rol = profile.rol;
   const matriz = profile.permisos && Object.keys(profile.permisos).length ? profile.permisos : presetMatriz(rol);
-  const [guia, setGuia] = useState(!profile.onboardingHecho);
   const ORG_ID = profile.orgId;
   const CICLO_ID = profile.cicloId;
   const ciclos = profile.ciclos.length
@@ -159,9 +157,10 @@ function AgroCicloApp() {
   const puedeOrdenar = puedeLabores && veFinanzas;
   // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
   const [rapida, setRapida] = useState(null);
-  // Guía de arranque de El ciclo: "Ocultar" solo vive esta sesión (sin flag en
-  // el ledger); al volver a entrar sin captura, reaparece.
+  // La ruta del ciclo: "Ocultar" solo vive esta sesión (sin flag en el
+  // ledger). Desde Ayuda se vuelve a abrir aunque ya esté completa (forzada).
   const [guiaCicloOculta, setGuiaCicloOculta] = useState(false);
+  const [rutaForzada, setRutaForzada] = useState(false);
 
   // Aviso "pásale el código de equipo": mismo criterio de sesión que la guía.
   // equipoCount arranca en null (aún no se sabe) para no destellar el aviso
@@ -2066,42 +2065,84 @@ function AgroCicloApp() {
         onGuardar={(f) => guardarOrden(f, form.item, cerrar)} onCancelar={cerrar} />
     </Tarjeta>
   ) : null;
-  /* Guía de arranque de El ciclo: viva mientras el ciclo no tenga ni una
-     captura real (labor hecha, compra, raya o boleta). Ocultable por sesión. */
-  const hayCaptura = laboresHechas.length + comprasT.length + nominaT.length + boletasT.length > 0;
-  const pasosGuiaCiclo = [
-    {
-      titulo: "Da de alta tus parcelas",
-      hint: "Una parcela es el lote que se siembra y se cosecha junto — no el predio completo.",
-      done: parcelasT.length > 0,
-      cta: puedeEscribirModulo(rol, "parcelas", matriz) ? { label: "Ir a Parcelas", onClick: () => { cerrar(); setVista("parcelas"); } } : null,
-      nota: "Los lotes los da de alta el Dueño o la Oficina.",
-    },
-    {
-      titulo: "Pon el presupuesto del ciclo",
-      done: presupuestoCiclo > 0,
-      opcional: true,
-      cta: rol === "Dueño" ? { label: "Fijar en Ajustes", onClick: () => { cerrar(); setVista("ajustes"); } } : null,
-      nota: "Lo fija el Dueño en Ajustes → Ciclos.",
-    },
-    {
-      titulo: "¿Cómo te financias este ciclo?",
-      done: !!finModoCiclo,
-      opcional: true,
-      cta: rol === "Dueño" ? { label: "Contestar en Ajustes", onClick: () => { cerrar(); setVista("ajustes"); } } : null,
-      nota: "Es solo un estimado para tus compras nuevas — cada una la puedes cambiar en un toque.",
-    },
-    {
-      titulo: "Captura lo primero que pase en el lote",
-      done: hayCaptura,
-      cta: puedeLabores && parcelasT.length > 0
-        ? { label: "Ir a Hoy", onClick: () => { cerrar(); setVista("captura"); setRapida({ orden: null }); } }
-        : null,
-      nota: parcelasT.length > 0 ? "La captura se hace en Hoy, en tres toques." : "Primero las parcelas.",
-    },
-  ];
-  const tarjetaGuiaCiclo = !hayCaptura && !guiaCicloOculta
-    ? <GuiaCiclo pasos={pasosGuiaCiclo} onOcultar={() => setGuiaCicloOculta(true)} />
+  /* La ruta del ciclo: seis pasos en el orden en que pasan en el campo, cada
+     uno hecho o pendiente según lo capturado. El Encargado ve solo su parte
+     (labor, raya, boleta). Viva hasta la primera boleta; "Ocultar" por sesión;
+     desde Ayuda se reabre aunque esté completa. */
+  const hayParcelas = parcelasT.length > 0;
+  const irA = (v, tipoForm) => { cerrar(); setRapida(null); setVista(v); if (tipoForm) setForm({ tipo: tipoForm, item: null }); };
+  const puede = (mod) => puedeEscribirModulo(rol, mod, matriz);
+  const esEncargado = rol === "Encargado de campo";
+  const pasoLabor = {
+    titulo: "Tu primera labor",
+    hint: "En Hoy, en tres toques: parcela, qué se hizo y qué bajó de la bodega.",
+    done: laboresHechas.length > 0,
+    cta: puedeLabores && hayParcelas ? { label: "Ir a Hoy", onClick: () => { cerrar(); setVista("captura"); setRapida({ orden: null }); } } : null,
+    nota: hayParcelas ? "La captura la hace quien anda en el lote." : "Primero las parcelas.",
+  };
+  const pasoRaya = {
+    titulo: "Tu primera raya",
+    hint: "Por persona, por semana. El sábado se paga en la Hoja del sábado.",
+    done: nominaT.length > 0,
+    cta: puede("cuadrillas") && hayParcelas
+      ? { label: "Ir a Raya", onClick: () => irA("cuadrillas", esEncargado ? "asistencia-dia" : "asistencia-semana") }
+      : null,
+    nota: hayParcelas ? "La raya la captura la oficina o quien anda en el lote." : "Primero las parcelas.",
+  };
+  const pasoBoleta = {
+    titulo: "Tu primera boleta",
+    hint: "Cada entrega a la bodega. Aquí aparece cuánto te quedó.",
+    done: boletasT.length > 0,
+    cta: puede("cosecha") && hayParcelas ? { label: "Ir a Cosecha", onClick: () => irA("cosecha", "boleta") } : null,
+    nota: hayParcelas ? "La boleta la captura quien recibe el papel de la bodega." : "Primero las parcelas.",
+  };
+  const pasosRuta = esEncargado
+    ? [pasoLabor, pasoRaya, pasoBoleta]
+    : [
+        {
+          titulo: "Tus parcelas",
+          hint: "Una parcela es el lote que se siembra y se cosecha junto, no el predio completo.",
+          done: hayParcelas,
+          cta: puede("parcelas") ? { label: "Ir a Parcelas", onClick: () => irA("parcelas", "parcela") } : null,
+          nota: "Los lotes los da de alta el Dueño o la Oficina.",
+        },
+        {
+          titulo: "Tu crédito",
+          opcional: "si tienes avío",
+          hint: "Regístralo antes de comprar, para que el interés se cuente desde cada compra.",
+          done: creditosT.length > 0,
+          cta: veFinanzas && puede("credito") ? { label: "Ir a Crédito", onClick: () => irA("credito", "credito") } : null,
+          nota: "Lo registra quien lleva los números.",
+        },
+        {
+          titulo: "Tu primera compra",
+          hint: "Lo que compras entra a la bodega. Sin bodega no hay labor.",
+          done: comprasT.length > 0,
+          cta: veFinanzas && puede("inventario") ? { label: "Ir a Insumos", onClick: () => irA("inventario", "compra") } : null,
+          nota: "La compra la registra la oficina en Insumos.",
+        },
+        pasoLabor,
+        pasoRaya,
+        pasoBoleta,
+      ];
+  const rutaCompleta = pasosRuta.every((p) => p.done || p.opcional);
+  const verRuta = () => {
+    setGuiaCicloOculta(false);
+    setRutaForzada(true);
+    setMenuMovilAbierto(false);
+    cerrar(); setRapida(null);
+    setVista(esEncargado ? "captura" : "panel");
+  };
+  const tarjetaRuta = !guiaCicloOculta && (!rutaCompleta || rutaForzada)
+    ? (
+      <RutaCiclo
+        titulo={esEncargado ? "Tu parte del ciclo" : "La ruta del ciclo"}
+        subtitulo={esEncargado ? "Tres cosas se anotan en el lote, y de ahí sale el costo." : "Seis pasos, en el orden en que pasan en el campo."}
+        pasos={pasosRuta}
+        completa={rutaCompleta}
+        onOcultar={() => { setGuiaCicloOculta(true); setRutaForzada(false); }}
+      />
+    )
     : null;
 
   // Sale cuando el Dueño ya lleva varias labores capturadas él mismo y
@@ -2123,7 +2164,6 @@ function AgroCicloApp() {
 
   return (
     <div style={{ minHeight: "100vh", background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}>
-      {guia ? <Onboarding forzar={profile.onboardingHecho} onCerrar={() => setGuia(false)} /> : null}
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
@@ -2178,7 +2218,7 @@ function AgroCicloApp() {
             </button>
           )}
           <div className="hidden md:flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
-            <AyudaBoton />
+            <AyudaBoton onVerRuta={verRuta} />
             <span className="hidden md:inline" style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
             </span>
@@ -2203,7 +2243,7 @@ function AgroCicloApp() {
           mostrarAjustes={rol === "Dueño"}
           onAjustes={() => { setVista("ajustes"); cerrar(); setMenuMovilAbierto(false); }}
           onSalir={() => void salirAgro()}
-          slotAyuda={<AyudaBoton variant="menu" />}
+          slotAyuda={<AyudaBoton variant="menu" onVerRuta={verRuta} />}
         />
       )}
       {corteVista !== hoyStr && (
@@ -2252,10 +2292,10 @@ function AgroCicloApp() {
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100, ...(navMovilAlto ? { paddingBottom: navMovilAlto + 12 } : {}) }}>
 
           {/* ===== CAPTURA DE CAMPO ===== */}
-          <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
+          <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRuta: rol === "Encargado de campo" ? tarjetaRuta : null, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
 
           {/* ===== PANEL ===== */}
-          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo, tarjetaInvitarEquipo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
+          <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo: rol === "Encargado de campo" ? null : tarjetaRuta, tarjetaInvitarEquipo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
 
           {/* ===== PARCELAS ===== */}
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />
@@ -2273,7 +2313,7 @@ function AgroCicloApp() {
           <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }} />
 
           {/* ===== SOLICITUDES DE COMPRA (pipeline) ===== */}
-          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }} />
+          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, solicitanteDefault: user?.displayName || "", creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
           <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }} />
@@ -2293,7 +2333,7 @@ function AgroCicloApp() {
           {/* ===== REPORTES + SIMULADOR ===== */}
           <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }} />
 
-          <VistaAjustes {...{ vista, rol, setGuia, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }} />
+          <VistaAjustes {...{ vista, rol, onVerRuta: verRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }} />
         </main>
       </div>
 
