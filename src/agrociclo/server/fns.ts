@@ -52,6 +52,7 @@ export type AgroProfile = {
   permisos: Matriz;
   roles: DefRol[];
   puedeUsarDemo: boolean;
+  equipoTamano: number;
 };
 
 export type Member = {
@@ -180,6 +181,22 @@ async function loadOrg(userId: string) {
     limit 1
   `;
   return rows[0] ?? null;
+}
+
+/** Cuántas cuentas vivas tiene el predio (Dueño incluido). Sirve para decidir,
+ *  para cualquier rol (no solo Dueño), si "Pedidos del campo" debe verse aun
+ *  sin pedidos capturados — un predio de una sola persona no necesita cotizar
+ *  ni autorizarse a sí mismo. */
+async function countEquipo(orgId: string): Promise<number> {
+  const sql = await getSql();
+  const rows = await sql.query<{ n: number }>(
+    `select count(*)::int as n
+       from usuario_rol r
+      where r.organizacion_id = $1
+        and exists (select 1 from "user" u where u.id = r.user_id)`,
+    [orgId],
+  );
+  return Number(rows[0]?.n ?? 0);
 }
 
 /** Dueño vivo de ESTE predio. Un Dueño de otro predio no cuenta. */
@@ -532,7 +549,7 @@ function toProfile(
   cicloId: string,
   ciclos: AgroProfile["ciclos"],
   dueñoEtiqueta: string | null,
-  extra: { esPlataforma: boolean; codigoInvitacion: string | null },
+  extra: { esPlataforma: boolean; codigoInvitacion: string | null; equipoTamano: number },
 ): AgroProfile {
   const rol = row.rol as Rol;
   const preset = presetPermisos(rol);
@@ -559,6 +576,7 @@ function toProfile(
     permisos: matriz,
     roles: cfg.roles,
     puedeUsarDemo: puedeUsarDemo(row.email),
+    equipoTamano: extra.equipoTamano,
   };
 }
 
@@ -631,7 +649,8 @@ export const getAgroSession = createServerFn({ method: "POST" })
       await registrarEvento("login", context.userId, row.organizacion_id, { rol: row.rol });
       const rol = row.rol as Rol;
       const dueñoEtiqueta = rol === "pendiente" ? await loadDueñoEtiqueta(row.organizacion_id) : null;
-      const extra = { esPlataforma: plataforma, codigoInvitacion };
+      const equipoTamano = await countEquipo(row.organizacion_id);
+      const extra = { esPlataforma: plataforma, codigoInvitacion, equipoTamano };
       if (rol === "pendiente") {
         return {
           profile: toProfile(context.userId, row, IDS.cicloOi2627, [], dueñoEtiqueta, extra),

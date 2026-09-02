@@ -166,7 +166,7 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitan
       <Campo label="Unidad"><input style={estiloInput} placeholder="ton, L, bolsa, pieza…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="¿Para qué? (motivo)"><input style={estiloInput} placeholder="Ej. Control de maleza Lote 12" value={f.motivo} onChange={set("motivo")} /></Campo>
       <div className="md:col-span-3"><Campo label="Parcela (opcional)"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} opcional /></Campo></div>
-      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar({ ...f, insumoId: esNuevo ? "" : f.insumoId })}>{inicial ? "Guardar cambios" : "Levantar solicitud"}</Boton></div>
+      <div className="flex items-end"><Boton deshabilitado={bloqueado} onClick={() => !bloqueado && onGuardar({ ...f, insumoId: esNuevo ? "" : f.insumoId })}>{inicial ? "Guardar cambios" : "Levantar pedido"}</Boton></div>
     </div>
   );
 }
@@ -175,7 +175,7 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitan
 export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, veFinanzas, vePrecios, puedeEditar, onEditar, onEliminar, onCotizar, onEliminarCot, onAutorizar, onRecibir, finModoCiclo, finValorCiclo }) {
   const [modo, setModo] = useState(null); // null | "cotizar" | "autorizar"
   const [cot, setCot] = useState({ proveedor: "", costoUnitario: "", nota: "" });
-  const [aut, setAut] = useState({ cotizacionElegidaId: "", origen: "propio", creditoId: "", modo: "tasa", tasa: "", pct: "", productorId: "" });
+  const [aut, setAut] = useState({ cotizacionElegidaId: "", proveedorTexto: "", costoUnitario: "", origen: "propio", creditoId: "", modo: "tasa", tasa: "", pct: "", productorId: "" });
 
   const est = ESTADOS_SOLICITUD[sol.estado] || ESTADOS_SOLICITUD.solicitado;
   const parcela = sol.parcelaId ? parcelas.find(p => p.id === sol.parcelaId) : null;
@@ -189,8 +189,11 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
     setCot({ proveedor: "", costoUnitario: "", nota: "" });
     setModo(null);
   };
+  const autorizaSinCotizar = sol.cotizaciones.length === 0;
   const confirmarAut = () => {
-    if (!aut.cotizacionElegidaId) return;
+    if (autorizaSinCotizar) {
+      if (!aut.proveedorTexto.trim() || !aut.costoUnitario) return;
+    } else if (!aut.cotizacionElegidaId) return;
     if (aut.origen === "linea" && !aut.creditoId) return;
     onAutorizar(aut);
     setModo(null);
@@ -199,7 +202,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
     // La respuesta del ciclo solo preselecciona; se cambia en un toque si esta compra fue distinta.
     const origen = finModoCiclo && finModoCiclo !== "propio" ? "externo" : "propio";
     setAut({
-      cotizacionElegidaId: mejor ? String(mejor.id) : "", origen, creditoId: "",
+      cotizacionElegidaId: mejor ? String(mejor.id) : "", proveedorTexto: "", costoUnitario: "", origen, creditoId: "",
       modo: finModoCiclo === "sobreprecio" ? "sobreprecio" : "tasa",
       tasa: finModoCiclo === "tasa" ? String(finValorCiclo ?? "") : "",
       pct: finModoCiclo === "sobreprecio" ? String(finValorCiclo ?? "") : "",
@@ -278,15 +281,27 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
       {/* Mini-form: autorizar */}
       {modo === "autorizar" && (
         <div className="mt-3" style={{ background: C.papel, borderRadius: 10, padding: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.gris, marginBottom: 6 }}>Elige la cotización a autorizar</div>
-          <div className="flex flex-col gap-1.5 mb-3">
-            {sol.cotizaciones.map(c => (
-              <label key={c.id} className="flex items-center gap-2" style={{ fontSize: 13, cursor: "pointer" }}>
-                <input type="radio" name={`aut-${sol.id}`} checked={aut.cotizacionElegidaId === String(c.id)} onChange={() => setAut({ ...aut, cotizacionElegidaId: String(c.id) })} />
-                <span><strong>{c.proveedor}</strong> · {moneyU(c.costoUnitario)}/{sol.unidad} = {money((Number(c.costoUnitario) || 0) * (Number(sol.cantidad) || 0))}</span>
-              </label>
-            ))}
-          </div>
+          {autorizaSinCotizar ? (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.gris, marginBottom: 6 }}>Sin cotización todavía — autoriza con lo que ya sabes</div>
+              <div className="grid md:grid-cols-2 gap-2 mb-3">
+                <Campo label="Proveedor"><input style={estiloInput} placeholder="Ej. Agroinsumos del Fuerte" value={aut.proveedorTexto} onChange={(e) => setAut({ ...aut, proveedorTexto: e.target.value })} /></Campo>
+                <Campo label={`Costo unitario ($/${sol.unidad || "u"})`}><input type="number" style={estiloInput} placeholder="0" value={aut.costoUnitario} onChange={(e) => setAut({ ...aut, costoUnitario: e.target.value })} /></Campo>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.gris, marginBottom: 6 }}>Elige la cotización a autorizar</div>
+              <div className="flex flex-col gap-1.5 mb-3">
+                {sol.cotizaciones.map(c => (
+                  <label key={c.id} className="flex items-center gap-2" style={{ fontSize: 13, cursor: "pointer" }}>
+                    <input type="radio" name={`aut-${sol.id}`} checked={aut.cotizacionElegidaId === String(c.id)} onChange={() => setAut({ ...aut, cotizacionElegidaId: String(c.id) })} />
+                    <span><strong>{c.proveedor}</strong> · {moneyU(c.costoUnitario)}/{sol.unidad} = {money((Number(c.costoUnitario) || 0) * (Number(sol.cantidad) || 0))}</span>
+                  </label>
+                ))}
+              </div>
+            </>
+          )}
           <div className="grid md:grid-cols-3 gap-2">
             <CampoFinanciamiento
               origen={aut.origen} creditoId={aut.creditoId} tasa={aut.tasa}
@@ -300,7 +315,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
             <CampoProductor value={aut.productorId} onChange={(e) => setAut({ ...aut, productorId: e.target.value })} productores={productores} />
           </div>
           <div className="flex items-end gap-2 mt-2">
-            <Boton chico onClick={confirmarAut} deshabilitado={!aut.cotizacionElegidaId || (aut.origen === "linea" && !aut.creditoId)}><CheckCircle2 size={14} /> Autorizar compra</Boton>
+            <Boton chico onClick={confirmarAut} deshabilitado={(autorizaSinCotizar ? (!aut.proveedorTexto.trim() || !aut.costoUnitario) : !aut.cotizacionElegidaId) || (aut.origen === "linea" && !aut.creditoId)}><CheckCircle2 size={14} /> Autorizar compra</Boton>
             <Boton chico secundario onClick={() => setModo(null)}>Cancelar</Boton>
           </div>
         </div>
@@ -329,13 +344,11 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
           {vePrecios && puedeEditar && (sol.estado === "solicitado" || sol.estado === "cotizado") && (
             <Boton chico secundario onClick={() => setModo("cotizar")}><Plus size={14} /> Agregar cotización</Boton>
           )}
-          {veFinanzas && puedeEditar && sol.estado === "cotizado" && sol.cotizaciones.length > 0 && (
+          {veFinanzas && puedeEditar && (sol.estado === "solicitado" || sol.estado === "cotizado") && (
             <Boton chico onClick={abrirAut}><CheckCircle2 size={14} /> Autorizar</Boton>
           )}
           {!veFinanzas && (sol.estado === "solicitado" || sol.estado === "cotizado") && (
-            <span style={{ fontSize: 12, color: C.gris }}>
-              {sol.estado === "solicitado" ? "Esperando que oficina cotice." : "Esperando autorización de oficina."}
-            </span>
+            <span style={{ fontSize: 12, color: C.gris }}>Esperando autorización de oficina.</span>
           )}
           {puedeEditar && sol.estado === "autorizado" && (
             <Boton chico onClick={onRecibir}><PackageCheck size={14} /> Recibir en almacén</Boton>

@@ -255,3 +255,66 @@ describe("Regresión — la compra queda en el organizacion_id real, no en uno d
     assert.equal(recibido.ledger.compra.find((c) => c.id === compraId).organizacion_id, orgReal);
   });
 });
+
+describe("Autorizar un pedido sin cotizar antes (Tanda B · Pedidos)", () => {
+  it("fn_autorizar_solicitud sin p_cotizacion_id crea la cotización y autoriza en el mismo paso", async () => {
+    const { ranchoVacioLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    let ledger = ranchoVacioLedger();
+    const ciclo = IDS.cicloOi2627;
+
+    const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA,
+      p_ciclo_id: ciclo, p_solicitante: "Encargado", p_insumo_id: IDS.diesel,
+      p_insumo_nombre: "Diésel", p_unidad: "L", p_cantidad: 100,
+    });
+    assert.equal(sol.result.error, null);
+    ledger = sol.ledger;
+    const solId = sol.result.data;
+    assert.equal(ledger.solicitud_cotizacion.filter((c) => c.solicitud_id === solId).length, 0);
+
+    const aut = await applyRpcToLedger(ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA,
+      p_solicitud_id: solId, p_proveedor_texto: "Agroinsumos del Fuerte", p_costo_unitario: 24,
+      p_origen: "propio", p_fecha: "2026-10-05",
+    });
+    assert.equal(aut.result.error, null);
+    ledger = aut.ledger;
+
+    const filaSol = ledger.solicitud_compra.find((s) => s.id === solId);
+    assert.equal(filaSol.estado, "autorizado");
+    assert.ok(filaSol.cotizacion_elegida_id);
+    const cot = ledger.solicitud_cotizacion.find((c) => c.id === filaSol.cotizacion_elegida_id);
+    assert.equal(cot.proveedor_texto, "Agroinsumos del Fuerte");
+    assert.equal(Number(cot.costo_unitario), 24);
+
+    // Recibir sigue funcionando normal con la cotización recién creada.
+    const recibido = await applyRpcToLedger(ledger, "fn_recibir_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: solId, p_ciclo_id: ciclo, p_fecha: "2026-10-06",
+    });
+    assert.equal(recibido.result.error, null);
+    const compraId = recibido.ledger.solicitud_compra.find((s) => s.id === solId).compra_id;
+    const filaCompra = recibido.ledger.compra.find((c) => c.id === compraId);
+    assert.equal(Number(filaCompra.monto), 2400);
+  });
+
+  it("sin cotización elegida ni proveedor/costo, truena en vez de autorizar a ciegas", async () => {
+    const { ranchoVacioLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    let ledger = ranchoVacioLedger();
+
+    const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA,
+      p_ciclo_id: IDS.cicloOi2627, p_solicitante: "Encargado", p_insumo_id: IDS.diesel,
+      p_insumo_nombre: "Diésel", p_unidad: "L", p_cantidad: 100,
+    });
+    ledger = sol.ledger;
+
+    const aut = await applyRpcToLedger(ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_origen: "propio", p_fecha: "2026-10-05",
+    });
+    assert.ok(aut.result.error);
+    // No se tocó el estado: sigue "solicitado", no quedó a medias.
+    assert.equal(aut.ledger.solicitud_compra.find((s) => s.id === sol.result.data).estado, "solicitado");
+  });
+});

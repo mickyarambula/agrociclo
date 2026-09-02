@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Sprout, Tractor, Package, Users, Landmark, BarChart3, Wheat, Wallet,
   Plus, X, AlertTriangle, ChevronRight, Pencil, Trash2, Fuel,
   CheckCircle2, MessageCircle, Copy, Bell, SlidersHorizontal, BookUser, ArrowRightLeft,
-  ClipboardList, PackageCheck, Coins, CalendarClock, Banknote, LogOut, ListTodo, Menu
+  PackageCheck, Coins, CalendarClock, Banknote, LogOut, ListTodo, Menu
 } from "lucide-react";
 import { toast } from "sonner";
 import { useOrgRead, useOrgWrite } from "./data/useOrgQuery";
@@ -35,7 +35,6 @@ import { VistaCaja } from "./vistas/Caja";
 import { VistaGastos } from "./vistas/Gastos";
 import { VistaProductores } from "./vistas/Productores";
 import { VistaCosecha } from "./vistas/Cosecha";
-import { VistaSolicitudes } from "./vistas/Solicitudes";
 import { VistaRaya } from "./vistas/Raya";
 import { VistaInsumos } from "./vistas/Insumos";
 import { VistaLabores } from "./vistas/Labores";
@@ -154,6 +153,9 @@ function AgroCicloApp() {
   // "ver" pero sí registra labores); ordenar es de quien lleva los números.
   const puedeLabores = puedeEscribirModulo(rol, "labores", matriz);
   const puedeOrdenar = puedeLabores && veFinanzas;
+  // Pedidos vive dentro de Insumos, pero es su propio permiso: el Encargado
+  // edita Solicitudes aunque Insumos (la compra en sí) se le quede en "ver".
+  const puedeEditarPedidos = puedeEscribirModulo(rol, "solicitudes", matriz);
   // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
   const [rapida, setRapida] = useState(null);
   // La ruta del ciclo: "Ocultar" solo vive esta sesión (sin flag en el
@@ -1852,7 +1854,9 @@ function AgroCicloApp() {
       const { error } = await supabase.rpc("fn_autorizar_solicitud", {
         p_solicitud_id: sol.id,
         p_org: ORG_ID,
-        p_cotizacion_id: datos.cotizacionElegidaId,
+        p_cotizacion_id: datos.cotizacionElegidaId || null,
+        p_proveedor_texto: datos.cotizacionElegidaId ? null : (datos.proveedorTexto || null),
+        p_costo_unitario: datos.cotizacionElegidaId ? null : (Number(datos.costoUnitario) || null),
         p_origen: origen,
         p_linea_id: origen === "linea" ? (datos.creditoId || null) : null,
         p_modo: origen === "externo" ? (datos.modo || "tasa") : "tasa",
@@ -1977,7 +1981,6 @@ function AgroCicloApp() {
     { id: "parcelas", nombre: "Parcelas", icono: Sprout },
     { id: "inventario", nombre: "Insumos", icono: Package },
     { id: "labores", nombre: "Labores", icono: Tractor },
-    { id: "solicitudes", nombre: "Solicitudes", icono: ClipboardList },
     { id: "cuadrillas", nombre: "Raya", icono: Users },
     { id: "cosecha", nombre: "Cosecha", icono: Wheat },
     { id: "productores", nombre: "Productores", icono: BookUser, soloFinanzas: true },
@@ -1990,7 +1993,7 @@ function AgroCicloApp() {
   const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz));
   const NAV_GRUPOS = [
     { etiqueta: null, ids: ["captura", "panel"] },
-    { etiqueta: "Campo", ids: ["parcelas", "inventario", "labores", "solicitudes", "cuadrillas"] },
+    { etiqueta: "Campo", ids: ["parcelas", "inventario", "labores", "cuadrillas"] },
     { etiqueta: "Venta", ids: ["cosecha", "productores"] },
     { etiqueta: "Números", ids: ["gastos", "caja", "credito", "reportes"] },
   ];
@@ -2301,17 +2304,14 @@ function AgroCicloApp() {
           {/* ===== LABORES ===== */}
           <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }} />
 
-          {/* ===== INVENTARIO / COMPRAS ===== */}
-          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo }} />
+          {/* ===== INVENTARIO / COMPRAS / PEDIDOS DEL CAMPO ===== */}
+          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo, puedeEditarPedidos, equipoTamano: profile.equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault: user?.displayName || "", vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
           <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaSemanal, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya, personas, guardarPersona, eliminarPersona, guardarAsistenciaSemana, registrarAsistenciaDia }} />
 
           {/* ===== COSECHA ===== */}
           <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }} />
-
-          {/* ===== SOLICITUDES DE COMPRA (pipeline) ===== */}
-          <VistaSolicitudes {...{ vista, puedeEditar, form, setForm, cerrar, insumos, parcelasT, guardarSolicitud, solicitudesT, solicitanteDefault: user?.displayName || "", creditosT, productores, veFinanzas, vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, finModoCiclo, finValorCiclo }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
           <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }} />

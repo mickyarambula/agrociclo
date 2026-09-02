@@ -1,11 +1,21 @@
 // @ts-nocheck
-import { C, money, num, costoFinCompra, moneyU } from "../base";
+import { C, money, num, costoFinCompra, moneyU, ORDEN_ESTADO } from "../base";
 import { fuente, Tarjeta, Acciones, Seccion, Vacio } from "../ui";
-import { FormCompra } from "../forms/almacen";
+import { FormCompra, FormSolicitud, SolicitudCard } from "../forms/almacen";
 import { BotonMarcarPagada } from "../forms/comunes";
 import { AlertTriangle, Fuel } from "lucide-react";
 
-export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo }) {
+export function VistaInsumos({
+  vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra,
+  stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo,
+  puedeEditarPedidos, equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault, vePrecios,
+  eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT,
+}) {
+  // Pedidos del campo se ve si ya hay pedidos, o si el predio es de más de una
+  // persona (nadie se autoriza compras a sí mismo en un predio de un solo Dueño).
+  // Si alguien ya forzó abrir el formulario (desde Hoy o El ciclo con "+ Pedido"),
+  // la sección se muestra igual para poder capturarlo, aunque esté "de más" ahí.
+  const mostrarPedidos = equipoTamano > 1 || solicitudesT.length > 0 || form?.tipo === "solicitud";
   return (
     <>
           {vista === "inventario" && (
@@ -40,6 +50,43 @@ export function VistaInsumos({ vista, puedeEditar, veFinanzas, form, setForm, ce
                   </Tarjeta>
                 ))}
               </div>
+              )}
+
+              {mostrarPedidos && (
+                <div style={{ marginTop: 8 }}>
+                  <Seccion titulo="Pedidos del campo" accion="Nuevo pedido" puedeEditar={puedeEditarPedidos}
+                    abierto={form?.tipo === "solicitud"} onAbrir={() => setForm({ tipo: "solicitud", item: null })} onCerrar={cerrar}
+                    editando={!!form?.item}
+                    form={<FormSolicitud key={form?.item?.id || "nuevo"} inicial={form?.item} insumos={insumos} parcelas={parcelasT} solicitanteDefault={solicitanteDefault} onGuardar={(f) => guardarSolicitud(f, form?.item)} />}>
+                    <div style={{ background: C.papel, borderRadius: 10, padding: "10px 14px", fontSize: 12.5, color: C.gris }}>
+                      Flujo: <strong style={{ color: C.azul }}>Solicitado</strong> → <strong style={{ color: C.grano }}>Cotizado</strong> → <strong style={{ color: C.hoja }}>Autorizado</strong> → <strong style={{ color: C.bosque }}>Recibido</strong>. Se puede autorizar sin cotizar antes, con el proveedor y costo a la mano. Al recibir, el insumo entra al almacén y se registra la compra.
+                    </div>
+                    {solicitudesT.length === 0 && <Vacio texto="Sin pedidos. Levanta el primero con “Nuevo pedido”." />}
+                    <div className="flex flex-col gap-3">
+                      {solicitudesT.slice().sort((a, b) => (ORDEN_ESTADO[a.estado] - ORDEN_ESTADO[b.estado]) || b.fecha.localeCompare(a.fecha)).map(sol => (
+                        <SolicitudCard
+                          key={sol.id}
+                          sol={sol}
+                          insumos={insumos}
+                          parcelas={parcelasT}
+                          creditos={creditosT}
+                          productores={productores}
+                          veFinanzas={veFinanzas}
+                          vePrecios={vePrecios}
+                          puedeEditar={puedeEditarPedidos}
+                          onEditar={() => setForm({ tipo: "solicitud", item: sol })}
+                          onEliminar={() => eliminarSolicitud(sol)}
+                          onCotizar={(cot) => agregarCotizacion(sol, cot)}
+                          onEliminarCot={(cotId) => eliminarCotizacion(sol, cotId)}
+                          onAutorizar={(datos) => autorizarSolicitud(sol, datos)}
+                          onRecibir={() => recibirSolicitud(sol)}
+                          finModoCiclo={finModoCiclo}
+                          finValorCiclo={finValorCiclo}
+                        />
+                      ))}
+                    </div>
+                  </Seccion>
+                </div>
               )}
 
               {(movInvQ.data ?? []).length > 0 && (

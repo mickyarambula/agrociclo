@@ -37,12 +37,12 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
                         <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 8 }}>
                           Pedidos de insumo · {pedidos.length}
                         </div>
-                        <p style={{ margin: "0 0 8px", fontSize: 12, color: C.gris }}>Compras que la oficina pidió o autorizó. Se reciben en Solicitudes.</p>
+                        <p style={{ margin: "0 0 8px", fontSize: 12, color: C.gris }}>Compras que la oficina pidió o autorizó. Se reciben en Insumos.</p>
                         {pedidos.slice(0, 6).map((s) => (
                           <button
                             key={s.id}
                             type="button"
-                            onClick={() => { setVista("solicitudes"); setForm({ tipo: "solicitud", item: s }); }}
+                            onClick={() => { setVista("inventario"); setForm({ tipo: "solicitud", item: s }); }}
                             className="flex w-full items-center justify-between gap-2 text-left"
                             style={{ fontSize: 13, padding: "10px 0", borderTop: `1px solid ${C.linea}`, background: "transparent", borderLeft: "none", borderRight: "none", borderBottom: "none", cursor: "pointer", minHeight: 44, color: C.tinta, fontFamily: fuente.cuerpo }}
                           >
@@ -85,7 +85,7 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
                       { id: "labor", vista: "labores", titulo: "Labor", desc: "Riego, rastreo, aplicación", Ic: Tractor },
                       { id: "raya", vista: "cuadrillas", titulo: "Raya", desc: "Quién vino hoy", Ic: Users },
                       { id: "boleta", vista: "cosecha", titulo: "Boleta", desc: "Entrega en bodega", Ic: Wheat },
-                      { id: "solicitud", vista: "solicitudes", titulo: "Solicitud", desc: "Pedir insumo", Ic: ClipboardList },
+                      { id: "solicitud", vista: "inventario", titulo: "Pedido", desc: "Pedir insumo", Ic: ClipboardList },
                     ].map((a) => {
                       const Ic = a.Ic;
                       return (

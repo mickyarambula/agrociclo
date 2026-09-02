@@ -858,9 +858,29 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
 
   fn_autorizar_solicitud(p) {
     const id = String(p.p_solicitud_id);
+    // Autorizar sin cotizar: si no viene p_cotizacion_id, la crea aquí mismo
+    // con proveedor/costo del formulario — un solo paso, atómico con el
+    // resto de esta RPC (misma corrida de applyRpcToLedger).
+    let cotizacionId = p.p_cotizacion_id ? String(p.p_cotizacion_id) : null;
+    if (!cotizacionId) {
+      if (!p.p_proveedor_texto || !p.p_costo_unitario) {
+        return err("Falta proveedor y costo para autorizar sin cotización.");
+      }
+      cotizacionId = uid();
+      insertRow("solicitud_cotizacion", {
+        id: cotizacionId,
+        organizacion_id: orgActual(),
+        solicitud_id: id,
+        proveedor_texto: p.p_proveedor_texto,
+        costo_unitario: Number(p.p_costo_unitario) || 0,
+        nota: p.p_nota ?? "",
+        fecha: p.p_fecha ?? hoyMochis(),
+        eliminado_en: null,
+      });
+    }
     patchWhere("solicitud_compra", (r) => r.id === id, {
       estado: "autorizado",
-      cotizacion_elegida_id: p.p_cotizacion_id,
+      cotizacion_elegida_id: cotizacionId,
       origen: p.p_origen,
       linea_credito_id: p.p_linea_id ?? null,
       modo: p.p_modo ?? "tasa",
