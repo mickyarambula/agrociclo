@@ -319,13 +319,13 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
       </div>
       {faltaDiesel && (
         <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
-          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó.
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó, o pide a la oficina que registre más diésel en Insumos.
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
         </div>
       )}
       {faltaInsumo && (
         <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
-          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó.
+          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó, o pide a la oficina que registre la compra en Insumos.
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
         </div>
       )}

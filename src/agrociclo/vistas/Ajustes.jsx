@@ -236,33 +236,35 @@ export function VistaAjustes({ vista, rol, setGuia, user, profile, guardarAjuste
                 <CatalogoLitrosHaLabor tipos={tiposLabor} litrosHaPorTipo={litrosHaPorTipo} onGuardar={guardarLitrosHaTipo} />
               </Tarjeta>
 
-              <Tarjeta style={{ padding: 18 }}>
-                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de prueba</div>
-                <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
-                  Este predio debe quedar en ceros para la siembra que empieza. La demo OI 2025/26 (2,150 L, FIRA, productor 3567) no es información real.
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  <Boton
-                    onClick={() => {
-                      if (window.confirm("Vaciar el predio: queda OI 2026/27 sin parcelas, sin almacén y sin crédito. Se pierde lo capturado.")) {
-                        void vaciar().then(() => window.location.reload());
-                      }
-                    }}
-                  >
-                    Dejar predio en ceros
-                  </Boton>
-                  <Boton
-                    secundario
-                    onClick={() => {
-                      if (window.confirm("Esto carga números de PRUEBA (OI 2025/26). No son del predio. ¿Seguro?")) {
-                        void restaurarDemo().then(() => window.location.reload());
-                      }
-                    }}
-                  >
-                    Cargar demo de prueba
-                  </Boton>
-                </div>
-              </Tarjeta>
+              {profile.puedeUsarDemo && (
+                <Tarjeta style={{ padding: 18 }}>
+                  <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Datos de prueba</div>
+                  <p style={{ margin: "8px 0 12px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                    Este predio debe quedar en ceros para la siembra que empieza. La demo OI 2025/26 (2,150 L, FIRA, productor 3567) no es información real.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    <Boton
+                      onClick={() => {
+                        if (window.confirm("Vaciar el predio: queda OI 2026/27 sin parcelas, sin almacén y sin crédito. Se pierde lo capturado.")) {
+                          void vaciar().then(() => window.location.reload());
+                        }
+                      }}
+                    >
+                      Dejar predio en ceros
+                    </Boton>
+                    <Boton
+                      secundario
+                      onClick={() => {
+                        if (window.confirm("Esto carga números de PRUEBA (OI 2025/26). No son del predio. ¿Seguro?")) {
+                          void restaurarDemo().then(() => window.location.reload());
+                        }
+                      }}
+                    >
+                      Cargar demo de prueba
+                    </Boton>
+                  </div>
+                </Tarjeta>
+              )}
             </div>
           )}
     </>

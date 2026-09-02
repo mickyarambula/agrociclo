@@ -51,6 +51,7 @@ export type AgroProfile = {
   onboardingHecho: boolean;
   permisos: Matriz;
   roles: DefRol[];
+  puedeUsarDemo: boolean;
 };
 
 export type Member = {
@@ -455,6 +456,26 @@ function correosOperador(): Set<string> {
   );
 }
 
+/** Lista blanca de "Datos de prueba" en Ajustes (demo/vaciar predio). Reemplazan
+ *  el ledger completo — un productor real (como Rodolfo) nunca debe verlos ni
+ *  poder llamarlos, aunque sea Dueño de su predio. Configurable con
+ *  DEMO_ADMIN_EMAILS; default: el correo de Miguel, quien prueba contra su
+ *  propio "Predio de Miguel". */
+function correosDemo(): Set<string> {
+  const raw = process.env.DEMO_ADMIN_EMAILS ?? "miguelarambulam@gmail.com";
+  return new Set(
+    raw
+      .split(",")
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean),
+  );
+}
+
+function puedeUsarDemo(email: string | null): boolean {
+  if (!email) return false;
+  return correosDemo().has(email.trim().toLowerCase());
+}
+
 async function asegurarPlataformaAdmin(userId: string, email: string | null, displayName: string | null) {
   if ((await countPlataformaAdmin()) > 0) return;
   if (!email || !correosOperador().has(email.trim().toLowerCase())) return;
@@ -537,6 +558,7 @@ function toProfile(
     onboardingHecho: Boolean(row.onboarding_en),
     permisos: matriz,
     roles: cfg.roles,
+    puedeUsarDemo: puedeUsarDemo(row.email),
   };
 }
 
@@ -825,6 +847,7 @@ export const resetAgroDemo = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño restaura el demo.");
+    if (!puedeUsarDemo(row.email)) throw new Error("Esta opción no está disponible en este predio.");
     const ledger = demoLedger();
     await saveLedger(row.organizacion_id, ledger);
     return { ledger: asJson(ledger) };
@@ -835,6 +858,7 @@ export const vaciarRancho = createServerFn({ method: "POST" })
   .handler(async ({ context }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño vacía el predio.");
+    if (!puedeUsarDemo(row.email)) throw new Error("Esta opción no está disponible en este predio.");
     const ledger = ranchoVacioLedger(row.organizacion_id, row.nombre);
     await saveLedger(row.organizacion_id, ledger);
     const sql = await getSql();

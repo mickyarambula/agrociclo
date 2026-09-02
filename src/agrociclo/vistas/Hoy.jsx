@@ -10,7 +10,7 @@ export function VistaHoy({ vista, nombreCiclo, parcelasT, rol, setVista, tarjeta
             <div className="flex flex-col gap-4">
               <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 26, margin: 0 }}>Tarja de hoy</h1>
               <p style={{ margin: 0, fontSize: 14, color: C.gris }}>
-                {nombreCiclo}. Lo que pasó en el lote, en tres toques. La oficina ve montos.
+                {nombreCiclo}. Lo que pasó en el lote, en tres toques. Sin precios de compras ni crédito — el pago de raya sí se ve, porque hay que saber cuánto le toca a cada quien.
               </p>
               {parcelasT.length === 0 ? (
                 <Tarjeta style={{ padding: 28, textAlign: "center" }}>

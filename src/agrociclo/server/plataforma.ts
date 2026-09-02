@@ -79,7 +79,7 @@ const FAQ_INICIAL = [
   {
     pregunta: "¿Cómo entra mi Encargado o la oficina?",
     respuesta:
-      "En Ajustes copias el código del predio. Ellos lo escriben al crear su cuenta (antes de Continuar con Google o correo). Tú les das rol: Oficina, Encargado de campo o Consulta.",
+      "En Ajustes copias el código del predio. Cuando esa persona entra a AgroCiclo (con su celular o su correo) y todavía no tiene predio, la pantalla “¿Cómo entras?” le pregunta si tiene un código o si va a dar de alta el suyo — ahí escribe el que le diste. Tú le das rol: Oficina, Encargado de campo o Consulta.",
   },
   {
     pregunta: "¿El Encargado ve el crédito y los montos?",
@@ -89,12 +89,12 @@ const FAQ_INICIAL = [
   {
     pregunta: "¿Dónde anoto lo que pasó en el lote?",
     respuesta:
-      "Captura → Labor, Raya, Boleta o Solicitud. Un toque. La oficina pone precio y flete después.",
+      "Hoy → Labor, Raya, Boleta o Solicitud. Un toque. La oficina pone precio y flete después.",
   },
   {
-    pregunta: "Los 2,150 L de diésel, ¿son de mi predio?",
+    pregunta: "Los números que veo al entrar, ¿son de mi predio?",
     respuesta:
-      "No. Eran números de demostración. Tu ciclo de siembra arranca vacío. El almacén se llena con la primera compra.",
+      "No. Si ves cifras que no reconoces, son de la demo de prueba. Tu ciclo de siembra arranca vacío: el almacén se llena con tu primera compra y la bodega baja con tu primera labor.",
   },
   {
     pregunta: "Algo falló o no entiendo una pantalla",

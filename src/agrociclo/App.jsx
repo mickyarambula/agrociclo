@@ -1977,8 +1977,8 @@ function AgroCicloApp() {
     { id: "captura", nombre: "Hoy", icono: ListTodo, soloCampo: true },
     { id: "panel", nombre: "El ciclo", icono: LayoutDashboard },
     { id: "parcelas", nombre: "Parcelas", icono: Sprout },
-    { id: "labores", nombre: "Labores", icono: Tractor },
     { id: "inventario", nombre: "Insumos", icono: Package },
+    { id: "labores", nombre: "Labores", icono: Tractor },
     { id: "solicitudes", nombre: "Solicitudes", icono: ClipboardList },
     { id: "cuadrillas", nombre: "Raya", icono: Users },
     { id: "cosecha", nombre: "Cosecha", icono: Wheat },
@@ -1993,7 +1993,7 @@ function AgroCicloApp() {
   const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz));
   const NAV_GRUPOS = [
     { etiqueta: null, ids: ["captura", "panel"] },
-    { etiqueta: "Campo", ids: ["parcelas", "labores", "inventario", "solicitudes", "cuadrillas"] },
+    { etiqueta: "Campo", ids: ["parcelas", "inventario", "labores", "solicitudes", "cuadrillas"] },
     { etiqueta: "Venta", ids: ["cosecha", "productores"] },
     { etiqueta: "Números", ids: ["gastos", "caja", "credito", "costofin", "reportes"] },
   ];
@@ -2003,7 +2003,7 @@ function AgroCicloApp() {
   // anota raya viendo a la cuadrilla y consume insumos sin comprarlos, así que
   // su fila cambia Insumos por Raya; los demás roles comparten la misma.
   const IDS_ABAJO_POR_ROL = { "Encargado de campo": ["captura", "labores", "cuadrillas", "cosecha"] };
-  const idsAbajo = IDS_ABAJO_POR_ROL[rol] || ["captura", "labores", "inventario", "cosecha"];
+  const idsAbajo = IDS_ABAJO_POR_ROL[rol] || ["captura", "inventario", "labores", "cosecha"];
   const NAV_MOVIL = NAV.filter((n) => idsAbajo.includes(n.id));
   const idsAbajoSet = new Set(NAV_MOVIL.map((n) => n.id));
   const NAV_MENU_GRUPOS = NAV_GRUPOS.map((g) => ({
@@ -2246,7 +2246,7 @@ function AgroCicloApp() {
             );
           })}
           {rol === "Consulta" && <div style={{ fontSize: 11, color: C.gris, padding: "10px 12px" }}>Modo consulta: solo lectura.</div>}
-          {rol === "Encargado de campo" && <div style={{ fontSize: 11, color: C.gris, padding: "10px 12px" }}>Vista de campo: sin información financiera.</div>}
+          {rol === "Encargado de campo" && <div style={{ fontSize: 11, color: C.gris, padding: "10px 12px" }}>Vista de campo: sin precios de compras ni crédito.</div>}
         </nav>
 
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100, ...(navMovilAlto ? { paddingBottom: navMovilAlto + 12 } : {}) }}>
