@@ -1975,6 +1975,17 @@ function AgroCicloApp() {
   });
   const eliminarCajaMov = (mov) => eliminarCajaMovMut.mutate(mov);
 
+  /* Interruptores del predio (Ajustes → "Qué llevas en este predio"). Tres
+     estados: null = "sin contestar" y decide solo con los datos que ya hay;
+     true/false es la respuesta explícita del Dueño. Nada se borra al apagar
+     un interruptor — solo deja de verse la pantalla; quien ya tenía datos
+     los conserva. */
+  const hayCajaData = cajaMovsT.length > 0;
+  const hayProductoresData = productores.length > 0 || dispersionesT.length > 0 || prestamosT.length > 0;
+  const mostrarCaja = profile.llevaCajaChica ?? hayCajaData;
+  const mostrarProductores = profile.manejaProductores ?? hayProductoresData;
+  const OCULTOS_PREDIO = new Set([...(mostrarCaja ? [] : ["caja"]), ...(mostrarProductores ? [] : ["productores"])]);
+
   const NAV_TODOS = [
     { id: "captura", nombre: "Hoy", icono: ListTodo, soloCampo: true },
     { id: "panel", nombre: "El ciclo", icono: LayoutDashboard },
@@ -1990,7 +2001,7 @@ function AgroCicloApp() {
     { id: "reportes", nombre: "Reportes", icono: BarChart3, soloFinanzas: true },
     { id: "ajustes", nombre: "Ajustes", icono: SlidersHorizontal, soloDueno: true },
   ];
-  const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz));
+  const NAV = NAV_TODOS.filter((n) => navVisible(rol, n.id, matriz) && !OCULTOS_PREDIO.has(n.id));
   const NAV_GRUPOS = [
     { etiqueta: null, ids: ["captura", "panel"] },
     { etiqueta: "Campo", ids: ["parcelas", "inventario", "labores", "cuadrillas"] },
@@ -2299,13 +2310,13 @@ function AgroCicloApp() {
           <VistaCiclo {...{ vista, nombreCiclo, puedeEditar, accionRapida, veFinanzas, parcelasT, tarjetaGuiaCiclo: rol === "Encargado de campo" ? null : tarjetaRuta, tarjetaInvitarEquipo, setVista, cajaSaldo, creditosT, dispuestoLinea, ingresoRealTotal, presupuestoCiclo, inversionTotal, avisos, haTotal, costoFinTotal, costoFinEstimadoTotal, ingresoTotal, rayaPendiente, dieselIns, laboresHechas, boletasT, cerrar, rol, grupoCargos, grupoAbonos, costosParcela, corteVista, corteInput, setCorteVista, corteMin, corteMax }} />
 
           {/* ===== PARCELAS ===== */}
-          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }} />
+          <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores }} />
 
           {/* ===== LABORES ===== */}
           <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }} />
 
           {/* ===== INVENTARIO / COMPRAS / PEDIDOS DEL CAMPO ===== */}
-          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo, puedeEditarPedidos, equipoTamano: profile.equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault: user?.displayName || "", vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT }} />
+          <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo, puedeEditarPedidos, equipoTamano: profile.equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault: user?.displayName || "", vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT, mostrarProductores }} />
 
           {/* ===== CUADRILLAS / RAYA ===== */}
           <VistaRaya {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, directorio, guardarNomina, rayaSemanal, rayaPendiente, pagarRayaPersona, nominaT, parcelas, eliminarNomina, actividadesRaya, agregarActividadRaya, personas, guardarPersona, eliminarPersona, guardarAsistenciaSemana, registrarAsistenciaDia }} />
@@ -2314,21 +2325,21 @@ function AgroCicloApp() {
           <VistaCosecha {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }} />
 
           {/* ===== PRODUCTORES / PRESTANOMBRES ===== */}
-          <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }} />
+          <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion, mostrarProductores }} />
 
           {/* ===== GASTOS GENERALES ===== */}
-          <VistaGastos {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto }} />
+          <VistaGastos {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto, mostrarProductores }} />
 
           {/* ===== CAJA CHICA ===== */}
-          <VistaCaja {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov }} />
+          <VistaCaja {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov, mostrarCaja }} />
 
           {/* ===== FINANCIAMIENTO ===== */}
-          <VistaCredito {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva, creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta, fechaObjetivo, setFechaObjetivo, pagoSupuesto, setPagoSupuesto, interesInsoluto, gastosT, interesDisp, abonoMonto, setAbonoMonto, revertirLiquidacion, liquidarDisposicion }} />
+          <VistaCredito {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva, creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta, fechaObjetivo, setFechaObjetivo, pagoSupuesto, setPagoSupuesto, interesInsoluto, gastosT, interesDisp, abonoMonto, setAbonoMonto, revertirLiquidacion, liquidarDisposicion, mostrarProductores }} />
 
           {/* ===== REPORTES + SIMULADOR ===== */}
           <VistaReportes {...{ vista, veFinanzas, parcelasT, costosParcela, inversionTotal, ingresoTotal, laboresHechas, nominaT, insumos, gastosT, apsProductivas, prestamosT, productores, costoFinTotal, costoDirectoTotal, gastosIndTotal, ingresoRealTotal, rentaTotal, haTotal, dieselUsado, dieselCosto, nombreRenteroDe }} />
 
-          <VistaAjustes {...{ vista, rol, onVerRuta: verRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }} />
+          <VistaAjustes {...{ vista, rol, onVerRuta: verRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo, cajaMovsCount: cajaMovsT.length, productoresCount: productores.length, movCuentaCount: dispersionesT.length + prestamosT.length }} />
         </main>
       </div>
 

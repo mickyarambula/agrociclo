@@ -4,10 +4,10 @@ import { fuente, Tarjeta, Boton, Vacio } from "../ui";
 import { ProductorCard, FormProductor, FormDispersion, FormPrestamo, PrestamoCard } from "../forms/dinero";
 import { Plus, X, ArrowRightLeft, Banknote } from "lucide-react";
 
-export function VistaProductores({ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion }) {
+export function VistaProductores({ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion, mostrarProductores }) {
   return (
     <>
-          {vista === "productores" && veFinanzas && (
+          {vista === "productores" && veFinanzas && mostrarProductores && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 24, margin: 0 }}>Productores del grupo</h1>

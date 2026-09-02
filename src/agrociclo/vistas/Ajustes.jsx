@@ -9,6 +9,40 @@ import { EquipoPanel, RolesPanel, contactoVisible } from "../session";
 import { authClient } from "@/lib/auth/client";
 import { Copy } from "lucide-react";
 
+/** Interruptor de tres estados: "sin contestar" deja que el cliente decida
+ *  solo con los datos que ya hay; "sí"/"no" es la respuesta explícita del
+ *  Dueño. Apagarlo esconde la pantalla nada más — no borra nada. */
+function InterruptorTresEstados({ titulo, valor, nota, onCambiar }) {
+  const opciones = [
+    { v: null, label: "Sin contestar" },
+    { v: true, label: "Sí" },
+    { v: false, label: "No" },
+  ];
+  return (
+    <div className="flex flex-col gap-2">
+      <div style={{ fontWeight: 600, fontSize: 14 }}>{titulo}</div>
+      <div className="flex gap-1.5 flex-wrap">
+        {opciones.map((o) => (
+          <button
+            key={String(o.v)}
+            type="button"
+            onClick={() => onCambiar(o.v)}
+            style={{
+              minHeight: 40, padding: "6px 14px", borderRadius: 999, fontSize: 13, fontWeight: 600, cursor: "pointer",
+              border: `1.5px solid ${valor === o.v ? C.bosque : C.linea}`,
+              background: valor === o.v ? C.bosque : C.blanco,
+              color: valor === o.v ? C.blanco : C.tinta,
+            }}
+          >
+            {o.label}
+          </button>
+        ))}
+      </div>
+      {nota && <div style={{ fontSize: 12, color: C.barrial }}>{nota}</div>}
+    </div>
+  );
+}
+
 /** Deja a alguien que entró con correo agregar su celular para entrar más
  *  fácil después. `PHONE_NUMBER_EXIST` sale cuando ese número ya es la
  *  cuenta de otra persona — el error tiene que decir qué hacer, no solo que
@@ -104,7 +138,7 @@ function AgregarCelular({ telefonoActual }) {
   );
 }
 
-export function VistaAjustes({ vista, rol, onVerRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo }) {
+export function VistaAjustes({ vista, rol, onVerRuta, user, profile, guardarAjustes, regenerarCodigo, ciclos, CICLO_ID, setCiclo, setVista, reload, insumos, guardarInsumo, eliminarInsumo, vaciar, restaurarDemo, tiposLabor, litrosHaPorTipo, guardarLitrosHaTipo, cajaMovsCount, productoresCount, movCuentaCount }) {
   return (
     <>
           {vista === "ajustes" && rol === "Dueño" && (
@@ -218,6 +252,34 @@ export function VistaAjustes({ vista, rol, onVerRuta, user, profile, guardarAjus
                     </span>
                   </span>
                 </label>
+              </Tarjeta>
+
+              <Tarjeta style={{ padding: 18 }}>
+                <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>Qué llevas en este predio</div>
+                <p style={{ margin: "6px 0 14px", fontSize: 13, color: C.gris, lineHeight: 1.5 }}>
+                  "Sin contestar" decide solo con lo que ya capturaste. Apagar un interruptor solo esconde la pantalla — nada se borra.
+                </p>
+                <div className="flex flex-col gap-5">
+                  <InterruptorTresEstados
+                    titulo="Llevo caja chica en efectivo"
+                    valor={profile.llevaCajaChica}
+                    nota={cajaMovsCount > 0 ? `Tienes ${cajaMovsCount} movimiento(s) de caja. Se conservan aunque lo apagues.` : null}
+                    onCambiar={(v) => void guardarAjustes({ llevaCajaChica: v })}
+                  />
+                  <InterruptorTresEstados
+                    titulo="Manejo un grupo de productores"
+                    valor={profile.manejaProductores}
+                    nota={
+                      productoresCount > 0 || movCuentaCount > 0
+                        ? `Tienes ${[
+                            productoresCount > 0 ? `${productoresCount} productor(es)` : null,
+                            movCuentaCount > 0 ? `${movCuentaCount} movimiento(s) de cuenta` : null,
+                          ].filter(Boolean).join(" y ")} registrados. Se conservan aunque lo apagues.`
+                        : null
+                    }
+                    onCambiar={(v) => void guardarAjustes({ manejaProductores: v })}
+                  />
+                </div>
               </Tarjeta>
 
               <Tarjeta style={{ padding: 18 }}>

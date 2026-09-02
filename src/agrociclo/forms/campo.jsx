@@ -564,7 +564,7 @@ export function AvisoInvitarEquipo({ codigo, onOcultar }) {
   );
 }
 
-export function FormParcela({ inicial, productores, creditos, cultivos, onAgregarCultivo, renteros, onAgregarRentero, onGuardar }) {
+export function FormParcela({ inicial, productores, creditos, cultivos, onAgregarCultivo, renteros, onAgregarRentero, onGuardar, mostrarProductores = true }) {
   const [f, set] = useForm({
     nombre: inicial?.nombre || "", cultivo: inicial?.cultivo || "", cultivoNuevo: "", ha: inicial?.ha ?? "",
     rendEsperado: inicial?.rendEsperado ?? "", precioEsperado: inicial?.precioEsperado ?? "",
@@ -615,7 +615,7 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
           <option>Rentada</option>
         </select>
       </Campo>
-      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
+      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       {esRentada && (
         <>
           <Campo label="Renta por hectárea (MXN)"><input type="number" style={estiloInput} placeholder="Ej. 14000" value={f.rentaPorHa} onChange={set("rentaPorHa")} /></Campo>

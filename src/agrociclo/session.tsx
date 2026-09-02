@@ -40,7 +40,7 @@ type Ctx = {
   setCiclo: (cicloId: string) => Promise<void>;
   restaurarDemo: () => Promise<void>;
   vaciar: () => Promise<string>;
-  guardarAjustes: (p: { encargadoVePrecios?: boolean; nombre?: string }) => Promise<void>;
+  guardarAjustes: (p: { encargadoVePrecios?: boolean; nombre?: string; llevaCajaChica?: boolean | null; manejaProductores?: boolean | null }) => Promise<void>;
   regenerarCodigo: () => Promise<string>;
   marcarGuia: () => Promise<void>;
 };
@@ -426,6 +426,8 @@ export function AgroGate({ children }: { children: ReactNode }) {
             ? {
                 ...prev,
                 encargadoVePrecios: res.config.encargadoVePrecios,
+                llevaCajaChica: res.config.llevaCajaChica,
+                manejaProductores: res.config.manejaProductores,
                 orgNombre: res.nombre || prev.orgNombre,
               }
             : prev,

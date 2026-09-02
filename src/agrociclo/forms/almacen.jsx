@@ -71,7 +71,7 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
   );
 }
 
-export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo }) {
+export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo, mostrarProductores = true }) {
   // Sin `inicial`: la respuesta del ciclo ("¿cómo te financias?") solo PRESELECCIONA —
   // se cambia en un toque si esta compra en particular fue distinta.
   const origenDefault = !inicial && finModoCiclo && finModoCiclo !== "propio" ? "externo" : (inicial?.origen || "propio");
@@ -112,7 +112,7 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
       <Campo label={`Costo por ${f.unidad || "unidad"} (MXN)`}><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
       <Campo label="Proveedor"><input style={estiloInput} placeholder="Ej. Agroinsumos del Fuerte" value={f.proveedor} onChange={set("proveedor")} /></Campo>
-      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
+      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
@@ -172,7 +172,7 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitan
 }
 
 /* ---------- Tarjeta de solicitud con pipeline (cotizar / autorizar / recibir) ---------- */
-export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, veFinanzas, vePrecios, puedeEditar, onEditar, onEliminar, onCotizar, onEliminarCot, onAutorizar, onRecibir, finModoCiclo, finValorCiclo }) {
+export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, veFinanzas, vePrecios, puedeEditar, onEditar, onEliminar, onCotizar, onEliminarCot, onAutorizar, onRecibir, finModoCiclo, finValorCiclo, mostrarProductores = true }) {
   const [modo, setModo] = useState(null); // null | "cotizar" | "autorizar"
   const [cot, setCot] = useState({ proveedor: "", costoUnitario: "", nota: "" });
   const [aut, setAut] = useState({ cotizacionElegidaId: "", proveedorTexto: "", costoUnitario: "", origen: "propio", creditoId: "", modo: "tasa", tasa: "", pct: "", productorId: "" });
@@ -312,7 +312,7 @@ export function SolicitudCard({ sol, insumos, parcelas, creditos, productores, v
               permiteSobreprecio modo={aut.modo} pct={aut.pct}
               onModo={(e) => setAut({ ...aut, modo: e.target.value })}
               onPct={(v) => setAut({ ...aut, pct: v })} />
-            <CampoProductor value={aut.productorId} onChange={(e) => setAut({ ...aut, productorId: e.target.value })} productores={productores} />
+            <CampoProductor value={aut.productorId} onChange={(e) => setAut({ ...aut, productorId: e.target.value })} productores={productores} mostrar={mostrarProductores} />
           </div>
           <div className="flex items-end gap-2 mt-2">
             <Boton chico onClick={confirmarAut} deshabilitado={(autorizaSinCotizar ? (!aut.proveedorTexto.trim() || !aut.costoUnitario) : !aut.cotizacionElegidaId) || (aut.origen === "linea" && !aut.creditoId)}><CheckCircle2 size={14} /> Autorizar compra</Boton>

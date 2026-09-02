@@ -5,8 +5,12 @@ import { CheckCircle2 } from "lucide-react";
 import { C, num, tasaCredito } from "../base";
 import { fuente, estiloInput, Campo, Boton } from "../ui";
 
-/* ---------- Selector reutilizable "A nombre de" ---------- */
-export function CampoProductor({ value, onChange, productores }) {
+/* ---------- Selector reutilizable "A nombre de" ----------
+   Si el predio "no maneja productores" (interruptor de Ajustes, o sin
+   contestar y sin datos), el campo se esconde — salvo que el registro que se
+   está editando ya traiga uno puesto: eso no se le quita a nadie. */
+export function CampoProductor({ value, onChange, productores, mostrar = true }) {
+  if (!mostrar && !value) return null;
   return (
     <Campo label="A nombre de (productor)">
       <select style={estiloInput} value={value} onChange={onChange}>

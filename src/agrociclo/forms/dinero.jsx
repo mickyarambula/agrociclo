@@ -9,7 +9,7 @@ import { CampoProductor, CampoFinanciamiento } from "./comunes";
 
 /* ---------- Formularios ---------- */
 
-export function FormCredito({ inicial, productores, onGuardar }) {
+export function FormCredito({ inicial, productores, onGuardar, mostrarProductores = true }) {
   const [f, set] = useForm({
     tipoCredito: inicial?.tipoCredito || "Directo",
     fuente: inicial?.fuente || "", destino: inicial?.destino || "", monto: inicial?.monto ?? "",
@@ -35,7 +35,7 @@ export function FormCredito({ inicial, productores, onGuardar }) {
       </Campo>
       <Campo label="Fuente"><input style={estiloInput} placeholder="Ej. Financiera fondeada FIRA" value={f.fuente} onChange={set("fuente")} /></Campo>
       <Campo label="Destino"><input style={estiloInput} placeholder="Ej. Maíz O-I" value={f.destino} onChange={set("destino")} /></Campo>
-      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
+      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       <Campo label="Monto autorizado (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.monto} onChange={set("monto")} /></Campo>
       <Campo label="Tasa de referencia (TIIE) %"><input type="number" style={estiloInput} placeholder="Ej. 11.25" value={f.tiie} onChange={set("tiie")} /></Campo>
       <Campo label="Spread (%) según contrato"><input type="number" style={estiloInput} placeholder="Ej. 5" value={f.spread} onChange={set("spread")} /></Campo>
@@ -56,7 +56,7 @@ export function FormCredito({ inicial, productores, onGuardar }) {
   );
 }
 
-export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar }) {
+export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar, mostrarProductores = true }) {
   const [f, set] = useForm({
     fecha: inicial?.fecha || hoyStr,
     categoria: inicial?.categoria || CAT_GASTO[0],
@@ -86,7 +86,7 @@ export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar 
       {f.destino === "parcela" && (
         <Campo label="Parcela"><select style={estiloInput} value={f.parcelaId} onChange={set("parcelaId")}>{parcelas.map(p => <option key={p.id} value={p.id}>{p.cultivo} · {p.nombre}</option>)}</select></Campo>
       )}
-      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} />
+      <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}

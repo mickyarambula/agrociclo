@@ -53,6 +53,8 @@ export type AgroProfile = {
   roles: DefRol[];
   puedeUsarDemo: boolean;
   equipoTamano: number;
+  llevaCajaChica: boolean | null;
+  manejaProductores: boolean | null;
 };
 
 export type Member = {
@@ -135,7 +137,15 @@ function asBool(v: unknown, fallback: boolean): boolean {
   return fallback;
 }
 
-function parseConfig(raw: unknown): { encargadoVePrecios: boolean; roles: DefRol[] } {
+/** Interruptor de tres estados: null = "sin contestar" (el cliente decide con
+ *  los datos que ya hay), true/false = respuesta explícita del Dueño. */
+function asBoolOrNull(v: unknown): boolean | null {
+  if (v === true || v === "t" || v === "true") return true;
+  if (v === false || v === "f" || v === "false") return false;
+  return null;
+}
+
+function parseConfig(raw: unknown): { encargadoVePrecios: boolean; roles: DefRol[]; llevaCajaChica: boolean | null; manejaProductores: boolean | null } {
   let obj: Record<string, unknown> = {};
   if (typeof raw === "string") {
     try {
@@ -149,6 +159,8 @@ function parseConfig(raw: unknown): { encargadoVePrecios: boolean; roles: DefRol
   return {
     encargadoVePrecios: asBool(obj.encargadoVePrecios, false),
     roles: parseCatalogoRoles(obj.roles),
+    llevaCajaChica: asBoolOrNull(obj.llevaCajaChica),
+    manejaProductores: asBoolOrNull(obj.manejaProductores),
   };
 }
 
@@ -577,6 +589,8 @@ function toProfile(
     roles: cfg.roles,
     puedeUsarDemo: puedeUsarDemo(row.email),
     equipoTamano: extra.equipoTamano,
+    llevaCajaChica: cfg.llevaCajaChica,
+    manejaProductores: cfg.manejaProductores,
   };
 }
 
@@ -891,13 +905,15 @@ export const vaciarRancho = createServerFn({ method: "POST" })
 
 export const setOrgConfig = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { encargadoVePrecios?: boolean; nombre?: string }) => p)
+  .validator((p: { encargadoVePrecios?: boolean; nombre?: string; llevaCajaChica?: boolean | null; manejaProductores?: boolean | null }) => p)
   .handler(async ({ context, data }) => {
     const row = await loadOrg(context.userId);
     if (!row || row.rol !== "Dueño") throw new Error("Solo el Dueño cambia los ajustes del predio.");
     const sql = await getSql();
     const cfg = { ...parseConfig(row.config) };
     if (typeof data.encargadoVePrecios === "boolean") cfg.encargadoVePrecios = data.encargadoVePrecios;
+    if ("llevaCajaChica" in data) cfg.llevaCajaChica = data.llevaCajaChica ?? null;
+    if ("manejaProductores" in data) cfg.manejaProductores = data.manejaProductores ?? null;
     await sql.query(`update agrociclo_org set config = $1::jsonb where id = $2`, [
       JSON.stringify(cfg),
       row.organizacion_id,

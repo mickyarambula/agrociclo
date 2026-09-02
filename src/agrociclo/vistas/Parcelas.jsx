@@ -4,14 +4,14 @@ import { fuente, Tarjeta, Boton, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormParcela } from "../forms/campo";
 import { CheckCircle2 } from "lucide-react";
 
-export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe }) {
+export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores }) {
   return (
     <>
           {vista === "parcelas" && (
             <Seccion titulo="Parcelas y cultivos" accion="Nueva parcela" puedeEditar={puedeEditar}
               abierto={form?.tipo === "parcela"} onAbrir={() => setForm({ tipo: "parcela", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} renteros={renteros} productores={productores} onAgregarRentero={agregarRentero} onGuardar={(f) => guardarParcela(f, form?.item)} />}>
+              form={<FormParcela key={form?.item?.id || "nueva"} inicial={form?.item} productores={productores} creditos={creditosT} cultivos={cultivos} onAgregarCultivo={agregarCultivo} renteros={renteros} onAgregarRentero={agregarRentero} onGuardar={(f) => guardarParcela(f, form?.item)} mostrarProductores={mostrarProductores} />}>
               {parcelasT.length === 0 && <Vacio texto="Una parcela es el lote que se siembra y se cosecha junto, no el predio completo. Da de alta la primera con “Nueva parcela”." />}
               <div className="grid md:grid-cols-2 gap-3">
                 {parcelasT.map(p => {

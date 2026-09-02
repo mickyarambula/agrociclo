@@ -4,10 +4,10 @@ import { fuente, Tarjeta, Etiqueta, Boton, Acciones, Vacio } from "../ui";
 import { FormCajaFondeo, FormCajaSalida } from "../forms/dinero";
 import { Plus, X, CheckCircle2, Coins } from "lucide-react";
 
-export function VistaCaja({ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov }) {
+export function VistaCaja({ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov, mostrarCaja }) {
   return (
     <>
-          {vista === "caja" && veFinanzas && (
+          {vista === "caja" && veFinanzas && mostrarCaja && (
             <div className="flex flex-col gap-4">
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <h1 style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 24, margin: 0 }}>Caja chica</h1>

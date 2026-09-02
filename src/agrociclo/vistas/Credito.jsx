@@ -221,7 +221,7 @@ export function VistaCredito({
   vista, veFinanzas, puedeEditar, form, setForm, cerrar, productores, guardarCredito, costoFinTotal, deudaViva,
   creditosT, dispsDeLinea, interesLineaA, eliminarCredito, comprasT, marcarPagada, parcelasT, pagarRenta,
   fechaObjetivo, setFechaObjetivo, pagoSupuesto, setPagoSupuesto, interesInsoluto, gastosT, interesDisp,
-  abonoMonto, setAbonoMonto, revertirLiquidacion, liquidarDisposicion,
+  abonoMonto, setAbonoMonto, revertirLiquidacion, liquidarDisposicion, mostrarProductores,
 }) {
   const [simuladorAbierto, setSimuladorAbierto] = useState(false);
 
@@ -282,7 +282,7 @@ export function VistaCredito({
             <Seccion titulo="Crédito" accion="Nueva línea de crédito" puedeEditar={puedeEditar}
               abierto={form?.tipo === "credito"} onAbrir={() => setForm({ tipo: "credito", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormCredito key={form?.item?.id || "nuevo"} inicial={form?.item} productores={productores} onGuardar={(f) => guardarCredito(f, form?.item)} />}>
+              form={<FormCredito key={form?.item?.id || "nuevo"} inicial={form?.item} productores={productores} onGuardar={(f) => guardarCredito(f, form?.item)} mostrarProductores={mostrarProductores} />}>
               <Tarjeta style={{ padding: 16, background: "#FBF4E3", border: `1px solid ${C.grano}` }}>
                 <div style={{ fontSize: 13, color: C.barrial }}>
                   <strong>Costo financiero a hoy: {money(costoFinTotal)}</strong> · Deuda viva: <strong>{money(deudaViva)}</strong>.

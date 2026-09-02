@@ -10,6 +10,7 @@ export function VistaInsumos({
   stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo,
   puedeEditarPedidos, equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault, vePrecios,
   eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT,
+  mostrarProductores,
 }) {
   // Pedidos del campo se ve si ya hay pedidos, o si el predio es de más de una
   // persona (nadie se autoriza compras a sí mismo en un predio de un solo Dueño).
@@ -22,7 +23,7 @@ export function VistaInsumos({
             <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
               abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} />}>
+              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} mostrarProductores={mostrarProductores} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
               {(stockQ.data ?? []).length === 0 ? (
                 <Vacio texto="Bodega vacía. La compra entra aquí; la labor lo baja. Empieza con “Registrar compra”." />
@@ -82,6 +83,7 @@ export function VistaInsumos({
                           onRecibir={() => recibirSolicitud(sol)}
                           finModoCiclo={finModoCiclo}
                           finValorCiclo={finValorCiclo}
+                          mostrarProductores={mostrarProductores}
                         />
                       ))}
                     </div>
