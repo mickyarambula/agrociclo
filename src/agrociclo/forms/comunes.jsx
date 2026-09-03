@@ -86,14 +86,17 @@ export function CampoSobreprecio({ pct, onPct }) {
 export function CampoFinanciamiento({
   origen, creditoId, tasa, onOrigen, onCredito, onTasa, creditos,
   labelExterno = "Me lo fió el proveedor", placeholderTasa = "Ej. 22",
-  permiteSobreprecio = false, modo, pct, onModo, onPct, notaOrigen,
+  permiteSobreprecio = false, modo, pct, onModo, onPct, notaOrigen, notaSinLineas,
 }) {
   const sinLineas = !creditos || creditos.length === 0;
   const mostrarLinea = !sinLineas || origen === "linea";
   const modoActual = modo || "tasa";
   return (
     <>
-      <Campo label="¿Con qué dinero se pagó?" nota={notaOrigen}>
+      {/* Sin líneas registradas la opción "Mi línea de avío" no aparece. Quien
+          la busca se queda sin saber por qué — `notaSinLineas` lo explica y
+          dice dónde registrarla, con las palabras de cada formulario. */}
+      <Campo label="¿Con qué dinero se pagó?" nota={notaOrigen || (sinLineas ? notaSinLineas : null)}>
         <select
           style={estiloInput}
           value={sinLineas && origen === "linea" ? "propio" : (origen || "propio")}

@@ -114,6 +114,9 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
 
   return (
     <div className="grid md:grid-cols-3 gap-3">
+      <p className="md:col-span-3" style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        Esta labor <strong>ya se hizo</strong>: baja de bodega lo que se usó y suma al costo del lote. Si todavía no se hace, anótala con “Ordenar labor”.
+      </p>
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
       <Campo label="Tipo de labor">
@@ -127,7 +130,10 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       )}
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
       {veFinanzas && (
-        <Campo label="Costo de operación / máquina (MXN)"><input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} /></Campo>
+        <Campo label="Costo de operación / máquina (MXN)"
+          nota="Lo que costó el trabajo aparte del diésel y el insumo: maquila, horas de máquina, servicio contratado. Déjalo vacío si el tractor es tuyo y solo gastaste diésel.">
+          <input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} />
+        </Campo>
       )}
       {haySugerencia && !dieselManual ? (
         <div className="md:col-span-1" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
@@ -168,7 +174,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       )}
       {faltaDiesel && (
         <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
-          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó, o registra la compra en Insumos.
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Tu diésel sale del inventario: registra la compra en Insumos y de ahí se va descontando con cada labor. Guarda con lo que sí se usó.
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
         </div>
       )}
@@ -319,7 +325,7 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
       </div>
       {faltaDiesel && (
         <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
-          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Guarda con lo que sí se usó, o pide a la oficina que registre más diésel en Insumos.
+          <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Tu diésel sale del inventario: pide a la oficina que registre la compra en Insumos y de ahí se va descontando con cada labor. Guarda con lo que sí se usó.
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
         </div>
       )}
@@ -382,7 +388,7 @@ export function FormOrdenLabor({ inicial, parcelas, insumos, tipos, onAgregarTip
         </Campo>
       </div>
       <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
-        La bodega no baja todavía: baja cuando el de campo la marque hecha, con lo que de verdad se usó.
+        Esta labor <strong>todavía no se hace</strong>: queda anotada para que el del campo la marque hecha. Hasta entonces baja la bodega, con lo que de verdad se usó.
       </p>
       <div className="flex items-center gap-2">
         <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar orden"}</Boton>
@@ -648,7 +654,8 @@ export function FormParcela({ inicial, productores, creditos, cultivos, onAgrega
           <CampoFinanciamiento
             origen={f.rentaOrigen} creditoId={f.rentaCreditoId} tasa={f.tasaRenta}
             onOrigen={set("rentaOrigen")} onCredito={set("rentaCreditoId")} onTasa={set("tasaRenta")}
-            creditos={creditos} labelExterno="Me la prestaron aparte, con tasa" placeholderTasa="Ej. 16.5" />
+            creditos={creditos} labelExterno="Me la prestaron aparte, con tasa" placeholderTasa="Ej. 16.5"
+            notaSinLineas="¿La renta salió de tu avío? Registra tu línea en Crédito y aquí aparecerá la opción." />
         </>
       )}
       {ingresoProy > 0 && (
