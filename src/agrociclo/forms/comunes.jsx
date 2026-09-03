@@ -86,14 +86,14 @@ export function CampoSobreprecio({ pct, onPct }) {
 export function CampoFinanciamiento({
   origen, creditoId, tasa, onOrigen, onCredito, onTasa, creditos,
   labelExterno = "Me lo fió el proveedor", placeholderTasa = "Ej. 22",
-  permiteSobreprecio = false, modo, pct, onModo, onPct,
+  permiteSobreprecio = false, modo, pct, onModo, onPct, notaOrigen,
 }) {
   const sinLineas = !creditos || creditos.length === 0;
   const mostrarLinea = !sinLineas || origen === "linea";
   const modoActual = modo || "tasa";
   return (
     <>
-      <Campo label="¿Con qué dinero se pagó?">
+      <Campo label="¿Con qué dinero se pagó?" nota={notaOrigen}>
         <select
           style={estiloInput}
           value={sinLineas && origen === "linea" ? "propio" : (origen || "propio")}

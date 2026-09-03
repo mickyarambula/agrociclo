@@ -71,7 +71,7 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
   );
 }
 
-export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo, mostrarProductores = true }) {
+export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo, mostrarProductores = true, notas }) {
   // Sin `inicial`: la respuesta del ciclo ("¿cómo te financias?") solo PRESELECCIONA —
   // se cambia en un toque si esta compra en particular fue distinta.
   const origenDefault = !inicial && finModoCiclo && finModoCiclo !== "propio" ? "externo" : (inicial?.origen || "propio");
@@ -108,16 +108,17 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       {esNuevo && (
         <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}</select></Campo>
       )}
-      <Campo label="Unidad · la misma con la que se gasta en la labor"><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
+      <Campo label="Unidad · la misma con la que se gasta en la labor" nota={notas?.unidad}><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
-      <Campo label={`Costo por ${f.unidad || "unidad"} (MXN)`}><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
+      <Campo label={`Costo por ${f.unidad || "unidad"} (MXN)`} nota={notas?.costoUnitario}><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
       <Campo label="Proveedor"><input style={estiloInput} placeholder="Ej. Agroinsumos del Fuerte" value={f.proveedor} onChange={set("proveedor")} /></Campo>
       <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       <CampoFinanciamiento
         origen={f.origen} creditoId={f.creditoId} tasa={f.tasa}
         onOrigen={set("origen")} onCredito={set("creditoId")} onTasa={set("tasa")}
         creditos={creditos} labelExterno="Me lo fió el proveedor" placeholderTasa="Ej. 22"
-        permiteSobreprecio modo={f.modo} pct={f.pct} onModo={set("modo")} onPct={(v) => setF(prev => ({ ...prev, pct: v }))} />
+        permiteSobreprecio modo={f.modo} pct={f.pct} onModo={set("modo")} onPct={(v) => setF(prev => ({ ...prev, pct: v }))}
+        notaOrigen={notas?.origen} />
       <div className="flex items-end gap-3 md:col-span-3 flex-wrap">
         {monto > 0 && (
           <div style={{ fontSize: 13, color: C.bosque, paddingBottom: 8 }}>

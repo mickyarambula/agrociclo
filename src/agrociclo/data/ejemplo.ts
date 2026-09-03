@@ -16,7 +16,10 @@ export const EJEMPLO_CICLO_ID = "e0e0e0e0-c1c1-4000-8000-00000000ec26";
    así el interés no se proyecta contra la fecha real de quien lo visita. */
 export const EJEMPLO_HOY = "2027-06-15";
 
-const ID = {
+/* Exportado para que "¿Cómo se llena?" (ComoSeLlena.jsx) pueda encontrar
+   filas concretas del ledger construido (ej. la compra de urea) sin
+   inventar ids aparte. */
+export const ID = {
   batequi: "e0e0e0e0-p001-4000-8000-000000000001",
   angostura: "e0e0e0e0-p002-4000-8000-000000000002",
   tecolote: "e0e0e0e0-p003-4000-8000-000000000003",
@@ -211,15 +214,15 @@ async function construir(): Promise<Ledger> {
   });
 
   // --- Compras de insumo (financiadas por la línea, antes de las labores que las consumen) ---
-  const compras: { insumo: string; cantidad: number; unidad: string; costo: number; fecha: string }[] = [
-    { insumo: ID.diesel, cantidad: 2654, unidad: "L", costo: 27, fecha: "2026-10-05" },
-    { insumo: ID.map, cantidad: 5.2, unidad: "ton", costo: 15000, fecha: "2026-10-20" },
-    { insumo: ID.sulfato, cantidad: 4.6, unidad: "ton", costo: 8500, fecha: "2026-10-20" },
-    { insumo: ID.fosfonitrato, cantidad: 2.15, unidad: "ton", costo: 13500, fecha: "2026-10-20" },
-    { insumo: ID.semilla, cantidad: 63, unidad: "bolsa", costo: 4700, fecha: "2026-10-25" },
-    { insumo: ID.urea, cantidad: 4.79, unidad: "ton", costo: 10200, fecha: "2026-11-25" },
-    { insumo: ID.herbicida, cantidad: 160, unidad: "L", costo: 150, fecha: "2027-02-10" },
-    { insumo: ID.blaukorn, cantidad: 1421, unidad: "kg", costo: 95, fecha: "2027-02-20" },
+  const compras: { insumo: string; cantidad: number; unidad: string; costo: number; fecha: string; proveedor: string }[] = [
+    { insumo: ID.diesel, cantidad: 2654, unidad: "L", costo: 27, fecha: "2026-10-05", proveedor: "Gasolinera del Valle" },
+    { insumo: ID.map, cantidad: 5.2, unidad: "ton", costo: 15000, fecha: "2026-10-20", proveedor: "Fertilizantes del Fuerte" },
+    { insumo: ID.sulfato, cantidad: 4.6, unidad: "ton", costo: 8500, fecha: "2026-10-20", proveedor: "Fertilizantes del Fuerte" },
+    { insumo: ID.fosfonitrato, cantidad: 2.15, unidad: "ton", costo: 13500, fecha: "2026-10-20", proveedor: "Fertilizantes del Fuerte" },
+    { insumo: ID.semilla, cantidad: 63, unidad: "bolsa", costo: 4700, fecha: "2026-10-25", proveedor: "Semillas Certificadas del Valle" },
+    { insumo: ID.urea, cantidad: 4.79, unidad: "ton", costo: 10200, fecha: "2026-11-25", proveedor: "Fertilizantes del Fuerte" },
+    { insumo: ID.herbicida, cantidad: 160, unidad: "L", costo: 150, fecha: "2027-02-10", proveedor: "Agroquímicos Mochis" },
+    { insumo: ID.blaukorn, cantidad: 1421, unidad: "kg", costo: 95, fecha: "2027-02-20", proveedor: "Agroquímicos Mochis" },
   ];
   for (const c of compras) {
     // +1% de colchón sobre lo consumido en labores: evita que el redondeo por
@@ -227,7 +230,7 @@ async function construir(): Promise<Ledger> {
     // lo comprado y truene el candado de stock por centésimas.
     l = await aplicar(l, "fn_guardar_compra", {
       p_insumo_id: c.insumo, p_cantidad: round2(c.cantidad * 1.01), p_unidad: c.unidad, p_costo_unitario: c.costo,
-      p_fecha: c.fecha, p_origen: "linea", p_linea_id: ID.linea,
+      p_fecha: c.fecha, p_origen: "linea", p_linea_id: ID.linea, p_proveedor_nombre: c.proveedor,
     });
   }
 

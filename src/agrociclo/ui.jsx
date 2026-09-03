@@ -40,11 +40,15 @@ export function Boton({ children, onClick, secundario, chico, deshabilitado }) {
     </button>
   );
 }
-/** @param {{label?: any, children?: any}} props */
-export function Campo({ label, children }) {
+/** `nota` es opcional y solo la usan las hojas de "¿Cómo se llena?" — un
+ *  formulario en captura normal nunca la manda, así que no cambia nada de
+ *  lo que ya existe.
+ *  @param {{label?: any, children?: any, nota?: any}} props */
+export function Campo({ label, children, nota }) {
   return (
     <label className="flex flex-col gap-1" style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>
       {label}{children}
+      {nota && <span style={{ fontSize: 11, color: C.barrial, fontWeight: 400, lineHeight: 1.4 }}>{nota}</span>}
     </label>
   );
 }
@@ -294,13 +298,27 @@ export function BarraLista({ datos }) {
 }
 
 /* ---------- Componentes de apoyo ---------- */
+/** Enlace discreto "¿Cómo se llena?" — mismo lugar en todos los formularios
+ *  que lo traen, junto a su título, para que sea invisible para quien ya
+ *  sabe capturar y esté justo donde surge la duda para quien no.
+ *  @param {{onClick?: any, oscuro?: boolean}} props */
+function EnlaceComoSeLlena({ onClick, oscuro }) {
+  return (
+    <button type="button" onClick={onClick}
+      style={{ background: "transparent", border: "none", cursor: "pointer", padding: 0, marginLeft: 10, fontSize: 12, fontWeight: 600, textDecoration: "underline", color: oscuro ? "rgba(255,255,255,0.85)" : C.hoja, fontFamily: fuente.cuerpo, minHeight: 44 }}>
+      ¿Cómo se llena?
+    </button>
+  );
+}
+
 /** `accion` acepta el string de siempre (un botón, con `onAbrir`) o un arreglo
  *  `[{id, label, onClick}]` para más de un botón de alta (ej. Raya: "Semana" /
  *  "Día suelto") — cada uno abre su propio formulario. `tituloForm` manda
  *  sobre el rótulo del modal cuando hay más de una acción, para poder decir
- *  cuál de las dos está abierta.
- *  @param {{titulo?: any, accion?: any, tituloForm?: any, abierto?: any, editando?: any, onAbrir?: any, onCerrar?: any, form?: any, children?: any, puedeEditar?: boolean}} props */
-export function Seccion({ titulo, accion, tituloForm, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true }) {
+ *  cuál de las dos está abierta. `onAyuda`, si viene, dibuja el enlace
+ *  "¿Cómo se llena?" junto al título del formulario abierto.
+ *  @param {{titulo?: any, accion?: any, tituloForm?: any, abierto?: any, editando?: any, onAbrir?: any, onCerrar?: any, form?: any, children?: any, puedeEditar?: boolean, onAyuda?: any}} props */
+export function Seccion({ titulo, accion, tituloForm, abierto, editando, onAbrir, onCerrar, form, children, puedeEditar = true, onAyuda }) {
   const acciones = Array.isArray(accion) ? accion : accion ? [{ id: "_unica", label: accion, onClick: onAbrir }] : [];
   const encabezado = tituloForm || (editando ? "Editar registro" : (typeof accion === "string" ? accion : ""));
   return (
@@ -322,7 +340,10 @@ export function Seccion({ titulo, accion, tituloForm, abierto, editando, onAbrir
             style={{ background: C.papel, color: C.tinta, fontFamily: fuente.cuerpo }}
           >
             <div className="flex items-center justify-between px-4 py-3" style={{ background: C.bosque, color: C.blanco }}>
-              <span style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>{encabezado}</span>
+              <span className="flex items-center flex-wrap" style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 16 }}>
+                {encabezado}
+                {onAyuda && <EnlaceComoSeLlena onClick={onAyuda} oscuro />}
+              </span>
               <button type="button" onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.blanco, minWidth: 44, minHeight: 44 }} aria-label="Cerrar formulario">
                 <X size={20} />
               </button>
@@ -331,7 +352,10 @@ export function Seccion({ titulo, accion, tituloForm, abierto, editando, onAbrir
           </div>
           <Tarjeta className="hidden md:block" style={{ padding: 18, borderLeft: `3px solid ${C.hoja}` }}>
             <div className="flex justify-between items-center mb-3">
-              <span style={{ fontWeight: 700, fontSize: 14 }}>{encabezado}</span>
+              <span className="flex items-center flex-wrap" style={{ fontWeight: 700, fontSize: 14 }}>
+                {encabezado}
+                {onAyuda && <EnlaceComoSeLlena onClick={onAyuda} />}
+              </span>
               <button onClick={onCerrar} style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris }} aria-label="Cerrar formulario"><X size={17} /></button>
             </div>
             {form}

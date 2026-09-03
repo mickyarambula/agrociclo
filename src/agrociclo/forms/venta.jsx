@@ -73,7 +73,7 @@ export function FormNomina({ inicial, parcelas, directorio, actividades, onAgreg
   );
 }
 
-export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true }) {
+export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true, notas }) {
   const [f, set] = useForm({
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
     fecha: inicial?.fecha || hoyStr,
@@ -97,16 +97,16 @@ export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true }) 
       <Campo label="Bodega / almacén"><input style={estiloInput} placeholder="Ej. Almacenadora El Carrizo" value={f.bodega} onChange={set("bodega")} /></Campo>
       <Campo label="No. de boleta"><input style={estiloInput} placeholder="Ej. 78214" value={f.boleta} onChange={set("boleta")} /></Campo>
       <Campo label="Peso bruto (kg)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 41800" value={f.pesoBruto} onChange={set("pesoBruto")} /></Campo>
-      <Campo label="Tara (kg)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 13900" value={f.tara} onChange={set("tara")} /></Campo>
+      <Campo label="Tara (kg)" nota={notas?.tara}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 13900" value={f.tara} onChange={set("tara")} /></Campo>
       <Campo label={`Humedad (%) · estándar ${f.hStd}%`}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 15.5" value={f.humedad} onChange={set("humedad")} /></Campo>
-      <Campo label={`Impurezas (%) · estándar ${f.iStd}%`}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 2.8" value={f.impurezas} onChange={set("impurezas")} /></Campo>
+      <Campo label={`Impurezas (%) · estándar ${f.iStd}%`} nota={notas?.impurezas}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 2.8" value={f.impurezas} onChange={set("impurezas")} /></Campo>
       {veFinanzas && (
         <>
           <Campo label="Precio ($/ton)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 5650" value={f.precioTon} onChange={set("precioTon")} /></Campo>
           <Campo label="Estándar humedad (%)"><input type="number" style={estiloInput} value={f.hStd} onChange={set("hStd")} /></Campo>
           <Campo label="Estándar impurezas (%)"><input type="number" style={estiloInput} value={f.iStd} onChange={set("iStd")} /></Campo>
           <Campo label="Flete del viaje (MXN)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 4200" value={f.flete} onChange={set("flete")} /></Campo>
-          <Campo label="Trilla por ton (MXN, opcional)"><input type="number" style={estiloInput} placeholder="0 si pagas maquila/ha" value={f.trilla} onChange={set("trilla")} /></Campo>
+          <Campo label="Trilla por ton (MXN, opcional)" nota={notas?.trilla}><input type="number" style={estiloInput} placeholder="0 si pagas maquila/ha" value={f.trilla} onChange={set("trilla")} /></Campo>
           <Campo label="Secado / maniobras / otros (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.otros} onChange={set("otros")} /></Campo>
         </>
       )}

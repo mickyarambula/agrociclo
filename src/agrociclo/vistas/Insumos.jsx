@@ -1,8 +1,10 @@
 // @ts-nocheck
+import { useState } from "react";
 import { C, money, num, costoFinCompra, moneyU, ORDEN_ESTADO } from "../base";
 import { fuente, Tarjeta, Acciones, Seccion, Vacio } from "../ui";
 import { FormCompra, FormSolicitud, SolicitudCard } from "../forms/almacen";
 import { BotonMarcarPagada } from "../forms/comunes";
+import { ComoSeLlenaCompra } from "../ComoSeLlena";
 import { AlertTriangle, Fuel } from "lucide-react";
 
 export function VistaInsumos({
@@ -17,12 +19,14 @@ export function VistaInsumos({
   // Si alguien ya forzó abrir el formulario (desde Hoy o El ciclo con "+ Pedido"),
   // la sección se muestra igual para poder capturarlo, aunque esté "de más" ahí.
   const mostrarPedidos = equipoTamano > 1 || solicitudesT.length > 0 || form?.tipo === "solicitud";
+  const [ayudaCompra, setAyudaCompra] = useState(false);
   return (
     <>
+          {ayudaCompra && <ComoSeLlenaCompra onCerrar={() => setAyudaCompra(false)} />}
           {vista === "inventario" && (
             <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
               abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
+              editando={!!form?.item} onAyuda={() => setAyudaCompra(true)}
               form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} mostrarProductores={mostrarProductores} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
               {(stockQ.data ?? []).length === 0 ? (

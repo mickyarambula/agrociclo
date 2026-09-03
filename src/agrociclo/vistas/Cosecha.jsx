@@ -1,15 +1,19 @@
 // @ts-nocheck
+import { useState } from "react";
 import { C, money, num, calcBoleta, moneyU } from "../base";
 import { fuente, Tarjeta, Etiqueta, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormBoleta } from "../forms/venta";
+import { ComoSeLlenaBoleta } from "../ComoSeLlena";
 
 export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcelasT, veFinanzas, guardarBoleta, boletasT, ingresoRealTotal, inversionTotal, costoFinEstimadoTotal, costosParcela, parcelas, eliminarBoleta }) {
+  const [ayudaBoleta, setAyudaBoleta] = useState(false);
   return (
     <>
+          {ayudaBoleta && <ComoSeLlenaBoleta onCerrar={() => setAyudaBoleta(false)} />}
           {vista === "cosecha" && (
             <Seccion titulo="Cosecha · entregas en bodega" accion="Registrar boleta" puedeEditar={puedeEditar}
               abierto={form?.tipo === "boleta"} onAbrir={() => setForm({ tipo: "boleta", item: null })} onCerrar={cerrar}
-              editando={!!form?.item}
+              editando={!!form?.item} onAyuda={() => setAyudaBoleta(true)}
               form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
 
               {/* ===== EL CIERRE: la cuenta que el productor quiere ver ===== */}
