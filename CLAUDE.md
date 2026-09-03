@@ -221,6 +221,14 @@ abajo) sin borrar nada de lo que ya exista.
 3. **Umbral de stock bajo con unidad**: el aviso usa ≤2 fijo sin unidad (2 ton
    de urea ≠ 2 bolsas) y regaña por insumos que simplemente se acabaron según
    plan a fin de ciclo.
+4. **Varios insumos por labor** (semilla + arrancador el mismo día — Miguel ya
+   la pidió): antes de tocar esa pantalla, arregla el `.find()` de `laboresT`
+   en `App.jsx` — hoy solo toma el PRIMER insumo no-diésel de la labor; con
+   dos o más, subcuenta el costo en silencio. El guardado no tiene el problema
+   (`fn_registrar_labor`/`labor_insumo` en `data/rpcs.ts` sí guardan todas las
+   líneas) — es puramente de lectura, y hoy no se alcanza porque el formulario
+   real solo captura un insumo por labor (detectado construyendo el ciclo de
+   ejemplo de septiembre 2026, que sí manda varios en una sola llamada).
 
 No hacer ahora: PDF, presupuesto por parcela, módulo Tesorería, clima, mapa.
 Offline tampoco por ahora — pero va a llegar a la mesa en cuanto haya un productor
