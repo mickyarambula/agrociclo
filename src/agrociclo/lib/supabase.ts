@@ -1,6 +1,11 @@
 import { replaceLedger } from "../data/db";
 import { runAgroRpc, runAgroTable } from "../server/fns";
 import type { Ledger, TableName } from "../data/types";
+import { estaEnModoEjemplo } from "./modoEjemplo";
+
+const ERROR_MODO_EJEMPLO = {
+  message: "Estás viendo el ciclo de ejemplo — es solo para ver. Sal para capturar en tu predio real.",
+};
 
 type Filter =
   | { type: "eq"; col: string; val: unknown }
@@ -60,6 +65,10 @@ function from(table: string) {
           resolve({ data: null, error: { message: "Operación no soportada" } });
           return;
         }
+        if (estaEnModoEjemplo()) {
+          resolve({ data: null, error: ERROR_MODO_EJEMPLO });
+          return;
+        }
         const res = await runAgroTable({
           data: {
             table: table as TableName,
@@ -70,7 +79,7 @@ function from(table: string) {
             ),
           },
         });
-        if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
+        if (res.ledger && !estaEnModoEjemplo()) replaceLedger(res.ledger as unknown as Ledger);
         resolve({ data: res.data, error: res.error });
       };
       void run();
@@ -81,8 +90,11 @@ function from(table: string) {
 
 export const supabase = {
   rpc(name: string, params: Record<string, unknown> = {}) {
+    if (estaEnModoEjemplo()) {
+      return Promise.resolve({ data: null, error: ERROR_MODO_EJEMPLO });
+    }
     return runAgroRpc({ data: { name, params } }).then((res) => {
-      if (res.ledger) replaceLedger(res.ledger as unknown as Ledger);
+      if (res.ledger && !estaEnModoEjemplo()) replaceLedger(res.ledger as unknown as Ledger);
       return { data: res.data, error: res.error };
     });
   },
