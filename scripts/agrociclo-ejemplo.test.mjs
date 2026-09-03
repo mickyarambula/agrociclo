@@ -39,6 +39,21 @@ describe("Ciclo de ejemplo · números anclados", () => {
     assert.ok(vivo(ledger, "inventario_movimiento").length > 0);
   });
 
+  it("ninguna labor combina dos insumos no-diésel (laboresT en App.jsx solo lee el primero)", async () => {
+    const ledger = await construirEjemploLedger();
+    const labores = vivo(ledger, "labor");
+    const laborInsumo = vivo(ledger, "labor_insumo");
+    const insumos = vivo(ledger, "insumo");
+    const dieselIds = new Set(insumos.filter((i) => i.categoria === "Diésel").map((i) => i.id));
+    for (const l of labores) {
+      const noDiesel = laborInsumo.filter((li) => li.labor_id === l.id && !dieselIds.has(li.insumo_id));
+      assert.ok(
+        noDiesel.length <= 1,
+        `${l.descripcion} combina ${noDiesel.length} insumos no-diésel — la app solo cuenta el primero`,
+      );
+    }
+  });
+
   it("360 toneladas ± 5, vendido/costó/quedó dentro de rango, propia rinde más que rentada", async () => {
     const ledger = await construirEjemploLedger();
     const parcelas = vivo(ledger, "parcela");

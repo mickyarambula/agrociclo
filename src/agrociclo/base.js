@@ -27,8 +27,18 @@ export const moneyU = (n) => {
   return new Intl.NumberFormat("es-MX", { style: "currency", currency: "MXN", minimumFractionDigits: dec, maximumFractionDigits: dec }).format(v);
 };
 
-const hoy = new Date();
-export const hoyStr = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mazatlan" }).format(hoy);
+const hoyReal = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Mazatlan" }).format(new Date());
+/* `let` (no `const`): los bindings de import en ESM son vivos, así que todo
+   archivo que hace `import { hoyStr } from "./base"` ve el valor nuevo en su
+   siguiente render en cuanto fijarHoyEjemplo lo cambia — sin tocar ese
+   archivo. Solo lo usa el ciclo de ejemplo (App.jsx entrarEjemplo/
+   salirEjemplo) para congelar "hoy" en la fecha ya cerrada del ejemplo;
+   fuera de eso, hoyStr es y sigue siendo el día real. */
+export let hoyStr = hoyReal;
+/** @param {string | null} fecha  — null restaura el día real. */
+export function fijarHoyEjemplo(fecha) {
+  hoyStr = fecha || hoyReal;
+}
 /** @param {string} a  @param {string} b */
 export const diasEntre = (a, b) => Math.max(0, Math.round((new Date(b + "T00:00:00").getTime() - new Date(a + "T00:00:00").getTime()) / 86400000));
 /** @param {string} f */

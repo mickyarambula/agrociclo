@@ -238,15 +238,14 @@ async function construir(): Promise<Ledger> {
   }[] = [
     { tipo: "Preparación de tierra", desc: "Barbecho y rastreo", fecha: "2026-10-10", diesel: 1104, insumos: [] },
     { tipo: "Preparación de tierra", desc: "Escarificación", fecha: "2026-10-20", diesel: 350, insumos: [] },
-    {
-      tipo: "Fertilización", desc: "Fertilización de fondo (MAP, sulfato de amonio, fosfonitrato)", fecha: "2026-10-28",
-      diesel: 250,
-      insumos: [
-        { id: ID.map, cant: 5.2, cu: 15000 },
-        { id: ID.sulfato, cant: 4.6, cu: 8500 },
-        { id: ID.fosfonitrato, cant: 2.15, cu: 13500 },
-      ],
-    },
+    // Fertilización de fondo va en tres labores, una por insumo — igual que
+    // captura de verdad el formulario (una labor SOLO admite un insumo no-
+    // diésel; laboresT en App.jsx solo lee el primero de la lista, así que
+    // combinarlos en una sola labor perdía dos de los tres fertilizantes del
+    // costo — se descubrió visitando el ejemplo en el navegador).
+    { tipo: "Fertilización", desc: "Fertilización de fondo · MAP", fecha: "2026-10-28", diesel: 84, insumos: [{ id: ID.map, cant: 5.2, cu: 15000 }] },
+    { tipo: "Fertilización", desc: "Fertilización de fondo · sulfato de amonio", fecha: "2026-10-28", diesel: 83, insumos: [{ id: ID.sulfato, cant: 4.6, cu: 8500 }] },
+    { tipo: "Fertilización", desc: "Fertilización de fondo · fosfonitrato", fecha: "2026-10-28", diesel: 83, insumos: [{ id: ID.fosfonitrato, cant: 2.15, cu: 13500 }] },
     { tipo: "Siembra", desc: "Siembra de precisión", fecha: "2026-11-05", diesel: 450, insumos: [{ id: ID.semilla, cant: 63, cu: 4700 }] },
     { tipo: "Fertilización", desc: "1ra urea con el cultivo", fecha: "2026-12-05", diesel: 200, insumos: [{ id: ID.urea, cant: 4.79, cu: 10200 }] },
     { tipo: "Aplicación fitosanitaria", desc: "Fumigación", fecha: "2027-02-20", diesel: 100, insumos: [{ id: ID.herbicida, cant: 160, cu: 150 }] },

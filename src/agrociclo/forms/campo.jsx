@@ -468,7 +468,7 @@ export function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, pued
    ledger). El paso resaltado es el primero obligatorio que falta; los
    opcionales ("si tienes avío") no detienen la ruta. "Ocultar" vive solo en la
    sesión; desde Ayuda se vuelve a abrir. */
-export function RutaCiclo({ titulo, subtitulo, pasos, completa, onOcultar }) {
+export function RutaCiclo({ titulo, subtitulo, pasos, completa, onOcultar, onVerEjemplo }) {
   const actual = pasos.findIndex((p) => !p.done && !p.opcional);
   return (
     <Tarjeta style={{ padding: 16, borderTop: `3px solid ${completa ? C.bosque : C.hoja}` }}>
@@ -514,6 +514,12 @@ export function RutaCiclo({ titulo, subtitulo, pasos, completa, onOcultar }) {
           </div>
         );
       })}
+      {onVerEjemplo && (
+        <button type="button" onClick={onVerEjemplo}
+          style={{ marginTop: 10, background: "transparent", border: "none", cursor: "pointer", fontSize: 13, fontWeight: 600, color: C.hoja, fontFamily: fuente.cuerpo, padding: "8px 0", minHeight: 44 }}>
+          Ver un ciclo de ejemplo primero →
+        </button>
+      )}
     </Tarjeta>
   );
 }

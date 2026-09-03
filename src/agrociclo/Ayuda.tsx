@@ -18,7 +18,15 @@ const C = {
 
 /** variant "header" (default) = botón oscuro de la barra de arriba.
  * "menu" = renglón claro para el menú móvil de pantalla completa. */
-export function AyudaBoton({ variant = "header", onVerRuta }: { variant?: "header" | "menu"; onVerRuta?: () => void }) {
+export function AyudaBoton({
+  variant = "header",
+  onVerRuta,
+  onVerEjemplo,
+}: {
+  variant?: "header" | "menu";
+  onVerRuta?: () => void;
+  onVerEjemplo?: () => void;
+}) {
   const [open, setOpen] = useState(false);
   return (
     <>
@@ -53,12 +61,20 @@ export function AyudaBoton({ variant = "header", onVerRuta }: { variant?: "heade
           <HelpCircle size={15} /> <span className="hidden md:inline">Ayuda</span>
         </button>
       )}
-      {open ? <AyudaPanel onClose={() => setOpen(false)} onVerRuta={onVerRuta} /> : null}
+      {open ? <AyudaPanel onClose={() => setOpen(false)} onVerRuta={onVerRuta} onVerEjemplo={onVerEjemplo} /> : null}
     </>
   );
 }
 
-function AyudaPanel({ onClose, onVerRuta }: { onClose: () => void; onVerRuta?: () => void }) {
+function AyudaPanel({
+  onClose,
+  onVerRuta,
+  onVerEjemplo,
+}: {
+  onClose: () => void;
+  onVerRuta?: () => void;
+  onVerEjemplo?: () => void;
+}) {
   const { profile } = useAgroSession();
   const [faq, setFaq] = useState<{ id: string; pregunta: string; respuesta: string }[]>([]);
   const [abierta, setAbierta] = useState<string | null>(null);
@@ -131,6 +147,25 @@ function AyudaPanel({ onClose, onVerRuta }: { onClose: () => void; onVerRuta?: (
                 style={{ background: C.bosque, color: C.blanco, border: "none" }}
               >
                 Ver la ruta del ciclo
+              </button>
+            </div>
+          ) : null}
+          {onVerEjemplo ? (
+            <div className="rounded-[14px] p-3" style={{ background: "#EEF4EB", border: `1px solid ${C.linea}` }}>
+              <div className="text-sm font-semibold">Ver un ciclo de ejemplo</div>
+              <p className="mt-1 text-xs" style={{ color: C.gris, lineHeight: 1.5 }}>
+                Visita un ciclo completo de maíz, de la siembra a la venta, con números reales. No toca tus datos.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  onVerEjemplo();
+                  onClose();
+                }}
+                className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-xl text-sm font-semibold"
+                style={{ background: C.hoja, color: C.blanco, border: "none" }}
+              >
+                Ver un ciclo de ejemplo
               </button>
             </div>
           ) : null}

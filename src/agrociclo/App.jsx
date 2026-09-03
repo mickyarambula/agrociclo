@@ -14,9 +14,12 @@ import { EquipoPanel, RolesPanel, salirAgro, useAgroSession } from "./session";
 import { listEquipo } from "./server/fns";
 import { AyudaBoton } from "./Ayuda";
 import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
+import { replaceLedger, snapshotLedger } from "./data/db";
+import { construirEjemploLedger, EJEMPLO_HOY, EJEMPLO_ORG_ID, EJEMPLO_CICLO_ID } from "./data/ejemplo";
+import { activarModoEjemplo, desactivarModoEjemplo } from "./lib/modoEjemplo";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
-  C, money, num, hoyStr, diasEntre, diasHasta,
+  C, money, num, hoyStr, fijarHoyEjemplo, diasEntre, diasHasta,
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
   costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
@@ -41,6 +44,7 @@ import { VistaLabores } from "./vistas/Labores";
 import { VistaParcelas } from "./vistas/Parcelas";
 import { VistaCiclo } from "./vistas/Ciclo";
 import { VistaHoy } from "./vistas/Hoy";
+import { VistaEjemploLinea } from "./vistas/EjemploLinea";
 import { Simulador, Reportes } from "./reportes";
 import { CanarioBadge, FormCiclo, CiclosAdmin } from "./forms/ciclo";
 import {
@@ -62,12 +66,23 @@ function AgroCicloApp() {
   const { profile, setCiclo, restaurarDemo, reload, vaciar, guardarAjustes, regenerarCodigo } = useAgroSession();
   const user = useCurrentUser();
   const rol = profile.rol;
-  const matriz = profile.permisos && Object.keys(profile.permisos).length ? profile.permisos : presetMatriz(rol);
-  const ORG_ID = profile.orgId;
-  const CICLO_ID = profile.cicloId;
-  const ciclos = profile.ciclos.length
-    ? profile.ciclos
-    : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0, finModo: null, finValor: null }];
+  // Ciclo de ejemplo: mientras está activo, la sesión sigue siendo la real
+  // (mismo usuario, mismo rol) pero ORG_ID/CICLO_ID/matriz apuntan al
+  // ejemplo — así useOrgRead lee el ledger de ejemplo (ver entrarEjemplo) y
+  // nunca el del predio real. matriz se fuerza al preset de Dueño para que
+  // cualquiera vea el menú completo (no hay nada sensible que redactar en
+  // datos sintéticos); veFinanzas/puedeEditar se fuerzan más abajo.
+  const [ejemploActivo, setEjemploActivo] = useState(false);
+  const matriz = ejemploActivo
+    ? presetMatriz("Dueño")
+    : (profile.permisos && Object.keys(profile.permisos).length ? profile.permisos : presetMatriz(rol));
+  const ORG_ID = ejemploActivo ? EJEMPLO_ORG_ID : profile.orgId;
+  const CICLO_ID = ejemploActivo ? EJEMPLO_CICLO_ID : profile.cicloId;
+  const ciclos = ejemploActivo
+    ? [{ id: EJEMPLO_CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27 · ejemplo", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0, finModo: null, finValor: null }]
+    : (profile.ciclos.length
+      ? profile.ciclos
+      : [{ id: CICLO_ID, clave: "oi2627", nombre: "Otoño–Invierno 2026/27", fechaInicio: "2026-10-01", fechaFin: "2027-09-30", presupuesto: 0, finModo: null, finValor: null }]);
   const temporadaId = ciclos.find((c) => c.id === CICLO_ID)?.clave || "oi2627";
   const [vista, setVista] = useState(rol === "Encargado de campo" ? "captura" : "panel");
   const nombreCiclo = ciclos.find((c) => c.id === CICLO_ID)?.nombre
@@ -146,16 +161,18 @@ function AgroCicloApp() {
 
   /* --- roles de sesión (servidor) --- */
 
-  const veFinanzas = profile.veFinanzas;
-  const puedeEditar = puedeEscribirModulo(rol, vista, matriz);
+  // En el ejemplo se ve todo (veFinanzas=true) pero no se edita nada — es
+  // solo para visitar, nunca para capturar.
+  const veFinanzas = ejemploActivo ? true : profile.veFinanzas;
+  const puedeEditar = !ejemploActivo && puedeEscribirModulo(rol, vista, matriz);
   const vePrecios = veFinanzas || profile.encargadoVePrecios;
   // En Hoy el permiso que manda es el de labores (la Oficina tiene captura en
   // "ver" pero sí registra labores); ordenar es de quien lleva los números.
-  const puedeLabores = puedeEscribirModulo(rol, "labores", matriz);
+  const puedeLabores = !ejemploActivo && puedeEscribirModulo(rol, "labores", matriz);
   const puedeOrdenar = puedeLabores && veFinanzas;
   // Pedidos vive dentro de Insumos, pero es su propio permiso: el Encargado
   // edita Solicitudes aunque Insumos (la compra en sí) se le quede en "ver".
-  const puedeEditarPedidos = puedeEscribirModulo(rol, "solicitudes", matriz);
+  const puedeEditarPedidos = !ejemploActivo && puedeEscribirModulo(rol, "solicitudes", matriz);
   // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
   const [rapida, setRapida] = useState(null);
   // La ruta del ciclo: "Ocultar" solo vive esta sesión (sin flag en el
@@ -174,6 +191,42 @@ function AgroCicloApp() {
     listEquipo().then((m) => { if (vivo) setEquipoCount(m.length); }).catch(() => {});
     return () => { vivo = false; };
   }, [rol]);
+
+  /* --- Ciclo de ejemplo: visita de solo lectura --- Entrar guarda el ledger
+     real y la vista donde ibas; salir los regresa tal cual, así nunca se
+     pierde nada a media captura. (El botón físico de "atrás" del celular NO
+     sale del ejemplo: TanStack Router es dueño de window.history en esta app
+     — history.pushState propio se lo pisa de inmediato — y engancharse a su
+     historial interno es una integración mayor que no vale la pena para esto.
+     Quedan dos salidas de un toque: el botón de la banda y el de la línea
+     de tiempo.) */
+  const ejemploSnapshotRef = useRef(null);
+  const entrarEjemplo = async () => {
+    const ledgerEjemplo = await construirEjemploLedger();
+    ejemploSnapshotRef.current = {
+      ledger: snapshotLedger(), vista, form, rapida, corteInput, fechaObjetivo,
+    };
+    activarModoEjemplo();
+    fijarHoyEjemplo(EJEMPLO_HOY);
+    replaceLedger(ledgerEjemplo);
+    setCorteInput(EJEMPLO_HOY);
+    setFechaObjetivo(EJEMPLO_HOY);
+    cerrar(); setRapida(null); setMenuMovilAbierto(false);
+    setVista("ejemplo-linea");
+    setEjemploActivo(true);
+  };
+  const salirEjemplo = () => {
+    const snap = ejemploSnapshotRef.current;
+    desactivarModoEjemplo();
+    fijarHoyEjemplo(null);
+    if (snap) {
+      replaceLedger(snap.ledger);
+      setVista(snap.vista); setForm(snap.form); setRapida(snap.rapida);
+      setCorteInput(snap.corteInput); setFechaObjetivo(snap.fechaObjetivo);
+    }
+    ejemploSnapshotRef.current = null;
+    setEjemploActivo(false);
+  };
 
   // CRÉDITOS (base de datos). Última pieza fuera del seed. linea_credito leída por uuid.
   // B2a: `id` ES EL UUID real (se eliminó el id sintético i+1 y el puente por fuente).
@@ -744,8 +797,11 @@ function AgroCicloApp() {
   const costoFinLineaA = (cr, fechaCorte) => interesLineaA(cr, fechaCorte) + fegaCredito(cr) + comisionCredito(cr);
 
   // Con corte = hoy manda la vista SQL (v_linea_credito_estado); con corte en otra
-  // fecha, el motor JS (que la espeja al centavo) proyecta a ese día.
-  const costoFinCreditos = corteVista === hoyStr
+  // fecha, el motor JS (que la espeja al centavo) proyecta a ese día. La vista SQL
+  // vive del reloj real del servidor (hoyMochis), no de hoyStr — en el ejemplo,
+  // aunque corteVista === hoyStr (ambos congelados a la fecha del ejemplo), esa
+  // vista seguiría anclada a HOY de verdad, así que se fuerza siempre el motor JS.
+  const costoFinCreditos = (corteVista === hoyStr && !ejemploActivo)
     ? cfinLineasVista
     : creditosT.reduce((s, cr) => s + costoFinLineaA(cr, corteVista), 0);
   const interesComprasTot = comprasT.reduce((s, c) => s + costoFinCompra(c, corteVista), 0);
@@ -2153,6 +2209,7 @@ function AgroCicloApp() {
         pasos={pasosRuta}
         completa={rutaCompleta}
         onOcultar={() => { setGuiaCicloOculta(true); setRutaForzada(false); }}
+        onVerEjemplo={!hayParcelas ? entrarEjemplo : null}
       />
     )
     : null;
@@ -2230,7 +2287,7 @@ function AgroCicloApp() {
             </button>
           )}
           <div className="hidden md:flex items-center gap-2" style={{ fontSize: 12, fontWeight: 600 }}>
-            <AyudaBoton onVerRuta={verRuta} />
+            <AyudaBoton onVerRuta={verRuta} onVerEjemplo={entrarEjemplo} />
             <span className="hidden md:inline" style={{ opacity: 0.9, maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {user?.displayName || user?.primaryEmail || "Cuenta"} · {rol}
             </span>
@@ -2255,10 +2312,26 @@ function AgroCicloApp() {
           mostrarAjustes={rol === "Dueño"}
           onAjustes={() => { setVista("ajustes"); cerrar(); setMenuMovilAbierto(false); }}
           onSalir={() => void salirAgro()}
-          slotAyuda={<AyudaBoton variant="menu" onVerRuta={verRuta} />}
+          slotAyuda={<AyudaBoton variant="menu" onVerRuta={verRuta} onVerEjemplo={entrarEjemplo} />}
         />
       )}
-      {corteVista !== hoyStr && (
+      {ejemploActivo ? (
+        <div className="flex items-center gap-3 flex-wrap px-3 md:px-8 py-3" style={{ background: C.azul, borderBottom: `3px solid ${C.bosque}` }}>
+          <Sprout size={20} color={C.blanco} />
+          <span style={{ fontWeight: 800, fontSize: 15, color: C.blanco, fontFamily: fuente.display }}>
+            Estás viendo un ciclo de ejemplo
+          </span>
+          <span style={{ fontSize: 13, color: C.blanco, opacity: 0.9 }}>Solo para ver — no toca tus datos reales.</span>
+          <button type="button" onClick={() => setVista("ejemplo-linea")}
+            style={{ background: "rgba(255,255,255,0.18)", color: C.blanco, border: "1px solid rgba(255,255,255,0.4)", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: fuente.cuerpo, minHeight: 40 }}>
+            Ver la línea de tiempo
+          </button>
+          <button type="button" onClick={salirEjemplo}
+            style={{ background: C.blanco, color: C.azul, border: "none", borderRadius: 10, padding: "8px 16px", fontWeight: 700, fontSize: 13, cursor: "pointer", fontFamily: fuente.cuerpo, minHeight: 40 }}>
+            Volver a mi predio
+          </button>
+        </div>
+      ) : corteVista !== hoyStr && (
         <div className="flex items-center gap-3 flex-wrap px-3 md:px-8 py-3" style={{ background: C.grano, borderBottom: `3px solid ${C.barrial}` }}>
           <CalendarClock size={20} color={C.tinta} />
           <span style={{ fontWeight: 800, fontSize: 15, color: C.tinta, fontFamily: fuente.display }}>
@@ -2302,6 +2375,9 @@ function AgroCicloApp() {
         </nav>
 
         <main className="flex-1 p-4 md:p-8 pb-24 md:pb-8 min-w-0 overflow-x-auto" style={{ maxWidth: 1100, ...(navMovilAlto ? { paddingBottom: navMovilAlto + 12 } : {}) }}>
+
+          {/* ===== LÍNEA DE TIEMPO DEL EJEMPLO ===== */}
+          <VistaEjemploLinea {...{ vista, setVista, parcelasT, laboresT, nominaT, gastosT, costosParcela, veFinanzas, ingresoRealTotal, inversionTotal, salirEjemplo }} />
 
           {/* ===== CAPTURA DE CAMPO ===== */}
           <VistaHoy {...{ vista, nombreCiclo, parcelasT, rol, setVista, tarjetaRuta: rol === "Encargado de campo" ? tarjetaRuta : null, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, solicitudesT, setForm, laboresHechas, nominaT, boletasT, parcelas, puedeLabores, cerrar, setRapida, accionRapida }} />
