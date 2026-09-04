@@ -1027,7 +1027,7 @@ function AgroCicloApp() {
       if (error) throw new Error(error.message);
     },
     invalidate: [["labores", CICLO_ID]],
-    successMsg: "Orden anotada",
+    successMsg: "Pendiente anotado",
   });
   const guardarOrden = (f, original, onListo) => guardarOrdenMut.mutate({ f, original }, { onSuccess: onListo });
 
@@ -2130,7 +2130,7 @@ function AgroCicloApp() {
   const tarjetaRapida = rapida ? (
     <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.bosque}` }}>
       <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
-        {rapida.orden ? `Cerrar orden: ${rapida.orden.tipo}` : "Labor de hoy"}
+        {rapida.orden ? `Cerrar pendiente: ${rapida.orden.tipo}` : "Labor de hoy"}
       </div>
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
         tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo} ordenes={ordenesLabor}
@@ -2144,7 +2144,7 @@ function AgroCicloApp() {
   const tarjetaOrden = form?.tipo === "orden" ? (
     <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.grano}` }}>
       <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15, marginBottom: 10 }}>
-        {form.item ? "Editar orden" : "Ordenar labor"}
+        {form.item ? "Editar pendiente" : "Anotar pendiente"}
       </div>
       <FormOrdenLabor key={form.item?.id || "nueva"} inicial={form.item} parcelas={parcelasT} insumos={insumos}
         tipos={tiposLabor} onAgregarTipo={agregarTipoLabor}

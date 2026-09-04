@@ -11,7 +11,7 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
     <>
           {ayudaLabor && <ComoSeLlenaLabor onCerrar={() => setAyudaLabor(false)} />}
           {vista === "labores" && (
-            <Seccion titulo="Labores y aplicaciones" accion="Registrar labor" puedeEditar={puedeEditar}
+            <Seccion titulo="Labores y aplicaciones" accion="Anotar lo hecho" puedeEditar={puedeEditar}
               abierto={form?.tipo === "labor"} onAbrir={() => setForm({ tipo: "labor", item: null })} onCerrar={cerrar}
               editando={!!form?.item} onAyuda={() => setAyudaLabor(true)}
               form={<FormLabor key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} insumos={insumos} veFinanzas={veFinanzas} tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo} conceptosGasto={conceptosGastoLabor} onAgregarConceptoGasto={agregarConceptoGasto} ordenes={ordenesLabor} onGuardar={(f) => guardarLabor(f, form?.item)} onGuardarRepetir={guardarLaborRepetir} />}>

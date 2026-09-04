@@ -153,7 +153,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <p className="md:col-span-3" style={{ margin: 0, fontSize: 12, color: C.gris }}>
-        Esta labor <strong>ya se hizo</strong>: baja de bodega lo que se usó y suma al costo del lote. Si todavía no se hace, anótala con “Ordenar labor”.
+        Esta labor <strong>ya se hizo</strong>: baja de bodega lo que se usó y suma al costo del lote. Si todavía no se hace, anótala como pendiente.
       </p>
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
@@ -446,10 +446,10 @@ export function FormOrdenLabor({ inicial, parcelas, insumos, tipos, onAgregarTip
         </Campo>
       </div>
       <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
-        Esta labor <strong>todavía no se hace</strong>: queda anotada para que el del campo la marque hecha. Hasta entonces baja la bodega, con lo que de verdad se usó.
+        Esto <strong>todavía no se hace</strong>: queda anotado como pendiente. No baja bodega ni suma costo hasta que alguien le dé Hecha, con lo que de verdad se usó.
       </p>
       <div className="flex items-center gap-2">
-        <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar orden"}</Boton>
+        <Boton deshabilitado={!f.parcelaId || !f.tipo} onClick={() => onGuardar(f)}>{inicial ? "Guardar cambios" : "Anotar pendiente"}</Boton>
         <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
       </div>
     </div>
@@ -494,12 +494,16 @@ export function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, pued
     <Tarjeta style={{ padding: 16, borderTop: `3px solid ${C.grano}` }}>
       <div className="flex items-center justify-between gap-2 flex-wrap">
         <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Por hacer · {ordenes.length}</div>
-        {puedeOrdenar && <Boton chico secundario onClick={onOrdenar}><Plus size={13} /> Ordenar labor</Boton>}
+        {puedeOrdenar && <Boton chico secundario onClick={onOrdenar}><Plus size={13} /> Anotar pendiente</Boton>}
       </div>
       {ordenes.length === 0 ? (
         <p style={{ margin: "8px 0 0", fontSize: 12, color: C.gris }}>Nada pendiente. Anota qué hacer y el de campo la cierra en el lote.</p>
       ) : (
-        ordenes.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map((l) => {
+        <>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: C.gris }}>
+            Lo anotado aquí todavía no cuesta ni baja de la bodega. Cuenta cuando alguien le dé Hecha.
+          </p>
+          {ordenes.slice().sort((a, b) => a.fecha.localeCompare(b.fecha)).map((l) => {
           const p = parcelas.find((x) => x.id === l.parcelaId);
           const ins = l.planInsumoId ? insumos.find((i) => i.id === l.planInsumoId) : null;
           const d = diasEntre(l.fecha, hoyStr);
@@ -521,7 +525,8 @@ export function PorHacerLabores({ ordenes, parcelas, insumos, puedeLabores, pued
               </div>
             </div>
           );
-        })
+          })}
+        </>
       )}
     </Tarjeta>
   );

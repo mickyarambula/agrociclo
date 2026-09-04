@@ -114,7 +114,7 @@ export function ComoSeLlenaLabor({ onCerrar }) {
   }, []);
   return (
     <HojaComoSeLlena
-      titulo="Registrar labor"
+      titulo="Anotar lo hecho"
       cargando={!datos}
       onCerrar={onCerrar}
       porque="Una labor es cada pasada por el lote: un barbecho, una fertilizada, un riego. De aquí sale el costo de ese lote — lo que bajó de bodega, el diésel que se quemó y lo que le pagaste a alguien más."
