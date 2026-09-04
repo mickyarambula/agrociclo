@@ -14,7 +14,7 @@ export function VistaCosecha({ vista, puedeEditar, form, setForm, cerrar, parcel
             <Seccion titulo="Cosecha · entregas en bodega" accion="Registrar boleta" puedeEditar={puedeEditar}
               abierto={form?.tipo === "boleta"} onAbrir={() => setForm({ tipo: "boleta", item: null })} onCerrar={cerrar}
               editando={!!form?.item} onAyuda={() => setAyudaBoleta(true)}
-              form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
+              form={<FormBoleta key={form?.item?.id || "nueva"} inicial={form?.item} parcelas={parcelasT} veFinanzas={veFinanzas} boletasExistentes={boletasT} onCancelar={cerrar} onGuardar={(f) => guardarBoleta(f, form?.item)} />}>
 
               {/* ===== EL CIERRE: la cuenta que el productor quiere ver ===== */}
               {veFinanzas && boletasT.length > 0 && (

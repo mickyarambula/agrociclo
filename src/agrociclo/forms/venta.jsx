@@ -1,7 +1,9 @@
 // @ts-nocheck
 /* Raya (jornales por cuadrilla) y cosecha (boletas de bodega). */
+import { useState } from "react";
 import { C, money, num, hoyStr, calcBoleta } from "../base";
 import { estiloInput, Boton, Campo, PickerParcela, useForm } from "../ui";
+import { AvisoDuplicado } from "./comunes";
 
 export function FormNomina({ inicial, parcelas, directorio, actividades, onAgregarActividad, onGuardar }) {
   const [f, set, setF] = useForm({
@@ -73,7 +75,7 @@ export function FormNomina({ inicial, parcelas, directorio, actividades, onAgreg
   );
 }
 
-export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true, notas }) {
+export function FormBoleta({ inicial, parcelas, onGuardar, onCancelar, veFinanzas = true, notas, boletasExistentes = [] }) {
   const [f, set] = useForm({
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
     fecha: inicial?.fecha || hoyStr,
@@ -85,6 +87,15 @@ export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true, no
     trilla: inicial?.trilla ?? "", flete: inicial?.flete ?? "", otros: inicial?.otros ?? "",
   });
   const c = calcBoleta(f);
+  // El folio no tiene candado propio: nada impedía capturar la misma boleta
+  // dos veces. Se avisa, no se bloquea seco — puede haber folios repetidos
+  // legítimos entre almacenes distintos.
+  const [folioIgnorado, setFolioIgnorado] = useState(false);
+  const folioTexto = f.boleta.trim().toLowerCase();
+  const boletaDuplicada = folioTexto
+    ? boletasExistentes.find((b) => b.id !== inicial?.id && String(b.boleta || "").trim().toLowerCase() === folioTexto)
+    : null;
+  const avisoFolio = boletaDuplicada && !folioIgnorado ? boletaDuplicada : null;
   return (
     <div className="grid md:grid-cols-3 gap-3">
       {!veFinanzas && (
@@ -96,6 +107,15 @@ export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true, no
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Bodega / almacén"><input style={estiloInput} placeholder="Ej. Almacenadora El Carrizo" value={f.bodega} onChange={set("bodega")} /></Campo>
       <Campo label="No. de boleta"><input style={estiloInput} placeholder="Ej. 78214" value={f.boleta} onChange={set("boleta")} /></Campo>
+      {avisoFolio && (
+        <AvisoDuplicado
+          mensaje={`Ya hay una boleta con el folio ${f.boleta} en este ciclo, del ${avisoFolio.fecha}, por ${num(calcBoleta(avisoFolio).ton, 2)} ton. ¿Es la misma?`}
+          labelConfirmar="Sí, no la guardo"
+          labelDescartar="No, es otra"
+          onConfirmar={() => (onCancelar ? onCancelar() : setFolioIgnorado(false))}
+          onDescartar={() => setFolioIgnorado(true)}
+        />
+      )}
       <Campo label="Peso bruto (kg)"><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 41800" value={f.pesoBruto} onChange={set("pesoBruto")} /></Campo>
       <Campo label="Tara (kg)" nota={notas?.tara}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 13900" value={f.tara} onChange={set("tara")} /></Campo>
       <Campo label={`Humedad (%) · estándar ${f.hStd}%`}><input type="number" inputMode="decimal" style={estiloInput} placeholder="Ej. 15.5" value={f.humedad} onChange={set("humedad")} /></Campo>
@@ -116,7 +136,7 @@ export function FormBoleta({ inicial, parcelas, onGuardar, veFinanzas = true, no
           {veFinanzas && c.ingresoBruto > 0 ? <> → bruto <strong>{money(c.ingresoBruto)}</strong> − deducciones {money(c.deducciones)} = <strong>{money(c.ingresoNeto)}</strong></> : null}
         </div>
       )}
-      <div className="flex items-end"><Boton onClick={() => f.parcelaId && f.pesoBruto && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar boleta"}</Boton></div>
+      <div className="flex items-end"><Boton deshabilitado={!!avisoFolio} onClick={() => f.parcelaId && f.pesoBruto && !avisoFolio && onGuardar(f)}>{inicial ? "Guardar cambios" : "Guardar boleta"}</Boton></div>
     </div>
   );
 }

@@ -292,3 +292,17 @@ function ConceptoGasto({ value, conceptos, onChange, onAgregar }) {
     </select>
   );
 }
+
+/* Aviso genérico para "esto que estás por guardar puede ya existir":
+   folio de boleta repetido, pedido autorizado del mismo insumo, gasto que ya
+   pasó por caja chica. Resuelve, no bloquea — dos botones, nunca un candado
+   seco. Los textos de cada botón los pone quien lo usa, según qué resuelve. */
+export function AvisoDuplicado({ mensaje, onConfirmar, onDescartar, labelConfirmar, labelDescartar = "No, es otra" }) {
+  return (
+    <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+      <AlertTriangle size={15} /> {mensaje}
+      <Boton chico onClick={onConfirmar}>{labelConfirmar}</Boton>
+      <Boton chico secundario onClick={onDescartar}>{labelDescartar}</Boton>
+    </div>
+  );
+}
