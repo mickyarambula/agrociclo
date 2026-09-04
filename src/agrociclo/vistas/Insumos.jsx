@@ -14,6 +14,9 @@ export function VistaInsumos({
   eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT,
   mostrarProductores,
 }) {
+  // Pedidos ya autorizados (por recibir): si alguien registra la compra a
+  // mano en vez de "Recibir", FormCompra avisa y ofrece ligarla aquí mismo.
+  const pedidosAutorizados = solicitudesT.filter((s) => s.estado === "autorizado");
   // Pedidos del campo se ve si ya hay pedidos, o si el predio es de más de una
   // persona (nadie se autoriza compras a sí mismo en un predio de un solo Dueño).
   // Si alguien ya forzó abrir el formulario (desde Hoy o El ciclo con "+ Pedido"),
@@ -27,7 +30,7 @@ export function VistaInsumos({
             <Seccion titulo="Insumos y compras" accion="Registrar compra" puedeEditar={puedeEditar && veFinanzas}
               abierto={form?.tipo === "compra"} onAbrir={() => setForm({ tipo: "compra", item: null })} onCerrar={cerrar}
               editando={!!form?.item} onAyuda={() => setAyudaCompra(true)}
-              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} mostrarProductores={mostrarProductores} />}>
+              form={<FormCompra key={form?.item?.id || "nueva"} inicial={form?.item} insumos={insumos} productores={productores} creditos={creditosT} finModoCiclo={finModoCiclo} finValorCiclo={finValorCiclo} onGuardar={(f) => guardarCompra(f, form?.item)} mostrarProductores={mostrarProductores} pedidosAutorizados={pedidosAutorizados} onRecibirPedido={recibirSolicitud} onCancelar={cerrar} />}>
               <div style={{ fontFamily: fuente.display, fontWeight: 700, fontSize: 15 }}>Almacén</div>
               {(stockQ.data ?? []).length === 0 ? (
                 <Vacio texto="Bodega vacía. La compra entra aquí; la labor lo baja. Empieza con “Registrar compra”." />

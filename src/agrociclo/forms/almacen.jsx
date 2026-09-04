@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, CheckCircle2, PackageCheck } from "lucide-react";
 import { C, money, num, hoyStr, ESTADOS_SOLICITUD, moneyU } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, Vacio, useForm } from "../ui";
-import { CampoProductor, CampoFinanciamiento } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, AvisoDuplicado } from "./comunes";
 
 export function CatalogoInsumos({ insumos, onGuardar, onEliminar }) {
   const [edit, setEdit] = useState(null);
@@ -71,7 +71,7 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
   );
 }
 
-export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo, mostrarProductores = true, notas }) {
+export function FormCompra({ inicial, insumos, productores, creditos, onGuardar, finModoCiclo, finValorCiclo, mostrarProductores = true, notas, pedidosAutorizados = [], onRecibirPedido, onCancelar }) {
   // Sin `inicial`: la respuesta del ciclo ("¿cómo te financias?") solo PRESELECCIONA —
   // se cambia en un toque si esta compra en particular fue distinta.
   const origenDefault = !inicial && finModoCiclo && finModoCiclo !== "propio" ? "externo" : (inicial?.origen || "propio");
@@ -93,7 +93,16 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
   });
   const esNuevo = f.insumoId === "nuevo";
   const monto = (Number(f.cantidad) || 0) * (Number(f.costoUnitario) || 0);
-  const bloqueado = !f.insumoId || (esNuevo && !f.insumoNuevo) || (f.origen === "linea" && !f.creditoId);
+  // Si ya hay un pedido autorizado de este insumo y alguien registra la
+  // compra a mano, se duplicaba: doble entrada a bodega y doble disposición
+  // sobre la línea (interés cobrado dos veces). "Ligarla" recibe el pedido
+  // en vez de crear una compra aparte.
+  const [pedidoIgnoradoId, setPedidoIgnoradoId] = useState(null);
+  const pedidoCoincide = !inicial && !esNuevo && f.insumoId
+    ? pedidosAutorizados.find((p) => p.insumoId === f.insumoId)
+    : null;
+  const avisoPedido = pedidoCoincide && pedidoCoincide.id !== pedidoIgnoradoId ? pedidoCoincide : null;
+  const bloqueado = !f.insumoId || (esNuevo && !f.insumoNuevo) || (f.origen === "linea" && !f.creditoId) || !!avisoPedido;
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha de compra"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
@@ -107,6 +116,15 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       {esNuevo && <Campo label="Nombre del insumo nuevo"><input style={estiloInput} placeholder="Ej. Sulfato de amonio" value={f.insumoNuevo} onChange={set("insumoNuevo")} /></Campo>}
       {esNuevo && (
         <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}</select></Campo>
+      )}
+      {avisoPedido && (
+        <AvisoDuplicado
+          mensaje={`Hay un pedido autorizado de ${avisoPedido.insumoNombre} · ${num(avisoPedido.cantidad, 1)} ${avisoPedido.unidad}, del ${avisoPedido.fecha}. ¿Es esta compra?`}
+          labelConfirmar="Sí, ligarla al pedido"
+          labelDescartar="No, es aparte"
+          onConfirmar={() => { onRecibirPedido && onRecibirPedido(avisoPedido); onCancelar && onCancelar(); }}
+          onDescartar={() => setPedidoIgnoradoId(avisoPedido.id)}
+        />
       )}
       <Campo label="Unidad · la misma con la que se gasta en la labor" nota={notas?.unidad}><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
