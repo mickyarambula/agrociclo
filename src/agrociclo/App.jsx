@@ -24,7 +24,7 @@ import {
   costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
   ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE, claveTipo,
-  mondayOf,
+  mondayOf, decidirAvisoDiesel,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -427,7 +427,7 @@ function AgroCicloApp() {
      Así costoLabor, costo/ha, la lista y FormLabor siguen igual. `id`/`_uuid` = uuid de la labor.
      Se filtran las labores cuya parcela no está en parcelasT (otro ciclo / dada de baja). */
   const laboresQ = useOrgRead(["labores", CICLO_ID], "labor", {
-    columns: "id, parcela_id, fecha, tipo, descripcion, costo_operacion, labor_insumo ( insumo_id, cantidad, costo_unitario, costo_total, insumo ( categoria ) )",
+    columns: "id, parcela_id, fecha, tipo, descripcion, costo_operacion, ha_trabajadas, labor_insumo ( insumo_id, cantidad, costo_unitario, costo_total, insumo ( categoria ) )",
     build: (q) => q.eq("ciclo_id", CICLO_ID).is("eliminado_en", null).order("fecha"),
   });
   const laboresT = useMemo(() => {
@@ -451,6 +451,9 @@ function AgroCicloApp() {
         planInsumoId: r.plan_insumo_id ?? null,
         planCantidad: Number(r.plan_cantidad) || 0,
         planLitrosDiesel: Number(r.plan_litros_diesel) || 0,
+        // null = el lote completo. Una labor vieja sin este dato se sigue
+        // leyendo como "todo el lote", igual que siempre.
+        haTrabajadas: r.ha_trabajadas != null ? Number(r.ha_trabajadas) : null,
       };
     }).filter(Boolean);
   }, [laboresQ.data, idsParcelasT]);
@@ -969,6 +972,7 @@ function AgroCicloApp() {
         p_tipo: f.tipo,
         p_descripcion: f.desc || "",
         p_costo_operacion: Number(f.costoOp) || 0,
+        p_ha_trabajadas: f.haTrabajadas !== "" && f.haTrabajadas != null ? Number(f.haTrabajadas) : null,
         p_lineas: lineas,
       });
       if (error) throw new Error(error.message);
@@ -986,12 +990,12 @@ function AgroCicloApp() {
     successMsg: "Labor eliminada",
   });
   const guardarLabor = (f, original) => guardarLaborMut.mutate({ f, original }, {
-    onSuccess: () => { cerrar(); if (!original) avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+    onSuccess: () => { cerrar(); if (!original) avisarDiesel(armarAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel, f.haTrabajadas)); },
   });
   /* "Guardar y repetir": guarda la labor y deja el form abierto para el
      siguiente lote (el form vacía parcela y cantidades por su cuenta). */
   const guardarLaborRepetir = (f, listo) => guardarLaborMut.mutate({ f, original: null }, {
-    onSuccess: () => { listo(); avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+    onSuccess: () => { listo(); avisarDiesel(armarAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel, f.haTrabajadas)); },
   });
   const eliminarLabor = (l) => eliminarLaborMut.mutate(l);
 
@@ -1125,28 +1129,23 @@ function AgroCicloApp() {
      ofrece dejarlo de referencia. Si ya hay referencia, se ve si las últimas
      3 capturas (incluida la de hoy) convergen entre sí y se apartan de lo
      configurado — ahí se ofrece actualizar. Todo con lo que ya está en
-     memoria, sin esperar a que refresque la consulta. */
-  function decidirAvisoDiesel(tipo, parcelaId, litrosGuardados) {
-    const litros = Number(litrosGuardados) || 0;
-    if (litros <= 0) return null;
-    const parcela = parcelasT.find((p) => p.id === parcelaId);
-    if (!parcela || !parcela.ha) return null;
-    const real = litros / parcela.ha;
+     memoria, sin esperar a que refresque la consulta. La decisión en sí vive
+     en base.js (decidirAvisoDiesel, pura y probada); aquí solo se junta lo
+     que necesita de la sesión: la parcela, el catálogo y las labores previas. */
+  function armarAvisoDiesel(tipo, parcelaId, litrosGuardados, haTrabajadas) {
     const clave = claveTipo(tipo);
-    const catalogo = litrosHaPorTipo[clave];
-    if (catalogo == null) return { tipo, valor: Math.round(real * 10) / 10 };
     const previas = laboresHechas
       .filter((l) => claveTipo(l.tipo) === clave && Number(l.litrosDiesel) > 0)
       .slice(-2)
-      .map((l) => l.litrosDiesel / (parcelasT.find((p) => p.id === l.parcelaId)?.ha || 1));
-    const muestra = [...previas, real];
-    if (muestra.length < 3) return null;
-    const media = muestra.reduce((a, b) => a + b, 0) / muestra.length;
-    const spread = Math.max(...muestra) - Math.min(...muestra);
-    const convergen = spread <= media * 0.2;
-    const difiere = Math.abs(media - catalogo) > catalogo * 0.15;
-    if (convergen && difiere) return { tipo, valor: Math.round(media * 10) / 10, actualizar: true };
-    return null;
+      .map((l) => l.litrosDiesel / (l.haTrabajadas || parcelasT.find((p) => p.id === l.parcelaId)?.ha || 1));
+    return decidirAvisoDiesel({
+      tipo,
+      parcela: parcelasT.find((p) => p.id === parcelaId),
+      litros: Number(litrosGuardados) || 0,
+      haTrabajadas,
+      catalogo: litrosHaPorTipo[clave],
+      previas,
+    });
   }
   function avisarDiesel(aviso) {
     if (!aviso) return;
@@ -2117,7 +2116,7 @@ function AgroCicloApp() {
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
         tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo}
         onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, {
-          onSuccess: () => { setRapida(null); avisarDiesel(decidirAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel)); },
+          onSuccess: () => { setRapida(null); avisarDiesel(armarAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel, f.haTrabajadas)); },
         })}
         onGuardarRepetir={guardarLaborRepetir}
         onCancelar={() => setRapida(null)} />

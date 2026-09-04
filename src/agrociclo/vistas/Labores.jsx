@@ -24,6 +24,10 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
                   {laboresHechas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {
                     const p = parcelas.find(x => x.id === l.parcelaId);
                     const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
+                    // Costo/ha DE ESTA LABOR (para comparar entre labores o contra tu
+                    // referencia) — distinto del costo/ha del LOTE, que sigue siendo
+                    // el acumulado entre las hectáreas totales del lote, no las trabajadas.
+                    const trabajoParcial = l.haTrabajadas != null && p?.ha != null && l.haTrabajadas !== p.ha;
                     return (
                       <div key={l.id} className="flex justify-between items-center gap-3 px-4 py-3 flex-wrap" style={{ borderTop: i ? `1px solid ${C.linea}` : "none" }}>
                         <div style={{ minWidth: 0 }}>
@@ -32,12 +36,18 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
                             {l.fecha} · {l.desc}
                             {ins ? ` · ${num(l.cantidad, 1)} ${ins.unidad} ${ins.nombre}` : ""}
                             {l.litrosDiesel ? ` · ${num(l.litrosDiesel, 0)} L diésel${veFinanzas ? ` (${money(l.costoDiesel)})` : ""}` : ""}
+                            {trabajoParcial ? ` · ${num(l.haTrabajadas, 1)} de ${num(p.ha, 1)} ha` : ""}
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           {veFinanzas && (
-                            <div style={{ fontWeight: 700, fontSize: 14, color: costoLabor(l) > 0 ? C.tinta : C.barrial }}>
-                              {costoLabor(l) > 0 ? money(costoLabor(l)) : "sin costo"}
+                            <div style={{ textAlign: "right" }}>
+                              <div style={{ fontWeight: 700, fontSize: 14, color: costoLabor(l) > 0 ? C.tinta : C.barrial }}>
+                                {costoLabor(l) > 0 ? money(costoLabor(l)) : "sin costo"}
+                              </div>
+                              {trabajoParcial && costoLabor(l) > 0 && (
+                                <div style={{ fontSize: 11, color: C.gris }}>{money(costoLabor(l) / l.haTrabajadas)}/ha</div>
+                              )}
                             </div>
                           )}
                           {puedeEditar && <Acciones onEditar={() => setForm({ tipo: "labor", item: l })} onEliminar={() => eliminarLabor(l)} />}

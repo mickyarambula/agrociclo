@@ -226,6 +226,9 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       descripcion: p.p_descripcion ?? "",
       costo_operacion: Number(p.p_costo_operacion) || 0,
       estado: "hecha",
+      // null = el lote completo (lo que la app ya asumía). Solo se guarda un
+      // número cuando la labor de verdad trabajó una parte del lote.
+      ha_trabajadas: p.p_ha_trabajadas != null && p.p_ha_trabajadas !== "" ? Number(p.p_ha_trabajadas) : null,
       plan_insumo_id: null,
       plan_cantidad: 0,
       plan_litros_diesel: 0,

@@ -1,7 +1,8 @@
 // @ts-nocheck
-/* Selectores reutilizables de formularios: productor y origen del recurso. */
+/* Selectores reutilizables de formularios: productor, origen del recurso y
+   hectáreas trabajadas. */
 import { useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { C, num, tasaCredito } from "../base";
 import { fuente, estiloInput, Campo, Boton } from "../ui";
 
@@ -157,6 +158,41 @@ export function BotonMarcarPagada({ compra, marcarPagada }) {
         <Boton chico secundario onClick={() => setAbierto(false)}>Cancelar</Boton>
         <span style={{ fontSize: 11, color: C.gris }}>vacío = seguimos con el estimado</span>
       </div>
+    </div>
+  );
+}
+
+/* Hectáreas trabajadas de una labor: colapsada a "el lote completo" (lo que
+   la app ya asume si nunca se toca), solo se abre a un input si de verdad se
+   trabajó una parte del lote. Vive junto a la parcela, no al diésel — una
+   labor sin diésel (una fumigación por servicio) también necesita poder decir
+   "solo la mitad". `value` en "" o null significa "el lote completo"; nunca
+   se le pisa ese significado a una labor vieja sin este dato. */
+export function CampoHectareas({ ha, value, onChange }) {
+  const [editando, setEditando] = useState(value !== "" && value != null);
+  const excedida = value !== "" && value != null && Number(value) > ha;
+  if (!editando) {
+    return (
+      <div className="flex items-center gap-2 flex-wrap md:col-span-3" style={{ fontSize: 12, color: C.gris, fontWeight: 600 }}>
+        {num(ha, 1)} ha · el lote completo
+        <button type="button" onClick={() => setEditando(true)}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+          Cambiar
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="md:col-span-3 flex flex-col gap-2">
+      <Campo label={`Hectáreas trabajadas · el lote tiene ${num(ha, 1)}`}>
+        <input type="number" inputMode="decimal" style={estiloInput} placeholder={String(ha)} value={value} onChange={(e) => onChange(e.target.value)} />
+      </Campo>
+      {excedida && (
+        <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+          <AlertTriangle size={15} /> Anotaste {num(Number(value), 1)} ha y el lote tiene {num(ha, 1)}.
+          <Boton chico secundario onClick={() => onChange(String(ha))}>Dejarlo en {num(ha, 1)} ha</Boton>
+        </div>
+      )}
     </div>
   );
 }

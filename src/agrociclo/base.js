@@ -87,6 +87,32 @@ export const interesGasto = (g, corte = hoyStr) =>
 /** @param {Fila} l */
 export const costoLabor = (l) => (l.costoOp || 0) + (l.costoInsumo || 0) + (l.costoDiesel || 0);
 
+/* --- L/ha de referencia --- */
+/** Decide si conviene ofrecer guardar (o actualizar) el L/ha de referencia de
+ *  un tipo de labor, a partir de lo que se acaba de capturar. Pura: no toca
+ *  React ni el ledger, solo lee lo que ya se le pasa — así se puede probar
+ *  directo. `haTrabajadas` manda sobre `parcela.ha` cuando la labor no
+ *  cubrió el lote completo: dividir contra el lote completo dejaría un L/ha
+ *  más bajo del real, y ESE sería el que se ofrece guardar de referencia.
+ *  `previas` ya viene calculada por el llamador (L/ha de cada labor anterior,
+ *  también sobre sus propias hectáreas trabajadas si las tuvo).
+ *  @param {{tipo: string, parcela: Fila|undefined, litros: number, haTrabajadas?: number|string|null, catalogo?: number|null, previas: number[]}} p */
+export function decidirAvisoDiesel({ tipo, parcela, litros, haTrabajadas, catalogo, previas }) {
+  if (!(litros > 0)) return null;
+  if (!parcela || !parcela.ha) return null;
+  const haUsada = Number(haTrabajadas) > 0 ? Number(haTrabajadas) : parcela.ha;
+  const real = litros / haUsada;
+  if (catalogo == null) return { tipo, valor: Math.round(real * 10) / 10 };
+  const muestra = [...previas, real];
+  if (muestra.length < 3) return null;
+  const media = muestra.reduce((a, b) => a + b, 0) / muestra.length;
+  const spread = Math.max(...muestra) - Math.min(...muestra);
+  const convergen = spread <= media * 0.2;
+  const difiere = Math.abs(media - catalogo) > catalogo * 0.15;
+  if (convergen && difiere) return { tipo, valor: Math.round(media * 10) / 10, actualizar: true };
+  return null;
+}
+
 /* --- rentas --- */
 /** @param {Fila} p */
 export const rentaMonto = (p) => p.tenencia === "Rentada" ? p.ha * (Number(p.rentaPorHa) || 0) : 0;

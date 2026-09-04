@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy, X } from "lucide-react";
 import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, claveTipo } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm, Vacio } from "../ui";
-import { CampoProductor, CampoFinanciamiento } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, CampoHectareas } from "./comunes";
 
 /* ---------- Tareas del día por WhatsApp ---------- */
 export function TareasWhatsApp({ labores, parcelas, insumos }) {
@@ -82,6 +82,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
     insumoId: inicial?.insumoId || "",
     cantidad: inicial?.cantidad ?? "",
     litrosDiesel: inicial?.litrosDiesel ?? "",
+    haTrabajadas: inicial?.haTrabajadas ?? "",
   });
   const [dieselManual, setDieselManual] = useState(!!inicial);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
@@ -96,9 +97,12 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   const faltaDiesel = litrosNum > dispDiesel;
 
   const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  // Si se anotó una parte del lote, el diésel sugerido se calcula sobre esas
+  // hectáreas, no sobre el lote completo.
+  const haUsada = Number(f.haTrabajadas) > 0 ? Number(f.haTrabajadas) : (parcelaSel?.ha || 0);
   const litrosHaTipo = f.tipo !== "__nuevo" ? litrosHaPorTipo[claveTipo(f.tipo)] : null;
   const haySugerencia = !inicial && !!parcelaSel && litrosHaTipo != null && litrosHaTipo > 0;
-  const litrosSugeridos = haySugerencia ? Math.round(parcelaSel.ha * litrosHaTipo) : null;
+  const litrosSugeridos = haySugerencia ? Math.round(haUsada * litrosHaTipo) : null;
 
   useEffect(() => { setDieselManual(!!inicial); }, [f.parcelaId, f.tipo]);
   useEffect(() => {
@@ -119,6 +123,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       </p>
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <div className="md:col-span-2"><Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo></div>
+      {parcelaSel && <CampoHectareas ha={parcelaSel.ha} value={f.haTrabajadas} onChange={(v) => setF(prev => ({ ...prev, haTrabajadas: v }))} />}
       <Campo label="Tipo de labor">
         <select style={estiloInput} value={f.tipo} onChange={set("tipo")}>
           {(tipos || TIPOS_LABOR).map(t => <option key={t}>{t}</option>)}
@@ -138,7 +143,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       {haySugerencia && !dieselManual ? (
         <div className="md:col-span-1" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
           <div style={{ fontSize: 13, fontWeight: 600, color: C.tinta }}>
-            {num(parcelaSel.ha, 1)} ha × {num(litrosHaTipo, 1)} L/ha
+            {num(haUsada, 1)} ha × {num(litrosHaTipo, 1)} L/ha
           </div>
           <div className="flex items-center justify-between gap-2" style={{ marginTop: 2 }}>
             <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, color: C.bosque }}>{num(litrosSugeridos, 0)} L</span>
@@ -195,7 +200,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
             const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
             if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
             onGuardarRepetir({ ...f, tipo }, () =>
-              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "" })));
+              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "", haTrabajadas: "" })));
           }}>Guardar y repetir en otra parcela</Boton>
         )}
       </div>
@@ -267,6 +272,7 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
     litrosDiesel: orden?.planLitrosDiesel || "",
     insumoId: orden?.planInsumoId || "",
     cantidad: orden?.planCantidad || "",
+    haTrabajadas: "",
   });
   const [dieselManual, setDieselManual] = useState(!!orden?.planLitrosDiesel);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
@@ -281,9 +287,10 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
   const listo = f.parcelaId && f.tipo && !faltaInsumo && !faltaDiesel;
 
   const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  const haUsada = Number(f.haTrabajadas) > 0 ? Number(f.haTrabajadas) : (parcelaSel?.ha || 0);
   const litrosHaTipo = f.tipo ? litrosHaPorTipo[claveTipo(f.tipo)] : null;
   const haySugerencia = !orden?.planLitrosDiesel && !!parcelaSel && litrosHaTipo != null && litrosHaTipo > 0;
-  const litrosSugeridos = haySugerencia ? Math.round(parcelaSel.ha * litrosHaTipo) : null;
+  const litrosSugeridos = haySugerencia ? Math.round(haUsada * litrosHaTipo) : null;
 
   useEffect(() => { setDieselManual(!!orden?.planLitrosDiesel); }, [f.parcelaId, f.tipo]);
   useEffect(() => {
@@ -294,12 +301,13 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
   return (
     <div className="flex flex-col gap-3">
       <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
+      {parcelaSel && <CampoHectareas ha={parcelaSel.ha} value={f.haTrabajadas} onChange={(v) => setF(prev => ({ ...prev, haTrabajadas: v }))} />}
       <Campo label="Qué se hizo"><ChipsTipoLabor tipos={tipos} onAgregar={onAgregarTipo} value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
       <div className="grid md:grid-cols-3 gap-3">
         {haySugerencia && !dieselManual ? (
           <div style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: C.tinta }}>
-              {num(parcelaSel.ha, 1)} ha × {num(litrosHaTipo, 1)} L/ha
+              {num(haUsada, 1)} ha × {num(litrosHaTipo, 1)} L/ha
             </div>
             <div className="flex items-center justify-between gap-2" style={{ marginTop: 2 }}>
               <span style={{ fontFamily: fuente.display, fontWeight: 800, fontSize: 22, color: C.bosque }}>{num(litrosSugeridos, 0)} L</span>
@@ -339,14 +347,14 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
         <Boton deshabilitado={!listo} onClick={() => onGuardar({
           fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
           desc: orden?.desc || "", costoOp: 0,
-          insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
+          insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel, haTrabajadas: f.haTrabajadas,
         })}>{orden ? "Hecha, guardar" : "Guardar labor"}</Boton>
         {!orden && onGuardarRepetir && (
           <Boton secundario deshabilitado={!listo} onClick={() => onGuardarRepetir({
             fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
             desc: "", costoOp: 0,
-            insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel,
-          }, () => setF(prev => ({ ...prev, parcelaId: "", litrosDiesel: "", cantidad: "" })))}>Guardar y repetir</Boton>
+            insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel, haTrabajadas: f.haTrabajadas,
+          }, () => setF(prev => ({ ...prev, parcelaId: "", litrosDiesel: "", cantidad: "", haTrabajadas: "" })))}>Guardar y repetir</Boton>
         )}
         <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
       </div>
