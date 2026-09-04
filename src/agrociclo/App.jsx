@@ -2422,7 +2422,7 @@ function AgroCicloApp() {
           <VistaProductores {...{ vista, veFinanzas, puedeEditar, setForm, formRef, form, cerrar, guardarProductor, productores, creditosT, guardarDispersion, guardarPrestamo, grupoCargos, grupoAbonos, prestamosT, parcelasT, dispSinLiquidar, eliminarPrestamo, liquidarPrestamo, agregarAplicacion, eliminarAplicacion, productoresQ, cuentasProductor, dispuestoLinea, costoFinLineaA, eliminarProductor, dispersionesT, eliminarDispersion, mostrarProductores }} />
 
           {/* ===== GASTOS GENERALES ===== */}
-          <VistaGastos {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto, mostrarProductores }} />
+          <VistaGastos {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto, mostrarProductores, cajaMovsT }} />
 
           {/* ===== CAJA CHICA ===== */}
           <VistaCaja {...{ vista, veFinanzas, puedeEditar, form, setForm, cerrar, creditosT, guardarCajaFondeo, parcelasT, guardarCajaSalida, cajaFondeado, cajaGastado, cajaSaldo, cajaPorAutorizar, cajaMovsT, parcelas, autorizarCajaSalida, eliminarCajaMov, mostrarCaja }} />

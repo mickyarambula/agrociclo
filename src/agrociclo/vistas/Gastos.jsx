@@ -3,14 +3,14 @@ import { C, money } from "../base";
 import { fuente, Tarjeta, Etiqueta, Acciones, Seccion, Vacio } from "../ui";
 import { FormGasto } from "../forms/dinero";
 
-export function VistaGastos({ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto, mostrarProductores }) {
+export function VistaGastos({ vista, veFinanzas, puedeEditar, form, setForm, cerrar, parcelasT, productores, creditosT, guardarGasto, gastosProrrateo, gastosIndPorHa, gastosT, gastosGenerales, parcelas, eliminarGasto, mostrarProductores, cajaMovsT }) {
   return (
     <>
           {vista === "gastos" && veFinanzas && (
             <Seccion titulo="Gastos generales (indirectos)" accion="Registrar gasto" puedeEditar={puedeEditar}
               abierto={form?.tipo === "gasto"} onAbrir={() => setForm({ tipo: "gasto", item: null })} onCerrar={cerrar}
               editando={!!form?.item}
-              form={<FormGasto key={form?.item?.id || "nuevo"} inicial={form?.item} parcelas={parcelasT} productores={productores} creditos={creditosT} onGuardar={(f) => guardarGasto(f, form?.item)} mostrarProductores={mostrarProductores} />}>
+              form={<FormGasto key={form?.item?.id || "nuevo"} inicial={form?.item} parcelas={parcelasT} productores={productores} creditos={creditosT} onGuardar={(f) => guardarGasto(f, form?.item)} mostrarProductores={mostrarProductores} cajaSalidas={cajaMovsT} onCancelar={cerrar} />}>
               <p style={{ fontSize: 13, color: C.gris, marginTop: -6 }}>
                 Sueldos de planta, gasolina de camionetas, viáticos, seguro agrícola, mantenimiento… Cada gasto puede ir
                 <strong> a una parcela</strong> (fue solo para ella), <strong>prorrateado por hectárea</strong> entre todas,

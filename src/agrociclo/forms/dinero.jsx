@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Plus, X, AlertTriangle, Trash2, CheckCircle2 } from "lucide-react";
 import { C, money, num, hoyStr, diasEntre, tasaCredito, CAT_GASTO, CONCEPTOS_DISPERSION } from "../base";
 import { fuente, estiloInput, Tarjeta, Etiqueta, Boton, Campo, Acciones, Fila, useForm } from "../ui";
-import { CampoProductor, CampoFinanciamiento } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, AvisoDuplicado } from "./comunes";
 
 /* ---------- Formularios ---------- */
 
@@ -56,7 +56,7 @@ export function FormCredito({ inicial, productores, onGuardar, mostrarProductore
   );
 }
 
-export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar, mostrarProductores = true }) {
+export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar, mostrarProductores = true, cajaSalidas = [], onCancelar }) {
   const [f, set] = useForm({
     fecha: inicial?.fecha || hoyStr,
     categoria: inicial?.categoria || CAT_GASTO[0],
@@ -69,13 +69,32 @@ export function FormGasto({ inicial, parcelas, productores, creditos, onGuardar,
     creditoId: inicial?.creditoId || "",
     tasa: inicial?.tasa ?? "",
   });
-  const bloqueado = !f.monto || (f.origen === "linea" && !f.creditoId);
+  // Autorizar una salida de caja crea su gasto solo — si ya se había anotado
+  // a mano aquí, se contaba doble. El concepto de caja no usa el mismo
+  // catálogo que la categoría de Gastos, así que se cruza por fecha y monto
+  // exactos: la coincidencia real de "es el mismo pago".
+  const [cajaIgnoradaId, setCajaIgnoradaId] = useState(null);
+  const montoNum = Number(f.monto) || 0;
+  const cajaCoincide = !inicial && montoNum > 0
+    ? cajaSalidas.find((m) => m.tipo === "salida" && m.fecha === f.fecha && Number(m.monto) === montoNum)
+    : null;
+  const avisoCaja = cajaCoincide && cajaCoincide.id !== cajaIgnoradaId ? cajaCoincide : null;
+  const bloqueado = !f.monto || (f.origen === "linea" && !f.creditoId) || !!avisoCaja;
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
       <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{CAT_GASTO.map(c => <option key={c}>{c}</option>)}</select></Campo>
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. Gasolina camionetas · junio" value={f.desc} onChange={set("desc")} /></Campo>
       <Campo label="Monto (MXN)"><input type="number" style={estiloInput} placeholder="0" value={f.monto} onChange={set("monto")} /></Campo>
+      {avisoCaja && (
+        <AvisoDuplicado
+          mensaje={`Ya hay una salida de caja chica de ${money(montoNum)} el ${f.fecha}: "${avisoCaja.concepto}"${avisoCaja.quien ? ` (gastó ${avisoCaja.quien})` : ""}. ¿Es el mismo gasto?`}
+          labelConfirmar="Sí, no lo guardo"
+          labelDescartar="No, es aparte"
+          onConfirmar={() => (onCancelar ? onCancelar() : setCajaIgnoradaId(null))}
+          onDescartar={() => setCajaIgnoradaId(avisoCaja.id)}
+        />
+      )}
       <Campo label="¿Cómo se reparte?">
         <select style={estiloInput} value={f.destino} onChange={set("destino")}>
           <option value="prorrateo">Prorratear por hectárea (todas las parcelas)</option>
