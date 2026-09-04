@@ -5,6 +5,7 @@ import { attachEmbeds, readTable, subscribe } from "./db";
 import type { Row } from "./types";
 import { reportarError } from "../server/plataforma";
 import { mensajeParaPortal } from "../server/soporte";
+import { marcarEscrituraForm } from "../lib/telemetria";
 
 /** Sin señal (o intermitente) es el pan de cada día en el campo — no es una
  * falla de la app, así que ni se reporta al portal ni se muestra el mensaje
@@ -106,6 +107,7 @@ export function useOrgWrite(opts: {
     async (vars: unknown, extra?: { onSuccess?: () => void; onError?: (e: Error) => void }) => {
       try {
         await opts.mutationFn(vars as never);
+        marcarEscrituraForm(opts.op);
         if (opts.successMsg) toast.success(opts.successMsg);
         extra?.onSuccess?.();
       } catch (e) {

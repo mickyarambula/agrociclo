@@ -2,7 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
 import { etiquetaTelefonoMx, normalizarTelefonoMx } from "./contacto";
-import { ciclosDePayload, etiquetaAccion, parcelasVivas } from "./soporte";
+import { ciclosDePayload, etiquetaAccion, etiquetaForm, etiquetaPantalla, parcelasVivas } from "./soporte";
 
 type Json = string | number | boolean | null | Json[] | { [key: string]: Json };
 
@@ -207,6 +207,17 @@ export const guardarContactoAtencion = createServerFn({ method: "POST" })
 
 
 
+/** Correos de quien prueba contra su propio predio (Miguel, "Predio de
+ *  Miguel") — se excluyen de los agregados de Pulso para que decenas de
+ *  logins de prueba no tapen la señal real de los productores. Configurable
+ *  con PULSO_EXCLUIR_EMAILS; default: el correo de Miguel. Función propia
+ *  (no las de fns.ts) porque aquí el criterio es otro: no es "quién puede
+ *  usar datos falsos", es "a quién no le cuento como productor". */
+function correosPrueba(): string[] {
+  const raw = process.env.PULSO_EXCLUIR_EMAILS ?? "miguelarambulam@gmail.com";
+  return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
 async function orgDeUsuario(userId: string) {
   const sql = await getSql();
   const rows = await sql<{
@@ -287,6 +298,38 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
       `select count(*)::int as n from plataforma_ticket where estado = 'nueva'`,
     );
 
+    // Dónde se atoran todos: formularios más abiertos vs. más abandonados.
+    // Excluye el predio de Miguel (no es productor, solo prueba) y el ciclo
+    // de ejemplo (nunca escribe en la base, pero por si acaso — ver
+    // data/ejemplo.ts, EJEMPLO_ORG_ID debe coincidir con el valor de ahí).
+    // Sin este filtro, las decenas de logins de Miguel probando tapan la
+    // señal real de 3-4 productores.
+    const EJEMPLO_ORG_ID = "e0e0e0e0-0000-4000-8000-00000000e0e0";
+    const formsRows = await sql.query<{ nombre: string; abiertos: number; abandonados: number }>(
+      `select
+          pe.detalle->>'nombre' as nombre,
+          count(*) filter (where pe.tipo = 'form_abierto')::int as abiertos,
+          count(*) filter (where pe.tipo = 'form_abandonado')::int as abandonados
+        from plataforma_evento pe
+        where pe.tipo in ('form_abierto', 'form_abandonado')
+          and pe.organizacion_id is distinct from $1
+          and pe.organizacion_id not in (
+            select ur.organizacion_id from usuario_rol ur
+            join "user" u on u.id = ur.user_id
+            where lower(u.email) = any($2::text[])
+          )
+        group by pe.detalle->>'nombre'
+        having count(*) filter (where pe.tipo = 'form_abierto') > 0
+        order by abandonados desc, abiertos desc`,
+      [EJEMPLO_ORG_ID, correosPrueba()],
+    );
+    const formsAtorados = formsRows.map((r) => ({
+      nombre: etiquetaForm(r.nombre),
+      abiertos: Number(r.abiertos),
+      abandonados: Number(r.abandonados),
+      pctAbandono: r.abiertos > 0 ? Math.round((Number(r.abandonados) / Number(r.abiertos)) * 100) : 0,
+    }));
+
     // Última captura de cada predio (una fila por organizacion_id, la más reciente).
     const ultimaPorPredio = await sql.query<{ organizacion_id: string; accion: string; creado_en: string; nombre: string }>(
       `select distinct on (a.organizacion_id) a.organizacion_id, a.accion, a.creado_en, o.nombre
@@ -366,6 +409,7 @@ export const getPlataformaResumen = createServerFn({ method: "GET" })
       labores,
       boletas,
       solicitudes,
+      formsAtorados,
     };
   });
 
@@ -500,6 +544,22 @@ export const getSoportePredio = createServerFn({ method: "GET" })
       [data.orgId],
     );
 
+    // "Hasta dónde llegó": última pantalla que abrió y el último formulario
+    // que dejó a medias (si el más reciente sí se guardó, no hay nada que
+    // marcar aquí — solo importa el abandono más reciente).
+    const ultimaPantallaRows = await sql.query<{ nombre: string; creado_en: string }>(
+      `select detalle->>'nombre' as nombre, creado_en from plataforma_evento
+        where tipo = 'pantalla' and organizacion_id = $1
+        order by creado_en desc limit 1`,
+      [data.orgId],
+    );
+    const ultimoAbandonoRows = await sql.query<{ nombre: string; creado_en: string }>(
+      `select detalle->>'nombre' as nombre, creado_en from plataforma_evento
+        where tipo = 'form_abandonado' and organizacion_id = $1
+        order by creado_en desc limit 1`,
+      [data.orgId],
+    );
+
     return asJson({
       org: { id: org.id, nombre: org.nombre, creadoEn: org.creado_en, codigo: org.codigo_invitacion },
       ciclos,
@@ -525,6 +585,14 @@ export const getSoportePredio = createServerFn({ method: "GET" })
       })),
       tickets: ticketsRows,
       usoWhatsapp: ticketsRows.some((t) => t.tipo === "whatsapp"),
+      hastaDonde: {
+        ultimaPantalla: ultimaPantallaRows[0]
+          ? { nombre: etiquetaPantalla(ultimaPantallaRows[0].nombre), creadoEn: ultimaPantallaRows[0].creado_en }
+          : null,
+        ultimoAbandono: ultimoAbandonoRows[0]
+          ? { nombre: etiquetaForm(ultimoAbandonoRows[0].nombre), creadoEn: ultimoAbandonoRows[0].creado_en }
+          : null,
+      },
       errores: erroresRows.map((e) => {
         const d = (e.detalle && typeof e.detalle === "object" ? e.detalle : {}) as { mensaje?: string; donde?: string };
         return { mensaje: d.mensaje || "", donde: etiquetaAccion(d.donde), creadoEn: e.creado_en };
@@ -725,5 +793,34 @@ export const reportarError = createServerFn({ method: "POST" })
         JSON.stringify({ mensaje: data.mensaje.slice(0, 500), donde: data.donde ?? "" }),
       ],
     );
+    return { ok: true };
+  });
+
+/* Solo estos cuatro tipos, y solo `nombre` dentro de `detalle` — recortado
+   aquí, en el servidor, no confiado al cliente. Aunque `lib/telemetria.ts`
+   tuviera un bug y mandara algo más, esto nunca lo deja pasar. `nombre` es
+   siempre un id interno de pantalla o de formulario (p. ej. "parcelas",
+   "boleta"), nunca texto libre del productor. Sin señal (falla el insert,
+   sin conexión desde el cliente) se pierde callado — única excepción a
+   "nada falla en silencio" del proyecto, documentada en CLAUDE.md. */
+const TIPOS_EVENTO_USO = new Set(["pantalla", "form_abierto", "form_guardado", "form_abandonado"]);
+
+export const registrarEventosUso = createServerFn({ method: "POST" })
+  .middleware([authMiddleware])
+  .validator((p: { eventos: { tipo: string; nombre: string }[] }) => p)
+  .handler(async ({ context, data }) => {
+    if (!Array.isArray(data.eventos) || data.eventos.length === 0) return { ok: true };
+    const org = await orgDeUsuario(context.userId);
+    const sql = await getSql();
+    for (const ev of data.eventos.slice(0, 200)) {
+      if (!TIPOS_EVENTO_USO.has(ev?.tipo)) continue;
+      const nombre = typeof ev.nombre === "string" ? ev.nombre.slice(0, 60) : "";
+      if (!nombre) continue;
+      await sql.query(
+        `insert into plataforma_evento (id, tipo, organizacion_id, user_id, detalle)
+         values ($1, $2, $3, $4, $5::jsonb)`,
+        [crypto.randomUUID(), ev.tipo, org?.organizacion_id ?? null, context.userId, JSON.stringify({ nombre })],
+      );
+    }
     return { ok: true };
   });

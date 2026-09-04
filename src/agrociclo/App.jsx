@@ -17,6 +17,7 @@ import { navVisible, puedeEscribirModulo, presetMatriz } from "./server/roles";
 import { replaceLedger, snapshotLedger } from "./data/db";
 import { construirEjemploLedger, EJEMPLO_HOY, EJEMPLO_ORG_ID, EJEMPLO_CICLO_ID } from "./data/ejemplo";
 import { activarModoEjemplo, desactivarModoEjemplo } from "./lib/modoEjemplo";
+import { activarTelemetria, registrarPantalla, registrarFormAbierto, registrarFormCerrado } from "./lib/telemetria";
 import { useCurrentUser } from "@/lib/auth/use-current-user";
 import {
   C, money, num, hoyStr, fijarHoyEjemplo, diasEntre, diasHasta,
@@ -133,6 +134,19 @@ function AgroCicloApp() {
   const [abonoMonto, setAbonoMonto] = useState({});
   const [form, setForm] = useState(null);
   const cerrar = () => setForm(null);
+  // Telemetría de uso (pantalla/formulario, nunca contenido — ver lib/telemetria.ts).
+  // Va primero para que, si `ejemploActivo` cambia en el mismo tick que `vista`
+  // (al entrar/salir del ciclo de ejemplo), el apagado ya esté puesto antes.
+  useEffect(() => { activarTelemetria(!ejemploActivo); }, [ejemploActivo]);
+  useEffect(() => { registrarPantalla(vista); }, [vista]);
+  const formTipoAnteriorRef = useRef(null);
+  useEffect(() => {
+    const actual = form?.tipo ?? null;
+    if (actual === formTipoAnteriorRef.current) return;
+    if (formTipoAnteriorRef.current) registrarFormCerrado();
+    if (actual) registrarFormAbierto(actual);
+    formTipoAnteriorRef.current = actual;
+  }, [form?.tipo]);
   // Auto-scroll: en Productores los formularios se abren arriba de la sección;
   // al abrir cualquiera (productor/dispersión/préstamo) llevamos la vista hasta él.
   const formRef = useRef(null);

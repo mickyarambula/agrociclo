@@ -289,6 +289,15 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
   de caer al default de fábrica de `lib/org.ts` — ese default silencioso fue
   el bug de "Marcar pagada"). Si agregas un punto de escritura, mantén esa
   regla.
+- **Única excepción deliberada a "nada falla en silencio": la telemetría de
+  uso** (`lib/telemetria.ts` — pantalla abierta, formulario abierto/guardado/
+  abandonado, en `plataforma_evento`). Si no hay señal (sin conexión,
+  servidor caído, lo que sea), el evento se pierde callado — nunca se le
+  avisa al productor, nunca se reintenta a costa de interrumperle una
+  captura. Es al revés de la regla de arriba a propósito: esto es salud de
+  uso para Miguel, no un dato que el productor necesite confirmar. No
+  "arregles" esto para que avise o reintente — sería empezar a interrumpir
+  capturas reales por algo que a quien captura no le importa.
 - **Dos caminos válidos pueden llegar al mismo hecho del mundo, y la app no
   sabe que son el mismo** (septiembre 2026, del uso real de un productor).
   Cada vez que se agregue un camino nuevo para registrar algo, preguntarse

@@ -93,3 +93,52 @@ export function mensajeParaPortal(op: string | null | undefined, mensaje: string
   const patron = op ? MENSAJES_CON_DINERO[op] : undefined;
   return patron?.test(mensaje) ? "El abono excede el saldo de la disposición." : mensaje;
 }
+
+/* Nombres legibles de pantallas y formularios para la telemetría de uso
+   (plataforma_evento: tipos 'pantalla'/'form_abierto'/'form_guardado'/
+   'form_abandonado'). Mismo criterio que ETIQUETAS_ACCION: vocabulario
+   actual de la app, nunca el id interno crudo. */
+const ETIQUETAS_PANTALLA: Record<string, string> = {
+  captura: "Hoy",
+  panel: "El ciclo",
+  parcelas: "Parcelas",
+  inventario: "Insumos",
+  labores: "Labores",
+  cuadrillas: "Raya",
+  cosecha: "Cosecha",
+  productores: "Productores",
+  gastos: "Gastos",
+  caja: "Caja chica",
+  credito: "Crédito",
+  reportes: "Reportes",
+  ajustes: "Ajustes",
+};
+
+const ETIQUETAS_FORM: Record<string, string> = {
+  compra: "Compra",
+  boleta: "Boleta",
+  labor: "Anotar lo hecho",
+  orden: "Anotar pendiente",
+  parcela: "Parcela",
+  gasto: "Gasto",
+  credito: "Línea de crédito",
+  productor: "Productor",
+  dispersion: "Dispersión",
+  prestamo: "Préstamo",
+  solicitud: "Pedido",
+  cajaFondeo: "Fondeo de caja",
+  cajaSalida: "Gasto de caja",
+  "asistencia-semana": "Raya · captura semanal",
+  "asistencia-dia": "Raya · día suelto",
+  nomina: "Raya (formato viejo)",
+};
+
+export function etiquetaPantalla(nombre: string | null | undefined): string {
+  if (!nombre) return "—";
+  return ETIQUETAS_PANTALLA[nombre] || nombre;
+}
+
+export function etiquetaForm(nombre: string | null | undefined): string {
+  if (!nombre) return "—";
+  return ETIQUETAS_FORM[nombre] || nombre;
+}

@@ -475,6 +475,25 @@ function TabResumen({ onAbrirPredio }: { onAbrirPredio: (orgId: string) => void 
           ))
         )}
       </Card>
+
+      <Card>
+        <div className="text-sm font-semibold">Dónde se atoran</div>
+        <p className="mb-2 mt-1 text-xs" style={{ color: C.gris }}>
+          Qué formularios se abren y se abandonan más, entre todos los predios (sin contar el predio de prueba).
+        </p>
+        {d.formsAtorados.length === 0 ? (
+          <p className="text-sm" style={{ color: C.gris }}>Sin datos todavía — esto se llena con el uso real.</p>
+        ) : (
+          d.formsAtorados.map((f) => (
+            <div key={f.nombre} className="flex items-center justify-between gap-2 border-t py-2 text-sm" style={{ borderColor: C.linea }}>
+              <span className="font-semibold">{f.nombre}</span>
+              <span style={{ color: f.pctAbandono >= 40 ? C.rojo : C.gris }}>
+                {f.abiertos} abiertos · {f.abandonados} sin guardar ({f.pctAbandono}%)
+              </span>
+            </div>
+          ))
+        )}
+      </Card>
     </div>
   );
 }
@@ -543,6 +562,10 @@ type SoporteDetalle = {
   tickets: { id: string; tipo: string; titulo: string; estado: string; creado_en: string }[];
   usoWhatsapp: boolean;
   errores: { mensaje: string; donde: string; creadoEn: string }[];
+  hastaDonde: {
+    ultimaPantalla: { nombre: string; creadoEn: string } | null;
+    ultimoAbandono: { nombre: string; creadoEn: string } | null;
+  };
 };
 
 function DetalleSoporte({ orgId, onCerrar }: { orgId: string; onCerrar: () => void }) {
@@ -662,6 +685,32 @@ function DetalleSoporte({ orgId, onCerrar }: { orgId: string; onCerrar: () => vo
                     <span style={{ color: C.gris, fontSize: 12 }}>{a.email || "—"} · {fecha(a.creadoEn)}</span>
                   </div>
                 ))}
+              </div>
+            )}
+          </Card>
+
+          <Card>
+            <div className="mb-2 text-sm font-semibold">Hasta dónde llegó</div>
+            {!d.hastaDonde.ultimaPantalla ? (
+              <p className="text-sm" style={{ color: C.gris }}>Nunca ha abierto una pantalla — no hay señal todavía.</p>
+            ) : (
+              <div className="flex flex-col gap-1.5">
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span style={{ color: C.gris }}>Última pantalla abierta</span>
+                  <span className="font-semibold">
+                    {d.hastaDonde.ultimaPantalla.nombre} · {hace(Math.floor((Date.now() - new Date(d.hastaDonde.ultimaPantalla.creadoEn).getTime()) / 86400000))}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between gap-2 text-sm">
+                  <span style={{ color: C.gris }}>Último formulario dejado a medias</span>
+                  {d.hastaDonde.ultimoAbandono ? (
+                    <span className="font-semibold" style={{ color: C.barrial }}>
+                      {d.hastaDonde.ultimoAbandono.nombre} · {hace(Math.floor((Date.now() - new Date(d.hastaDonde.ultimoAbandono.creadoEn).getTime()) / 86400000))}
+                    </span>
+                  ) : (
+                    <span style={{ color: C.gris }}>Ninguno registrado</span>
+                  )}
+                </div>
               </div>
             )}
           </Card>
