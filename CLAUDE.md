@@ -289,6 +289,19 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
   de caer al default de fábrica de `lib/org.ts` — ese default silencioso fue
   el bug de "Marcar pagada"). Si agregas un punto de escritura, mantén esa
   regla.
+- **Dos caminos válidos pueden llegar al mismo hecho del mundo, y la app no
+  sabe que son el mismo** (septiembre 2026, del uso real de un productor).
+  Cada vez que se agregue un camino nuevo para registrar algo, preguntarse
+  con qué otro camino se puede empalmar y avisar cuando coincidan. El aviso
+  muestra con qué se parece y deja seguir si de verdad es otro — nunca
+  bloquea en seco, igual que el resto de los avisos de la app. Casos ya
+  cubiertos: orden→labor (marcar la orden hecha al registrar la misma
+  labor), folio de boleta repetido en el ciclo, pedido autorizado→compra
+  manual (ofrece ligarla en vez de duplicar la disposición de línea),
+  caja chica→gasto manual (cruce por fecha+monto, no por texto). Anotado
+  sin cubrir a propósito: renta de una parcela contra una dispersión
+  "Rentas" al mismo productor — puede ser un movimiento legítimo y un
+  aviso ahí saldría en falso con frecuencia.
 
 ## Cómo trabajar
 
