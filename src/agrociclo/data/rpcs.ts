@@ -216,6 +216,19 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       }
     }
 
+    /* Gastos adicionales: lo que se le pagó a alguien más por esta labor
+       (maquila, tractor rentado, avioneta…), en renglones con concepto.
+       `costo_operacion` sigue siendo la SUMA y la verdad para todo lo que ya
+       lee el costo de la labor (costoLabor, costo/ha, reportes) — el
+       desglose vive aparte. Una labor vieja sin renglones conserva su
+       costo_operacion tal cual, sin tocarle nada. */
+    const gastosAdic = (Array.isArray(p.p_gastos_adicionales) ? p.p_gastos_adicionales : null) as
+      | { concepto?: string; monto?: number }[]
+      | null;
+    const costoOperacion = gastosAdic
+      ? gastosAdic.reduce((s, g) => s + (Number(g.monto) || 0), 0)
+      : Number(p.p_costo_operacion) || 0;
+
     upsert("labor", {
       id: laborId,
       organizacion_id: orgActual(),
@@ -224,7 +237,12 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       fecha: p.p_fecha,
       tipo: p.p_tipo,
       descripcion: p.p_descripcion ?? "",
-      costo_operacion: Number(p.p_costo_operacion) || 0,
+      costo_operacion: costoOperacion,
+      gastos_adicionales: gastosAdic
+        ? gastosAdic
+            .filter((g) => (Number(g.monto) || 0) !== 0 || String(g.concepto ?? "").trim() !== "")
+            .map((g) => ({ concepto: String(g.concepto ?? "").trim(), monto: Number(g.monto) || 0 }))
+        : (getById("labor", laborId)?.gastos_adicionales ?? null),
       estado: "hecha",
       // null = el lote completo (lo que la app ya asumía). Solo se guarda un
       // número cuando la labor de verdad trabajó una parte del lote.

@@ -3,9 +3,9 @@
    flaca), parcelas, guía de arranque y tareas por WhatsApp. */
 import { useState, useEffect, useRef } from "react";
 import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy, X } from "lucide-react";
-import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, claveTipo } from "../base";
+import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, GASTOS_LABOR, MAX_GASTOS_LABOR, claveTipo } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm, Vacio } from "../ui";
-import { CampoProductor, CampoFinanciamiento, CampoHectareas } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, CampoHectareas, GastosAdicionales } from "./comunes";
 
 /* ---------- Tareas del día por WhatsApp ---------- */
 export function TareasWhatsApp({ labores, parcelas, insumos }) {
@@ -71,7 +71,30 @@ export function TareasWhatsApp({ labores, parcelas, insumos }) {
   );
 }
 
-export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true, litrosHaPorTipo = {} }) {
+/* Ordenar y registrar se duplicaban sin aviso: si el de campo registra la
+   labor por su cuenta en vez de marcar "Hecha" en la orden, la orden se queda
+   colgada y el productor cree que falta trabajo que ya está hecho. Esto no
+   bloquea nada — ofrece cerrar esa misma orden en vez de crear una segunda. */
+function AvisoOrdenPendiente({ orden, cerrando, onEsEsta, onEsOtra }) {
+  if (!orden) return null;
+  if (cerrando) {
+    return (
+      <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque, fontWeight: 600 }}>
+        <CheckCircle2 size={15} /> Al guardar se marca hecha la orden de {orden.tipo} de este lote.
+        <Boton chico secundario onClick={onEsOtra}>No, es otra</Boton>
+      </div>
+    );
+  }
+  return (
+    <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
+      <AlertTriangle size={15} /> Hay una orden pendiente de {orden.tipo} en este lote. ¿Es esta?
+      <Boton chico onClick={onEsEsta}>Sí, marcarla hecha</Boton>
+      <Boton chico secundario onClick={onEsOtra}>No, es otra</Boton>
+    </div>
+  );
+}
+
+export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true, litrosHaPorTipo = {}, conceptosGasto = GASTOS_LABOR, onAgregarConceptoGasto, ordenes = [], notas }) {
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
@@ -79,11 +102,19 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
     tipoNuevo: "",
     desc: inicial?.desc || "",
     costoOp: inicial?.costoOp ?? "",
+    // Una labor vieja trae su costo sin concepto: entra como un renglón que
+    // el productor puede nombrar si quiere. Sin costo, ningún renglón.
+    gastosAdicionales: inicial?.gastosAdicionales
+      ?? (Number(inicial?.costoOp) > 0 ? [{ concepto: "", monto: inicial.costoOp }] : []),
     insumoId: inicial?.insumoId || "",
     cantidad: inicial?.cantidad ?? "",
     litrosDiesel: inicial?.litrosDiesel ?? "",
     haTrabajadas: inicial?.haTrabajadas ?? "",
   });
+  // Orden pendiente del mismo tipo en el mismo lote: si nadie la marca hecha,
+  // se queda colgada y el productor cree que falta trabajo que ya está hecho.
+  const [ordenIgnorada, setOrdenIgnorada] = useState(false);
+  const [cerrarOrdenId, setCerrarOrdenId] = useState(null);
   const [dieselManual, setDieselManual] = useState(!!inicial);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
   const diesel = insumos.find(i => i.categoria === "Diésel");
@@ -97,6 +128,9 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   const faltaDiesel = litrosNum > dispDiesel;
 
   const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  const ordenPendiente = !inicial && !ordenIgnorada && f.parcelaId && f.tipo && f.tipo !== "__nuevo"
+    ? ordenes.find(o => o.parcelaId === f.parcelaId && claveTipo(o.tipo) === claveTipo(f.tipo))
+    : null;
   // Si se anotó una parte del lote, el diésel sugerido se calcula sobre esas
   // hectáreas, no sobre el lote completo.
   const haUsada = Number(f.haTrabajadas) > 0 ? Number(f.haTrabajadas) : (parcelaSel?.ha || 0);
@@ -133,12 +167,13 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
       {f.tipo === "__nuevo" && (
         <Campo label="Nombre del nuevo tipo"><input style={estiloInput} placeholder="Ej. Fertirriego" value={f.tipoNuevo} onChange={set("tipoNuevo")} /></Campo>
       )}
+      <AvisoOrdenPendiente orden={ordenPendiente} cerrando={!!cerrarOrdenId}
+        onEsEsta={() => setCerrarOrdenId(ordenPendiente.id)}
+        onEsOtra={() => { setOrdenIgnorada(true); setCerrarOrdenId(null); }} />
       <Campo label="Descripción"><input style={estiloInput} placeholder="Ej. 2do riego de auxilio" value={f.desc} onChange={set("desc")} /></Campo>
       {veFinanzas && (
-        <Campo label="Costo de operación / máquina (MXN)"
-          nota="Lo que costó el trabajo aparte del diésel y el insumo: maquila, horas de máquina, servicio contratado. Déjalo vacío si el tractor es tuyo y solo gastaste diésel.">
-          <input type="number" style={estiloInput} placeholder="Maquila, horas, servicio…" value={f.costoOp} onChange={set("costoOp")} />
-        </Campo>
+        <GastosAdicionales filas={f.gastosAdicionales} conceptos={conceptosGasto} onAgregarConcepto={onAgregarConceptoGasto}
+          onCambiar={(filas) => setF(prev => ({ ...prev, gastosAdicionales: filas }))} max={MAX_GASTOS_LABOR} nota={notas?.gastos} />
       )}
       {haySugerencia && !dieselManual ? (
         <div className="md:col-span-1" style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
@@ -151,11 +186,11 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
           </div>
         </div>
       ) : (
-        <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`}>
+        <Campo label={`Diésel del tanque (L) · hay ${num(dispDiesel, 0)}`} nota={notas?.diesel}>
           <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
         </Campo>
       )}
-      <Campo label="Insumo que baja de bodega">
+      <Campo label="Insumo que baja de bodega" nota={notas?.insumo}>
         <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
           <option value="">— Ninguno —</option>
           {noDiesel.map((i) => (
@@ -193,14 +228,16 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
         <Boton deshabilitado={bloqueado} onClick={() => {
           const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
           if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
-          onGuardar({ ...f, tipo });
+          onGuardar({ ...f, tipo, cerrarOrdenId });
         }}>{inicial ? "Guardar cambios" : "Guardar labor"}</Boton>
         {!inicial && onGuardarRepetir && (
           <Boton secundario deshabilitado={bloqueado} onClick={() => {
             const tipo = f.tipo === "__nuevo" ? f.tipoNuevo.trim() : f.tipo;
             if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
-            onGuardarRepetir({ ...f, tipo }, () =>
-              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "", haTrabajadas: "" })));
+            onGuardarRepetir({ ...f, tipo, cerrarOrdenId }, () => {
+              setCerrarOrdenId(null); setOrdenIgnorada(false);
+              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "", gastosAdicionales: [], haTrabajadas: "" }));
+            });
           }}>Guardar y repetir en otra parcela</Boton>
         )}
       </div>
@@ -265,7 +302,7 @@ export function ChipsTipoLabor({ tipos, value, onChange, onAgregar }) {
    bodega, cuánto. Fecha = hoy, sin nota ni costo de operación (eso vive en el
    form completo de Labores). Si el plan pide más de lo que hay, no niega en
    seco: dice cuánto hay y lo pone en un toque. */
-export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, onCancelar, litrosHaPorTipo = {} }) {
+export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, onCancelar, litrosHaPorTipo = {}, ordenes = [] }) {
   const [f, set, setF] = useForm({
     parcelaId: orden?.parcelaId || (parcelas.length === 1 ? parcelas[0].id : ""),
     tipo: orden?.tipo || "",
@@ -275,6 +312,10 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
     haTrabajadas: "",
   });
   const [dieselManual, setDieselManual] = useState(!!orden?.planLitrosDiesel);
+  // Mismo candado que en el form completo: registrar aquí una labor que ya
+  // estaba ordenada dejaba las dos vivas, sin que nada avisara.
+  const [ordenIgnorada, setOrdenIgnorada] = useState(false);
+  const [cerrarOrdenId, setCerrarOrdenId] = useState(null);
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
   const diesel = insumos.find(i => i.categoria === "Diésel");
   const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
@@ -287,6 +328,9 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
   const listo = f.parcelaId && f.tipo && !faltaInsumo && !faltaDiesel;
 
   const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
+  const ordenPendiente = !orden && !ordenIgnorada && f.parcelaId && f.tipo
+    ? ordenes.find(o => o.parcelaId === f.parcelaId && claveTipo(o.tipo) === claveTipo(f.tipo))
+    : null;
   const haUsada = Number(f.haTrabajadas) > 0 ? Number(f.haTrabajadas) : (parcelaSel?.ha || 0);
   const litrosHaTipo = f.tipo ? litrosHaPorTipo[claveTipo(f.tipo)] : null;
   const haySugerencia = !orden?.planLitrosDiesel && !!parcelaSel && litrosHaTipo != null && litrosHaTipo > 0;
@@ -303,6 +347,9 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
       <Campo label="Parcela"><PickerParcela parcelas={parcelas} value={f.parcelaId} onChange={set("parcelaId")} /></Campo>
       {parcelaSel && <CampoHectareas ha={parcelaSel.ha} value={f.haTrabajadas} onChange={(v) => setF(prev => ({ ...prev, haTrabajadas: v }))} />}
       <Campo label="Qué se hizo"><ChipsTipoLabor tipos={tipos} onAgregar={onAgregarTipo} value={f.tipo} onChange={(t) => setF(prev => ({ ...prev, tipo: t }))} /></Campo>
+      <AvisoOrdenPendiente orden={ordenPendiente} cerrando={!!cerrarOrdenId}
+        onEsEsta={() => setCerrarOrdenId(ordenPendiente.id)}
+        onEsOtra={() => { setOrdenIgnorada(true); setCerrarOrdenId(null); }} />
       <div className="grid md:grid-cols-3 gap-3">
         {haySugerencia && !dieselManual ? (
           <div style={{ background: "#EEF4EB", border: `1px solid ${C.hoja}`, borderRadius: 10, padding: "10px 12px" }}>
@@ -346,15 +393,18 @@ export function FormLaborRapida({ orden, parcelas, insumos, tipos, onAgregarTipo
       <div className="flex items-center gap-2 flex-wrap">
         <Boton deshabilitado={!listo} onClick={() => onGuardar({
           fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
-          desc: orden?.desc || "", costoOp: 0,
+          desc: orden?.desc || "", costoOp: 0, cerrarOrdenId,
           insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel, haTrabajadas: f.haTrabajadas,
         })}>{orden ? "Hecha, guardar" : "Guardar labor"}</Boton>
         {!orden && onGuardarRepetir && (
           <Boton secundario deshabilitado={!listo} onClick={() => onGuardarRepetir({
             fecha: hoyStr, parcelaId: f.parcelaId, tipo: f.tipo,
-            desc: "", costoOp: 0,
+            desc: "", costoOp: 0, cerrarOrdenId,
             insumoId: f.insumoId, cantidad: f.cantidad, litrosDiesel: f.litrosDiesel, haTrabajadas: f.haTrabajadas,
-          }, () => setF(prev => ({ ...prev, parcelaId: "", litrosDiesel: "", cantidad: "", haTrabajadas: "" })))}>Guardar y repetir</Boton>
+          }, () => {
+            setCerrarOrdenId(null); setOrdenIgnorada(false);
+            setF(prev => ({ ...prev, parcelaId: "", litrosDiesel: "", cantidad: "", haTrabajadas: "" }));
+          })}>Guardar y repetir</Boton>
         )}
         <Boton chico secundario onClick={onCancelar}>Cancelar</Boton>
       </div>

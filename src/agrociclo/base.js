@@ -218,6 +218,13 @@ export const CULTIVOS_VALLE = ["Maíz blanco", "Maíz amarillo", "Frijol", "Garb
    (tabla tipo_trabajo, ambito "raya"). */
 export const ACTIVIDADES_RAYA = ["Deshierbe", "Riego", "Aplicación", "Cosecha", "Acarreo"];
 export const TIPOS_LABOR = ["Preparación de tierra", "Siembra", "Fertilización", "Riego", "Aplicación fitosanitaria", "Labores culturales", "Cosecha", "Flete / maquila", "Otro"];
+/* Lo que se le paga a alguien más por una labor (ámbito "gasto_labor" del
+   catálogo tipo_trabajo). Catálogo, no texto libre: si cada quien escribe
+   "maquila", "maquilas" y "makila", el reporte por concepto se parte. */
+export const GASTOS_LABOR = ["Maquila", "Tractor rentado", "Avioneta", "Flete", "Servicio contratado"];
+/* Tope de renglones de gasto por labor. Más que esto ya no es un gasto de
+   esta labor, es un gasto del ciclo y va en Gastos. */
+export const MAX_GASTOS_LABOR = 4;
 
 /* Quita acentos y mayúsculas para comparar nombres de catálogo: "Deshierbe"
    == "desierbe". Compartida por los catálogos de tipo de labor, cultivo y

@@ -1,9 +1,9 @@
 // @ts-nocheck
-/* Selectores reutilizables de formularios: productor, origen del recurso y
-   hectáreas trabajadas. */
+/* Selectores reutilizables de formularios: productor, origen del recurso,
+   hectáreas trabajadas y gastos adicionales de una labor. */
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle } from "lucide-react";
-import { C, num, tasaCredito } from "../base";
+import { CheckCircle2, AlertTriangle, X } from "lucide-react";
+import { C, num, money, claveTipo, tasaCredito } from "../base";
 import { fuente, estiloInput, Campo, Boton } from "../ui";
 
 /* ---------- Selector reutilizable "A nombre de" ----------
@@ -194,5 +194,101 @@ export function CampoHectareas({ ha, value, onChange }) {
         </div>
       )}
     </div>
+  );
+}
+
+/* Gastos adicionales de una labor: lo que se le pagó a ALGUIEN MÁS por ese
+   trabajo, en renglones con concepto (maquila, tractor rentado, avioneta…).
+   Reemplaza al viejo campo suelto "Costo de operación / máquina", que nadie
+   entendía. Colapsado a una línea: quien lo hizo con su gente y su máquina
+   no lo toca y el formulario queda más corto que antes. El concepto sale de
+   catálogo, no de texto libre — ver GASTOS_LABOR en base.js. */
+export function GastosAdicionales({ filas, onCambiar, conceptos, onAgregarConcepto, max = 4, nota }) {
+  const lista = Array.isArray(filas) ? filas : [];
+  const agregar = () => onCambiar([...lista, { concepto: "", monto: "" }]);
+  const quitar = (i) => onCambiar(lista.filter((_, x) => x !== i));
+  const editar = (i, patch) => onCambiar(lista.map((r, x) => (x === i ? { ...r, ...patch } : r)));
+  const total = lista.reduce((s, r) => s + (Number(r.monto) || 0), 0);
+
+  if (lista.length === 0) {
+    return (
+      <div className="md:col-span-3">
+        <button type="button" onClick={agregar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+          + Agregar gasto adicional
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="md:col-span-3 flex flex-col gap-2">
+      <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        Lo que le pagaste a <strong>alguien más</strong> por este trabajo. Si lo hiciste con tu gente y tu máquina, déjalo vacío: eso ya lo cuentan el diésel y la raya.
+      </p>
+      {lista.map((r, i) => (
+        <div key={i} className="flex items-end gap-2">
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <ConceptoGasto value={r.concepto} conceptos={conceptos} onAgregar={onAgregarConcepto}
+              onChange={(v) => editar(i, { concepto: v })} />
+          </div>
+          <input type="number" inputMode="decimal" placeholder="0" aria-label="Monto"
+            style={{ ...estiloInput, width: 110 }} value={r.monto} onChange={(e) => editar(i, { monto: e.target.value })} />
+          <button type="button" onClick={() => quitar(i)} aria-label="Quitar gasto"
+            style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44 }}>
+            <X size={17} />
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {lista.length < max ? (
+          <button type="button" onClick={agregar}
+            style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+            + Agregar gasto adicional
+          </button>
+        ) : (
+          <span style={{ fontSize: 11, color: C.gris }}>
+            Hasta {max} por labor. Si hay más, eso ya es gasto del ciclo y va en Gastos.
+          </span>
+        )}
+        {total > 0 && <span style={{ fontSize: 12, color: C.bosque, fontWeight: 700 }}>{money(total)}</span>}
+      </div>
+      {nota && <span style={{ fontSize: 11, color: C.barrial, lineHeight: 1.4 }}>{nota}</span>}
+    </div>
+  );
+}
+
+/* Select de concepto con "+ Nuevo" y anti-duplicados (mismo criterio que los
+   demás catálogos: sin acentos ni mayúsculas). Un renglón viejo sin concepto
+   se muestra como "— Sin concepto —" y se puede nombrar. */
+function ConceptoGasto({ value, conceptos, onChange, onAgregar }) {
+  const [nuevo, setNuevo] = useState(false);
+  const [nombre, setNombre] = useState("");
+  const lista = conceptos || [];
+  const guardar = () => {
+    const n = nombre.trim();
+    if (!n) return;
+    const existente = lista.find((c) => claveTipo(c) === claveTipo(n));
+    if (existente) onChange(existente);
+    else { onChange(n); onAgregar && onAgregar(n); }
+    setNombre(""); setNuevo(false);
+  };
+  if (nuevo) {
+    return (
+      <div className="flex items-center gap-2">
+        <input autoFocus style={estiloInput} placeholder="Ej. Desvaradora rentada" value={nombre}
+          onChange={(e) => setNombre(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") guardar(); }} />
+        <Boton chico onClick={guardar}>Agregar</Boton>
+        <Boton chico secundario onClick={() => { setNuevo(false); setNombre(""); }}>Cancelar</Boton>
+      </div>
+    );
+  }
+  return (
+    <select style={estiloInput} value={value || ""}
+      onChange={(e) => (e.target.value === "__nuevo" ? setNuevo(true) : onChange(e.target.value))}>
+      <option value="">— Sin concepto —</option>
+      {lista.map((c) => <option key={c} value={c}>{c}</option>)}
+      {value && !lista.some((c) => claveTipo(c) === claveTipo(value)) && <option value={value}>{value}</option>}
+      <option value="__nuevo">+ Nuevo concepto…</option>
+    </select>
   );
 }

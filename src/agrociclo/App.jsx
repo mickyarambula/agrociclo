@@ -23,7 +23,7 @@ import {
   tasaCredito, interesCredito, plazoDias, fegaCredito, comisionCredito, costoFinCredito,
   costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
-  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, CULTIVOS_VALLE, claveTipo,
+  ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, GASTOS_LABOR, CULTIVOS_VALLE, claveTipo,
   mondayOf, decidirAvisoDiesel,
 } from "./base";
 import {
@@ -454,6 +454,10 @@ function AgroCicloApp() {
         // null = el lote completo. Una labor vieja sin este dato se sigue
         // leyendo como "todo el lote", igual que siempre.
         haTrabajadas: r.ha_trabajadas != null ? Number(r.ha_trabajadas) : null,
+        // Desglose de lo que se le pagó a alguien más. Una labor vieja no lo
+        // trae: su costoOp se muestra igual y, al editarla, aparece como un
+        // renglón sin concepto que se puede nombrar.
+        gastosAdicionales: Array.isArray(r.gastos_adicionales) ? r.gastos_adicionales : null,
       };
     }).filter(Boolean);
   }, [laboresQ.data, idsParcelasT]);
@@ -966,12 +970,16 @@ function AgroCicloApp() {
         lineas.push({ insumo_id: ins._uuid, cantidad: cant, costo_unitario: ins.costoUnitario || 0 });
       }
       const { error } = await supabase.rpc("fn_registrar_labor", {
-        p_labor_id: original?._uuid ?? null,
+        // Sin `original` (alta nueva) puede venir una orden pendiente que el
+        // productor confirmó que ES esta labor: se cierra esa misma fila en
+        // vez de crear una segunda. Ver el aviso de orden duplicada en FormLabor.
+        p_labor_id: original?._uuid ?? f.cerrarOrdenId ?? null,
         p_parcela_id: parcelaUuid,
         p_fecha: f.fecha,
         p_tipo: f.tipo,
         p_descripcion: f.desc || "",
         p_costo_operacion: Number(f.costoOp) || 0,
+        p_gastos_adicionales: Array.isArray(f.gastosAdicionales) ? f.gastosAdicionales : null,
         p_ha_trabajadas: f.haTrabajadas !== "" && f.haTrabajadas != null ? Number(f.haTrabajadas) : null,
         p_lineas: lineas,
       });
@@ -1038,6 +1046,16 @@ function AgroCicloApp() {
     const extra = (tiposQ.data ?? []).filter((t) => t.ambito === "raya").map((t) => String(t.nombre));
     return [...ACTIVIDADES_RAYA, ...extra];
   }, [tiposQ.data]);
+  /* Conceptos de gasto adicional de una labor (maquila, tractor rentado…):
+     mismo catálogo compartido que tipos de labor y actividades de raya, con
+     su ámbito propio y el mismo anti-duplicados. */
+  const conceptosGastoLabor = useMemo(() => {
+    const claves = new Set(GASTOS_LABOR.map(claveTipo));
+    const extra = (tiposQ.data ?? [])
+      .filter((t) => t.ambito === "gasto_labor" && !claves.has(claveTipo(t.nombre)))
+      .map((t) => String(t.nombre));
+    return [...GASTOS_LABOR, ...extra];
+  }, [tiposQ.data]);
   /* "—" (la clave no existe) = nunca capturado; 0 = confirmado sin diésel,
      no volver a preguntar. Se llena solo con capturas reales o desde Ajustes. */
   const litrosHaPorTipo = useMemo(() => {
@@ -1062,6 +1080,7 @@ function AgroCicloApp() {
   });
   const agregarTipoLabor = (nombre) => agregarTipoMut.mutate({ ambito: "labor", nombre });
   const agregarActividadRaya = (nombre) => agregarTipoMut.mutate({ ambito: "raya", nombre });
+  const agregarConceptoGasto = (nombre) => agregarTipoMut.mutate({ ambito: "gasto_labor", nombre });
 
   /* Directorio ligero de raya (tabla persona, a nivel predio como tipo_trabajo):
      nombre + tipo (Operador/Jornalero) + pago por día de referencia. Las RPC de
@@ -2114,7 +2133,7 @@ function AgroCicloApp() {
         {rapida.orden ? `Cerrar orden: ${rapida.orden.tipo}` : "Labor de hoy"}
       </div>
       <FormLaborRapida key={rapida.orden?.id || "nueva"} orden={rapida.orden} parcelas={parcelasT} insumos={insumos}
-        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo}
+        tipos={tiposLabor} onAgregarTipo={agregarTipoLabor} litrosHaPorTipo={litrosHaPorTipo} ordenes={ordenesLabor}
         onGuardar={(f) => guardarLaborMut.mutate({ f, original: rapida.orden }, {
           onSuccess: () => { setRapida(null); avisarDiesel(armarAvisoDiesel(f.tipo, f.parcelaId, f.litrosDiesel, f.haTrabajadas)); },
         })}
@@ -2388,7 +2407,7 @@ function AgroCicloApp() {
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores }} />
 
           {/* ===== LABORES ===== */}
-          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo }} />
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo, conceptosGastoLabor, agregarConceptoGasto, ordenesLabor }} />
 
           {/* ===== INVENTARIO / COMPRAS / PEDIDOS DEL CAMPO ===== */}
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo, puedeEditarPedidos, equipoTamano: profile.equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault: user?.displayName || "", vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT, mostrarProductores }} />

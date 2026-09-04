@@ -8,7 +8,8 @@ import { C } from "./base";
 import { fuente, Boton } from "./ui";
 import { FormCompra } from "./forms/almacen";
 import { FormBoleta } from "./forms/venta";
-import { cargarEjemploCompra, cargarEjemploBoleta } from "./data/comoSeLlena";
+import { FormLabor } from "./forms/campo";
+import { cargarEjemploCompra, cargarEjemploBoleta, cargarEjemploLabor } from "./data/comoSeLlena";
 
 function HojaComoSeLlena({ titulo, porque, onCerrar, cargando, children }) {
   return (
@@ -97,6 +98,38 @@ export function ComoSeLlenaBoleta({ onCerrar }) {
             tara: "El peso del camión vacío. Bruto menos tara es lo que de verdad entregaste.",
             impurezas: "Mientras más te pases del estándar, más te descuenta la bodega — la app hace esa cuenta sola, tú solo anota lo que dice el papel.",
             trilla: "Lo que te cobra la bodega por recibir y trillar — se resta de lo que te pagan, no es un costo del cultivo. Si ya la pagaste aparte, no la repitas aquí.",
+          }}
+        />
+      )}
+    </HojaComoSeLlena>
+  );
+}
+
+export function ComoSeLlenaLabor({ onCerrar }) {
+  const [datos, setDatos] = useState(null);
+  useEffect(() => {
+    let vivo = true;
+    cargarEjemploLabor().then((d) => { if (vivo) setDatos(d); });
+    return () => { vivo = false; };
+  }, []);
+  return (
+    <HojaComoSeLlena
+      titulo="Registrar labor"
+      cargando={!datos}
+      onCerrar={onCerrar}
+      porque="Una labor es cada pasada por el lote: un barbecho, una fertilizada, un riego. De aquí sale el costo de ese lote — lo que bajó de bodega, el diésel que se quemó y lo que le pagaste a alguien más."
+    >
+      {datos && (
+        <FormLabor
+          inicial={datos.inicial}
+          parcelas={datos.parcelas}
+          insumos={datos.insumos}
+          tipos={datos.tipos}
+          onGuardar={() => {}}
+          notas={{
+            gastos: "Rentaste un tractor con operador para barbechar 12.5 ha a $1,200/ha = $15,000. Va aquí, pegado a la labor, para que sepas cuánto te costó de verdad barbechar ese lote. Lo que NO es de ningún lote — el seguro, la camioneta, la luz — va en Gastos.",
+            diesel: "Los litros que se quemaron en esta pasada. Salen del tanque: la app los descuenta del inventario y los cobra al costo al que los compraste.",
+            insumo: "Lo que se aplicó de bodega en esta pasada — semilla, fertilizante, herbicida. Al guardar baja del almacén, así que la existencia siempre cuadra con lo que de verdad hay.",
           }}
         />
       )}
