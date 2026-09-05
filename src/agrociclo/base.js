@@ -87,6 +87,44 @@ export const interesGasto = (g, corte = hoyStr) =>
 /** @param {Fila} l */
 export const costoLabor = (l) => (l.costoOp || 0) + (l.costoInsumo || 0) + (l.costoDiesel || 0);
 
+/* --- Líneas de insumo de una labor --- */
+/** Parte las líneas de `labor_insumo` en el diésel (que se captura y se
+ *  muestra aparte, del tanque) y TODOS los demás insumos.
+ *
+ *  Existe porque leer "el primer insumo no-diésel" con un `.find()` subcontaba
+ *  el costo en silencio en cuanto una labor traía dos (siembra = semilla +
+ *  arrancador en la misma pasada). El guardado siempre aceptó varias líneas;
+ *  era la lectura la que se quedaba con una. Pura: recibe las filas ya leídas
+ *  y no toca React ni el ledger, para poder probarla directo.
+ *
+ *  `costoInsumo` es la SUMA de todos los renglones — es lo que consume
+ *  `costoLabor`, el costo por hectárea y la tira de plata.
+ *  `insumoId`/`cantidad` siguen apuntando al primer renglón, para lo poco que
+ *  todavía espera un solo valor; lo que necesita el desglose usa `insumos`.
+ *  @param {{insumo_id?: string, cantidad?: unknown, costo_unitario?: unknown, costo_total?: unknown, insumo?: unknown}[]} lineas
+ *  @param {(li: unknown) => string | undefined} categoriaDe */
+export function partirLineasLabor(lineas, categoriaDe) {
+  const filas = Array.isArray(lineas) ? lineas : [];
+  /** @param {any} li */
+  const esDiesel = (li) => categoriaDe(li) === "Diésel";
+  const lDiesel = filas.find(esDiesel);
+  const otras = filas.filter((li) => !esDiesel(li));
+  const insumos = otras.map((/** @type {any} */ li) => ({
+    insumoId: li.insumo_id ?? null,
+    cantidad: Number(li.cantidad) || 0,
+    costoUnitario: Number(li.costo_unitario) || 0,
+    costoTotal: Number(li.costo_total) || 0,
+  }));
+  return {
+    insumos,
+    costoInsumo: insumos.reduce((s, x) => s + x.costoTotal, 0),
+    insumoId: insumos.length ? insumos[0].insumoId : null,
+    cantidad: insumos.length ? insumos[0].cantidad : null,
+    litrosDiesel: lDiesel ? Number(lDiesel.cantidad) || 0 : null,
+    costoDiesel: lDiesel ? Number(lDiesel.costo_total) || 0 : 0,
+  };
+}
+
 /* --- L/ha de referencia --- */
 /** Decide si conviene ofrecer guardar (o actualizar) el L/ha de referencia de
  *  un tipo de labor, a partir de lo que se acaba de capturar. Pura: no toca

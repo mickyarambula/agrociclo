@@ -217,12 +217,15 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
   const porTipo = {};
   laboresT.forEach(l => { porTipo[l.tipo] = (porTipo[l.tipo] || 0) + costoLabor(l); });
 
+  // Renglón por renglón: una labor con semilla y arrancador reparte su costo
+  // entre las dos categorías, no le cuelga todo a la primera.
   const porCategoriaInsumo = {};
   laboresT.forEach(l => {
-    if (l.insumoId && l.costoInsumo) {
-      const cat = insumos.find(i => i.id === l.insumoId)?.categoria || "Otro insumo";
-      porCategoriaInsumo[cat] = (porCategoriaInsumo[cat] || 0) + l.costoInsumo;
-    }
+    (l.insumosUsados ?? []).forEach(u => {
+      if (!u.costoTotal) return;
+      const cat = insumos.find(i => i.id === u.insumoId)?.categoria || "Otro insumo";
+      porCategoriaInsumo[cat] = (porCategoriaInsumo[cat] || 0) + u.costoTotal;
+    });
   });
   const porCatGasto = {};
   gastosT.forEach(g => { porCatGasto[g.categoria] = (porCatGasto[g.categoria] || 0) + g.monto; });
@@ -237,12 +240,14 @@ export function Reportes({ parcelasT, laboresT, nominaT, insumos, gastosT, apsPr
 
   const movInsumosPorCat = {};
   laboresT.forEach(l => {
-    if (!l.insumoId || !l.costoInsumo) return;
-    const ins = insumos.find(i => i.id === l.insumoId);
-    const cat = ins?.categoria || "Otro insumo";
     const p = parcelasT.find(x => x.id === l.parcelaId);
-    if (!movInsumosPorCat[cat]) movInsumosPorCat[cat] = [];
-    movInsumosPorCat[cat].push({ fecha: l.fecha, desc: num(l.cantidad, 1) + " " + (ins?.unidad || "") + " " + (ins?.nombre || ""), parcela: p ? p.cultivo + " · " + p.nombre : "—", monto: l.costoInsumo });
+    (l.insumosUsados ?? []).forEach(u => {
+      if (!u.costoTotal) return;
+      const ins = insumos.find(i => i.id === u.insumoId);
+      const cat = ins?.categoria || "Otro insumo";
+      if (!movInsumosPorCat[cat]) movInsumosPorCat[cat] = [];
+      movInsumosPorCat[cat].push({ fecha: l.fecha, desc: num(u.cantidad, 1) + " " + (ins?.unidad || "") + " " + (ins?.nombre || ""), parcela: p ? p.cultivo + " · " + p.nombre : "—", monto: u.costoTotal });
+    });
   });
 
   const movDiesel = laboresT.filter(l => l.costoDiesel > 0).map(l => {

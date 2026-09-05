@@ -27,7 +27,11 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
                 <Tarjeta>
                   {laboresHechas.slice().sort((a, b) => b.fecha.localeCompare(a.fecha)).map((l, i) => {
                     const p = parcelas.find(x => x.id === l.parcelaId);
-                    const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
+                    // Todos los insumos de la labor, no solo el primero: una
+                    // siembra lleva semilla y arrancador en la misma pasada.
+                    const usados = (l.insumosUsados ?? [])
+                      .map(u => { const i = insumos.find(x => x.id === u.insumoId); return i ? `${num(u.cantidad, 1)} ${i.unidad} ${i.nombre}` : null; })
+                      .filter(Boolean);
                     // Costo/ha DE ESTA LABOR (para comparar entre labores o contra tu
                     // referencia) — distinto del costo/ha del LOTE, que sigue siendo
                     // el acumulado entre las hectáreas totales del lote, no las trabajadas.
@@ -38,7 +42,7 @@ export function VistaLabores({ vista, puedeEditar, form, setForm, cerrar, parcel
                           <div style={{ fontWeight: 600, fontSize: 14 }}>{l.tipo} <span style={{ color: C.gris, fontWeight: 400 }}>· {p?.cultivo} ({p?.nombre})</span></div>
                           <div style={{ fontSize: 12, color: C.gris }}>
                             {l.fecha} · {l.desc}
-                            {ins ? ` · ${num(l.cantidad, 1)} ${ins.unidad} ${ins.nombre}` : ""}
+                            {usados.length ? ` · ${usados.join(" + ")}` : ""}
                             {l.litrosDiesel ? ` · ${num(l.litrosDiesel, 0)} L diésel${veFinanzas ? ` (${money(l.costoDiesel)})` : ""}` : ""}
                             {trabajoParcial ? ` · ${num(l.haTrabajadas, 1)} de ${num(p.ha, 1)} ha` : ""}
                           </div>

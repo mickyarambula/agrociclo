@@ -25,7 +25,7 @@ import {
   costoFinCompra, interesGasto, costoLabor, rentaMonto, rentaInteres, calcBoleta,
   TEMPORADAS, TIPO_LABEL, TIPO_ENUM, CAT_GASTO, CONCEPTOS_DISPERSION,
   ESTADOS_SOLICITUD, ORDEN_ESTADO, TIPOS_LABOR, ACTIVIDADES_RAYA, GASTOS_LABOR, CULTIVOS_VALLE, claveTipo,
-  mondayOf, decidirAvisoDiesel,
+  mondayOf, decidirAvisoDiesel, partirLineasLabor,
 } from "./base";
 import {
   fuente, estiloInput, etiquetaCiclo,
@@ -453,20 +453,21 @@ function AgroCicloApp() {
   const laboresT = useMemo(() => {
     return (laboresQ.data ?? []).map(r => {
       if (!idsParcelasT.has(r.parcela_id)) return null;   // descarta parcelas de otro ciclo / dadas de baja
-      const lineas = r.labor_insumo ?? [];
       const catDe = (li) => { const ins = Array.isArray(li.insumo) ? li.insumo[0] : li.insumo; return ins?.categoria; };
-      const lDiesel = lineas.find(li => catDe(li) === "Diésel");
-      const lOtra = lineas.find(li => catDe(li) !== "Diésel");
+      // TODAS las líneas de insumo, no solo la primera: una siembra lleva
+      // semilla y arrancador en la misma pasada. Ver partirLineasLabor.
+      const part = partirLineasLabor(r.labor_insumo ?? [], catDe);
       return {
         id: r.id, _uuid: r.id,
         parcelaId: r.parcela_id,
         fecha: r.fecha, tipo: r.tipo, desc: r.descripcion ?? "",
         costoOp: Number(r.costo_operacion) || 0,
-        insumoId: lOtra ? (lOtra.insumo_id ?? null) : null,   // uuid directo
-        cantidad: lOtra ? Number(lOtra.cantidad) : null,
-        costoInsumo: lOtra ? Number(lOtra.costo_total) : 0,
-        litrosDiesel: lDiesel ? Number(lDiesel.cantidad) : null,
-        costoDiesel: lDiesel ? Number(lDiesel.costo_total) : 0,
+        insumosUsados: part.insumos,          // [{ insumoId, cantidad, costoUnitario, costoTotal }]
+        insumoId: part.insumoId,              // uuid directo del primer renglón
+        cantidad: part.cantidad,
+        costoInsumo: part.costoInsumo,        // suma de todos los renglones
+        litrosDiesel: part.litrosDiesel,
+        costoDiesel: part.costoDiesel,
         pendiente: r.estado === "pendiente",
         planInsumoId: r.plan_insumo_id ?? null,
         planCantidad: Number(r.plan_cantidad) || 0,
@@ -982,10 +983,17 @@ function AgroCicloApp() {
         if (!dieselIns?._uuid) throw new Error("No encontré el diésel en el catálogo de la base.");
         lineas.push({ insumo_id: dieselIns._uuid, cantidad: litros, costo_unitario: dieselIns.costoUnitario || 0 });
       }
-      const insumoUuid = f.insumoId || null;
-      const cant = Number(f.cantidad) || 0;
-      if (insumoUuid && cant > 0) {
-        const ins = insumos.find(i => i.id === insumoUuid);
+      /* Renglones de insumo. El form completo manda `insumosUsados` (varios);
+         la captura rápida de 3 toques sigue mandando uno suelto. Los dos
+         terminan en la misma lista de líneas — fn_registrar_labor siempre
+         aceptó varias, era la lectura la que se quedaba con la primera. */
+      const usados = Array.isArray(f.insumosUsados)
+        ? f.insumosUsados
+        : (f.insumoId ? [{ insumoId: f.insumoId, cantidad: f.cantidad }] : []);
+      for (const u of usados) {
+        const cant = Number(u.cantidad) || 0;
+        if (!u.insumoId || cant <= 0) continue;
+        const ins = insumos.find(i => i.id === u.insumoId);
         if (!ins) throw new Error("Selecciona un insumo válido.");
         lineas.push({ insumo_id: ins._uuid, cantidad: cant, costo_unitario: ins.costoUnitario || 0 });
       }
