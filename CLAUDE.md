@@ -298,6 +298,17 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
   uso para Miguel, no un dato que el productor necesite confirmar. No
   "arregles" esto para que avise o reintente — sería empezar a interrumpir
   capturas reales por algo que a quien captura no le importa.
+- **Una regla que solo vive escrita aquí no es un candado.** Este CLAUDE.md ya
+  decía "quita `DATABASE_URL` de tu `.env` para experimentar" — y aun así se
+  corrió `npm run dev` apuntando a la base real de Supabase, con Rodolfo ya
+  adentro. La regla escrita estaba bien, pero dependía de que alguien se
+  acordara de leerla y seguirla cada vez. El criterio: si algo no debe pasar,
+  que la app lo impida en código, no que quede nada más documentado. Ya
+  cableado así: `src/lib/db.ts` truena al arrancar (`debeBloquearBaseRealEnDev`
+  en `src/lib/dbCandado.ts`) si detecta modo desarrollo + una `DATABASE_URL`
+  con forma de Supabase, salvo `PERMITIR_BASE_REAL_EN_DEV=1` puesto a
+  propósito. Nunca bloquea producción. Mismo criterio a aplicar a cualquier
+  otra regla nueva que dependa de memoria humana en vez de un candado real.
 - **Dos caminos válidos pueden llegar al mismo hecho del mundo, y la app no
   sabe que son el mismo** (septiembre 2026, del uso real de un productor).
   Cada vez que se agregue un camino nuevo para registrar algo, preguntarse

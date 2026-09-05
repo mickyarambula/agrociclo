@@ -1,4 +1,5 @@
 import { pendingMigrations } from "../../scripts/migration-plan.mjs";
+import { debeBloquearBaseRealEnDev } from "./dbCandado";
 
 /** Which database backend is active. */
 export type DbSource = "neon" | "pglite";
@@ -9,6 +10,32 @@ const rawDatabaseUrl =
   typeof process !== "undefined" ? process.env.DATABASE_URL : undefined;
 const databaseUrl =
   rawDatabaseUrl && rawDatabaseUrl.trim() ? rawDatabaseUrl : undefined;
+
+export { debeBloquearBaseRealEnDev };
+
+/* Candado: `npm run dev` no puede escribir en la base real de Supabase sin
+   que alguien lo decida a propósito. Una regla nada más ESCRITA (en
+   CLAUDE.md, "quita DATABASE_URL de tu .env para experimentar") ya falló
+   una vez — con productores reales adentro, lo que no debe pasar lo tiene
+   que impedir la app, no un recordatorio. Salida a propósito:
+   PERMITIR_BASE_REAL_EN_DEV=1, para el día raro que de verdad haga falta
+   depurar contra la base real desde dev. */
+if (
+  typeof process !== "undefined" &&
+  debeBloquearBaseRealEnDev({
+    nodeEnv: process.env.NODE_ENV,
+    databaseUrl,
+    permitirExplicitamente: process.env.PERMITIR_BASE_REAL_EN_DEV === "1",
+  })
+) {
+  throw new Error(
+    "DATABASE_URL en tu .env apunta a la base real de Supabase — ahí capturan " +
+      "productores de verdad — y estás corriendo en modo desarrollo (npm run dev). " +
+      "Quita DATABASE_URL de tu .env: la app cae sola a PGLite local, desechable. " +
+      "Si de plano necesitas la base real desde dev (casi nunca hace falta), " +
+      "pon PERMITIR_BASE_REAL_EN_DEV=1 junto con DATABASE_URL, a sabiendas.",
+  );
+}
 
 /**
  * Active backend: real **Neon** when `DATABASE_URL` is set (deployed / configured
