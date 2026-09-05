@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react";
 import { Plus, AlertTriangle, ChevronRight, CheckCircle2, MessageCircle, Copy, X } from "lucide-react";
 import { C, money, num, hoyStr, diasEntre, TIPOS_LABOR, GASTOS_LABOR, MAX_GASTOS_LABOR, claveTipo } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, useForm, Vacio } from "../ui";
-import { CampoProductor, CampoFinanciamiento, CampoHectareas, GastosAdicionales } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, CampoHectareas, GastosAdicionales, InsumosUsados } from "./comunes";
 
 /* ---------- Tareas del día por WhatsApp ---------- */
 export function TareasWhatsApp({ labores, parcelas, insumos }) {
@@ -20,10 +20,14 @@ export function TareasWhatsApp({ labores, parcelas, insumos }) {
     if (delDia.length === 0) return `🌱 *Tareas ${fecha}*\n\nSin labores registradas para este día.`;
     const lineas = delDia.map(l => {
       const p = parcelas.find(x => x.id === l.parcelaId);
-      const ins = l.insumoId ? insumos.find(x => x.id === l.insumoId) : null;
       let t = `▫️ *${l.tipo}* — ${p?.cultivo} (${p?.nombre})`;
       if (l.desc) t += `\n   ${l.desc}`;
-      if (ins) t += `\n   Insumo: ${num(l.cantidad, 1)} ${ins.unidad} de ${ins.nombre}`;
+      // Un renglón por insumo: si la pasada lleva semilla y arrancador, el
+      // mensaje los nombra los dos.
+      (l.insumosUsados ?? []).forEach((u) => {
+        const ins = insumos.find(x => x.id === u.insumoId);
+        if (ins) t += `\n   Insumo: ${num(u.cantidad, 1)} ${ins.unidad} de ${ins.nombre}`;
+      });
       if (l.litrosDiesel) t += `\n   Diésel autorizado: ${num(l.litrosDiesel, 0)} L`;
       return t;
     });
@@ -106,8 +110,10 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
     // el productor puede nombrar si quiere. Sin costo, ningún renglón.
     gastosAdicionales: inicial?.gastosAdicionales
       ?? (Number(inicial?.costoOp) > 0 ? [{ concepto: "", monto: inicial.costoOp }] : []),
-    insumoId: inicial?.insumoId || "",
-    cantidad: inicial?.cantidad ?? "",
+    // Renglones de insumo. Una labor vieja de un solo insumo llega con su
+    // renglón ya armado desde laboresT y se edita igual que siempre, sin
+    // migración: el formulario no distingue "vieja" de "nueva".
+    insumosUsados: (inicial?.insumosUsados ?? []).map(u => ({ insumoId: u.insumoId, cantidad: u.cantidad })),
     litrosDiesel: inicial?.litrosDiesel ?? "",
     haTrabajadas: inicial?.haTrabajadas ?? "",
   });
@@ -119,13 +125,23 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   const noDiesel = insumos.filter(i => i.categoria !== "Diésel");
   const diesel = insumos.find(i => i.categoria === "Diésel");
 
-  const insSel = f.insumoId ? insumos.find(i => i.id === f.insumoId) : null;
-  const cantNum = Number(f.cantidad) || 0;
   const litrosNum = Number(f.litrosDiesel) || 0;
-  const dispInsumo = insSel ? insSel.stock + (inicial && inicial.insumoId === insSel.id ? (inicial.cantidad || 0) : 0) : 0;
   const dispDiesel = diesel ? diesel.stock + (inicial?.litrosDiesel || 0) : 0;
-  const faltaInsumo = insSel && cantNum > dispInsumo;
   const faltaDiesel = litrosNum > dispDiesel;
+  /* Un renglón por insumo. Lo que ESTA labor ya tenía tomado vuelve a contar
+     como disponible al editarla (si no, bajar de 20 a 18 se vería sobregiro). */
+  const previos = inicial?.insumosUsados ?? [];
+  const dispDe = (insumoId) => {
+    const ins = insumos.find(i => i.id === insumoId);
+    if (!ins) return 0;
+    return (Number(ins.stock) || 0) + previos.filter(u => u.insumoId === insumoId).reduce((s, u) => s + (Number(u.cantidad) || 0), 0);
+  };
+  const renglones = (f.insumosUsados ?? []).filter(r => r.insumoId);
+  const faltaInsumo = renglones.some(r => (Number(r.cantidad) || 0) > dispDe(r.insumoId));
+  const costoInsumos = renglones.reduce((s, r) => {
+    const ins = insumos.find(i => i.id === r.insumoId);
+    return s + (Number(r.cantidad) || 0) * (ins?.costoUnitario || 0);
+  }, 0);
 
   const parcelaSel = parcelas.find(p => p.id === f.parcelaId);
   const ordenPendiente = !inicial && !ordenIgnorada && f.parcelaId && f.tipo && f.tipo !== "__nuevo"
@@ -146,8 +162,8 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
   const costoPrev =
     (Number(f.costoOp) || 0) +
     litrosNum * (diesel?.costoUnitario || 0) +
-    cantNum * (insSel?.costoUnitario || 0);
-  const bajaBodega = litrosNum > 0 || cantNum > 0;
+    costoInsumos;
+  const bajaBodega = litrosNum > 0 || renglones.some(r => (Number(r.cantidad) || 0) > 0);
   const bloqueado = !f.parcelaId || faltaInsumo || faltaDiesel || (f.tipo === "__nuevo" && !f.tipoNuevo.trim());
 
   return (
@@ -190,21 +206,8 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
           <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
         </Campo>
       )}
-      <Campo label="Insumo que baja de bodega" nota={notas?.insumo}>
-        <select style={estiloInput} value={f.insumoId} onChange={set("insumoId")}>
-          <option value="">— Ninguno —</option>
-          {noDiesel.map((i) => (
-            <option key={i.id} value={i.id}>
-              {i.nombre} · {num(i.stock, 1)} {i.unidad}
-            </option>
-          ))}
-        </select>
-      </Campo>
-      {f.insumoId && (
-        <Campo label={`Cantidad usada · hay ${num(dispInsumo, 1)} ${insSel?.unidad || ""}`}>
-          <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaInsumo ? C.rojo : C.linea }} placeholder="0" value={f.cantidad} onChange={set("cantidad")} />
-        </Campo>
-      )}
+      <InsumosUsados filas={f.insumosUsados} insumos={noDiesel} previos={previos}
+        onCambiar={(filas) => setF(prev => ({ ...prev, insumosUsados: filas }))} />
       {veFinanzas && (costoPrev > 0 || bajaBodega) && (
         <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>
           Al lote: <strong>{money(costoPrev)}</strong>
@@ -216,12 +219,6 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
         <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
           <AlertTriangle size={15} /> En el tanque hay {num(dispDiesel, 0)} L. Tu diésel sale del inventario: registra la compra en Insumos y de ahí se va descontando con cada labor. Guarda con lo que sí se usó.
           <Boton chico secundario onClick={() => setF(prev => ({ ...prev, litrosDiesel: String(Math.max(0, dispDiesel)) }))}>Usar los {num(dispDiesel, 0)} L</Boton>
-        </div>
-      )}
-      {faltaInsumo && (
-        <div className="md:col-span-3 flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.barrial, fontWeight: 600 }}>
-          <AlertTriangle size={15} /> En bodega hay {num(dispInsumo, 1)} {insSel?.unidad} de {insSel?.nombre}. Guarda con lo que sí se usó, o registra la compra en Insumos.
-          <Boton chico secundario onClick={() => setF(prev => ({ ...prev, cantidad: String(Math.max(0, dispInsumo)) }))}>Usar {num(dispInsumo, 1)} {insSel?.unidad}</Boton>
         </div>
       )}
       <div className="flex items-end gap-2 flex-wrap">
@@ -236,7 +233,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
             if (f.tipo === "__nuevo" && onAgregarTipo) onAgregarTipo(tipo);
             onGuardarRepetir({ ...f, tipo, cerrarOrdenId }, () => {
               setCerrarOrdenId(null); setOrdenIgnorada(false);
-              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", cantidad: "", costoOp: "", gastosAdicionales: [], haTrabajadas: "" }));
+              setF(prev => ({ ...prev, tipo, tipoNuevo: "", parcelaId: "", litrosDiesel: "", insumosUsados: [], costoOp: "", gastosAdicionales: [], haTrabajadas: "" }));
             });
           }}>Guardar y repetir en otra parcela</Boton>
         )}

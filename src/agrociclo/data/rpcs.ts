@@ -201,17 +201,24 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       return ok(laborId);
     }
 
-    // Return stock of previous labor before validating
+    /* Se valida SUMANDO por insumo, no renglón por renglón: dos renglones del
+       mismo insumo pasarían cada uno contra el stock completo y sobregirarían
+       la bodega sin que nadie avise. El formulario ya no deja repetir insumo,
+       pero el candado vive aquí, que es donde se descuenta de verdad. */
     const prev = isEdit ? live("labor_insumo").filter((li) => li.labor_id === laborId) : [];
+    const pedidoPorInsumo = new Map<string, number>();
     for (const li of lineas) {
       const used = Number(li.cantidad) || 0;
       if (used <= 0) continue;
+      pedidoPorInsumo.set(li.insumo_id, (pedidoPorInsumo.get(li.insumo_id) ?? 0) + used);
+    }
+    for (const [insumoId, used] of pedidoPorInsumo) {
       const prevQty = prev
-        .filter((x) => x.insumo_id === li.insumo_id)
+        .filter((x) => x.insumo_id === insumoId)
         .reduce((s, x) => s + (Number(x.cantidad) || 0), 0);
-      const disponible = stockOf(li.insumo_id, cicloLabor) + prevQty;
+      const disponible = stockOf(insumoId, cicloLabor) + prevQty;
       if (used > disponible + 1e-9) {
-        const ins = getById("insumo", li.insumo_id);
+        const ins = getById("insumo", insumoId);
         return err(`Stock insuficiente de ${ins?.nombre ?? "insumo"}: hay ${disponible}, pides ${used}.`);
       }
     }

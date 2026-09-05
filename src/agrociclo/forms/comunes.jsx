@@ -306,3 +306,100 @@ export function AvisoDuplicado({ mensaje, onConfirmar, onDescartar, labelConfirm
     </div>
   );
 }
+
+/* Insumos que bajan de bodega en una labor, en renglones — mismo patrón que
+   GastosAdicionales, para que sea una sola forma de agregar renglones y no
+   dos. La siembra lleva semilla y arrancador en la MISMA pasada: partirla en
+   dos labores era captura doble y repartía el costo de "sembrar" en dos
+   renglones del reporte.
+
+   El diésel NO vive aquí: se captura aparte, del tanque, con su sugerencia de
+   L/ha. Cada renglón hace su propia salida de bodega, así que cada uno avisa
+   por su cuenta si no alcanza — y el aviso resuelve (ofrece guardar con lo
+   que sí hay) en vez de bloquear en seco.
+
+   Un insumo ya elegido no se ofrece en los demás renglones: dos renglones del
+   mismo insumo pasarían cada uno contra el stock completo y se sobregiraría
+   la bodega sin que nadie avise. */
+export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6 }) {
+  const lista = Array.isArray(filas) ? filas : [];
+  const agregar = () => onCambiar([...lista, { insumoId: "", cantidad: "" }]);
+  const quitar = (i) => onCambiar(lista.filter((_, x) => x !== i));
+  const editar = (i, patch) => onCambiar(lista.map((r, x) => (x === i ? { ...r, ...patch } : r)));
+
+  /* Al editar una labor, lo que ESA labor ya tenía tomado vuelve a estar
+     disponible: si no, editar "20 sacos" a "18" se vería como sobregiro. */
+  const dispDe = (insumoId) => {
+    const ins = insumos.find((i) => i.id === insumoId);
+    if (!ins) return 0;
+    const yaTomado = previos
+      .filter((u) => u.insumoId === insumoId)
+      .reduce((s, u) => s + (Number(u.cantidad) || 0), 0);
+    return (Number(ins.stock) || 0) + yaTomado;
+  };
+
+  if (lista.length === 0) {
+    return (
+      <div className="md:col-span-3">
+        <button type="button" onClick={agregar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+          + Agregar insumo que bajó de bodega
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="md:col-span-3 flex flex-col gap-2">
+      <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        Lo que <strong>bajó de bodega</strong> en esta pasada. Si fueron varios —semilla y arrancador el mismo día— agrégalos aquí, no los partas en dos labores.
+      </p>
+      {lista.map((r, i) => {
+        const ins = r.insumoId ? insumos.find((x) => x.id === r.insumoId) : null;
+        const disp = r.insumoId ? dispDe(r.insumoId) : 0;
+        const cant = Number(r.cantidad) || 0;
+        const falta = !!ins && cant > disp;
+        // Los ya elegidos en OTROS renglones no se vuelven a ofrecer.
+        const tomados = new Set(lista.filter((_, x) => x !== i).map((x) => x.insumoId).filter(Boolean));
+        return (
+          <div key={i} className="flex flex-col gap-1">
+            <div className="flex items-end gap-2">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <select aria-label="Insumo" style={{ ...estiloInput, borderColor: falta ? C.rojo : C.linea }}
+                  value={r.insumoId} onChange={(e) => editar(i, { insumoId: e.target.value })}>
+                  <option value="">— Elige el insumo —</option>
+                  {insumos.filter((x) => !tomados.has(x.id)).map((x) => (
+                    <option key={x.id} value={x.id}>{x.nombre} · {num(x.stock, 1)} {x.unidad}</option>
+                  ))}
+                </select>
+              </div>
+              <input type="number" inputMode="decimal" placeholder="0" aria-label="Cantidad usada"
+                style={{ ...estiloInput, width: 110, borderColor: falta ? C.rojo : C.linea }}
+                value={r.cantidad} onChange={(e) => editar(i, { cantidad: e.target.value })} />
+              <button type="button" onClick={() => quitar(i)} aria-label="Quitar insumo"
+                style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44 }}>
+                <X size={17} />
+              </button>
+            </div>
+            {ins && !falta && (
+              <span style={{ fontSize: 11, color: C.gris }}>Hay {num(disp, 1)} {ins.unidad} en bodega.</span>
+            )}
+            {falta && (
+              <div className="flex items-center gap-2 flex-wrap" style={{ background: "#FBF3E2", border: `1px solid ${C.grano}`, borderRadius: 10, padding: "8px 10px", fontSize: 12, color: C.barrial, fontWeight: 600 }}>
+                <AlertTriangle size={14} /> De {ins.nombre} hay {num(disp, 1)} {ins.unidad} en bodega. Guarda con lo que sí se usó, o pide a la oficina que registre la compra en Insumos.
+                <Boton chico secundario onClick={() => editar(i, { cantidad: String(Math.max(0, disp)) })}>
+                  Usar {num(disp, 1)} {ins.unidad}
+                </Boton>
+              </div>
+            )}
+          </div>
+        );
+      })}
+      {lista.length < max && lista.length < insumos.length && (
+        <button type="button" onClick={agregar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo, alignSelf: "flex-start" }}>
+          + Agregar otro insumo
+        </button>
+      )}
+    </div>
+  );
+}
