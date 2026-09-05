@@ -309,6 +309,22 @@ real, porque en las parcelas del valle la señal es la que es. No lo entierres.
   con forma de Supabase, salvo `PERMITIR_BASE_REAL_EN_DEV=1` puesto a
   propósito. Nunca bloquea producción. Mismo criterio a aplicar a cualquier
   otra regla nueva que dependa de memoria humana en vez de un candado real.
+  **La válvula es para LEER, no para sembrar:** con `PERMITIR_BASE_REAL_EN_DEV=1`
+  la app abre la base real pero el servidor descarta los eventos de plataforma
+  (`registrarEventosUso` y `reportarError` en `server/plataforma.ts`, vía
+  `valvulaBaseRealAbiertaEnDev`) — si no, cada verificación de las tarjetas del
+  portal desde dev deja "pruebas" en el predio con el que se entró y el Pulso
+  las cuenta como de un productor. Ojo: la válvula NO vuelve la base de solo
+  lectura — una captura hecha con la válvula abierta sí escribe en el ledger
+  del predio con el que entraste. Para capturar de prueba, entra siempre con
+  una cuenta de prueba (la de Miguel o "Productor Prueba",
+  `productor.prueba@example.com`, que ya existe en producción desde el
+  2026-09-02 y está excluida del Pulso), nunca con la de un productor.
+  Cómo llegó ahí "Productor Prueba": antes del candado, un `npm run dev` con
+  `DATABASE_URL` real dio de alta esa cuenta y su predio por el flujo normal
+  (registro → "Abrir mi predio"). No hay ningún org por omisión en el código:
+  cada lectura y escritura resuelve el predio por `usuario_rol.user_id`
+  (llave primaria, un predio por cuenta) y sin membresía nada corre.
 - **Dos caminos válidos pueden llegar al mismo hecho del mundo, y la app no
   sabe que son el mismo** (septiembre 2026, del uso real de un productor).
   Cada vez que se agregue un camino nuevo para registrar algo, preguntarse

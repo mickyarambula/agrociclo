@@ -51,3 +51,19 @@ describe("Candado: dev nunca escribe en la base real de Supabase por accidente",
     );
   });
 });
+
+const { valvulaBaseRealAbiertaEnDev } = await jiti.import("../src/lib/dbCandado.ts");
+
+describe("Válvula: con PERMITIR_BASE_REAL_EN_DEV=1 se lee la base real, no se escriben eventos de plataforma", () => {
+  it("dev + permiso explícito → válvula abierta (eventos de uso y errores se descartan)", () => {
+    assert.equal(valvulaBaseRealAbiertaEnDev({ nodeEnv: "development", permitirExplicitamente: true }), true);
+  });
+
+  it("dev sin permiso → válvula cerrada (PGLite local, los eventos se escriben normal)", () => {
+    assert.equal(valvulaBaseRealAbiertaEnDev({ nodeEnv: "development", permitirExplicitamente: false }), false);
+  });
+
+  it("producción nunca la considera abierta, aunque alguien deje la variable puesta en Vercel", () => {
+    assert.equal(valvulaBaseRealAbiertaEnDev({ nodeEnv: "production", permitirExplicitamente: true }), false);
+  });
+});

@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { authMiddleware } from "@/lib/auth/middleware";
 import { getSql } from "@/lib/db";
+import { valvulaBaseRealAbiertaEnDev } from "@/lib/dbCandado";
 import { etiquetaTelefonoMx, normalizarTelefonoMx } from "./contacto";
 import { ciclosDePayload, etiquetaAccion, etiquetaForm, etiquetaPantalla, parcelasVivas } from "./soporte";
 
@@ -214,8 +215,22 @@ export const guardarContactoAtencion = createServerFn({ method: "POST" })
  *  (no las de fns.ts) porque aquí el criterio es otro: no es "quién puede
  *  usar datos falsos", es "a quién no le cuento como productor". */
 function correosPrueba(): string[] {
-  const raw = process.env.PULSO_EXCLUIR_EMAILS ?? "miguelarambulam@gmail.com";
+  // productor.prueba@example.com: la cuenta "Productor Prueba" que se dio de
+  // alta en producción el 2026-09-02 desde un dev apuntando a la base real
+  // (antes del candado de src/lib/db.ts). Es de prueba, no cuenta en el Pulso.
+  const raw = process.env.PULSO_EXCLUIR_EMAILS ?? "miguelarambulam@gmail.com,productor.prueba@example.com";
   return raw.split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+/* Válvula abierta = dev con PERMITIR_BASE_REAL_EN_DEV=1 (ver src/lib/dbCandado.ts).
+   Mientras esté abierta se LEE la base real, pero los eventos de plataforma
+   (uso y errores) se descartan aquí, en el servidor: la verificación de Miguel
+   no debe sembrar "pruebas" en el predio con el que entró. */
+function valvulaAbierta(): boolean {
+  return valvulaBaseRealAbiertaEnDev({
+    nodeEnv: process.env.NODE_ENV,
+    permitirExplicitamente: process.env.PERMITIR_BASE_REAL_EN_DEV === "1",
+  });
 }
 
 async function orgDeUsuario(userId: string) {
@@ -781,6 +796,7 @@ export const reportarError = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
   .validator((p: { mensaje: string; donde?: string }) => p)
   .handler(async ({ context, data }) => {
+    if (valvulaAbierta()) return { ok: true };
     const org = await orgDeUsuario(context.userId);
     const sql = await getSql();
     await sql.query(
@@ -810,6 +826,7 @@ export const registrarEventosUso = createServerFn({ method: "POST" })
   .validator((p: { eventos: { tipo: string; nombre: string; ms?: number }[] }) => p)
   .handler(async ({ context, data }) => {
     if (!Array.isArray(data.eventos) || data.eventos.length === 0) return { ok: true };
+    if (valvulaAbierta()) return { ok: true };
     const org = await orgDeUsuario(context.userId);
     const sql = await getSql();
     for (const ev of data.eventos.slice(0, 200)) {
