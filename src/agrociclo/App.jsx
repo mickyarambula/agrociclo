@@ -139,14 +139,6 @@ function AgroCicloApp() {
   // (al entrar/salir del ciclo de ejemplo), el apagado ya esté puesto antes.
   useEffect(() => { activarTelemetria(!ejemploActivo); }, [ejemploActivo]);
   useEffect(() => { registrarPantalla(vista); }, [vista]);
-  const formTipoAnteriorRef = useRef(null);
-  useEffect(() => {
-    const actual = form?.tipo ?? null;
-    if (actual === formTipoAnteriorRef.current) return;
-    if (formTipoAnteriorRef.current) registrarFormCerrado();
-    if (actual) registrarFormAbierto(actual);
-    formTipoAnteriorRef.current = actual;
-  }, [form?.tipo]);
   // Auto-scroll: en Productores los formularios se abren arriba de la sección;
   // al abrir cualquiera (productor/dispersión/préstamo) llevamos la vista hasta él.
   const formRef = useRef(null);
@@ -189,6 +181,20 @@ function AgroCicloApp() {
   const puedeEditarPedidos = !ejemploActivo && puedeEscribirModulo(rol, "solicitudes", matriz);
   // Form corto de Hoy: null cerrado · { orden } al cerrar una orden · { orden: null } labor nueva.
   const [rapida, setRapida] = useState(null);
+  /* Telemetría de formularios. Una sola llave para los DOS estados que abren
+     formulario (`form`, el completo, y `rapida`, los 3 toques de Hoy): así la
+     telemetría nunca cree que hay dos abiertos a la vez, y pasar de uno al
+     otro se registra como cierre + apertura, que es lo que de verdad pasó.
+     La captura rápida lleva nombre propio ("-rapida") porque es la ruta del
+     celular: mezclarla con la de oficina daría un número sesgado. */
+  const formAbiertoAhora = form?.tipo ?? (rapida ? (rapida.orden ? "orden-rapida" : "labor-rapida") : null);
+  const formAnteriorRef = useRef(null);
+  useEffect(() => {
+    if (formAbiertoAhora === formAnteriorRef.current) return;
+    if (formAnteriorRef.current) registrarFormCerrado();
+    if (formAbiertoAhora) registrarFormAbierto(formAbiertoAhora);
+    formAnteriorRef.current = formAbiertoAhora;
+  }, [formAbiertoAhora]);
   // La ruta del ciclo: "Ocultar" solo vive esta sesión (sin flag en el
   // ledger). Desde Ayuda se vuelve a abrir aunque ya esté completa (forzada).
   const [guiaCicloOculta, setGuiaCicloOculta] = useState(false);

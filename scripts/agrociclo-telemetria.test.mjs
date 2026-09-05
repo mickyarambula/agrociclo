@@ -83,4 +83,67 @@ describe("telemetría · qué cuenta como guardado", () => {
     assert.equal(r.disparaGuardado, true);
     assert.equal(r.estado.nombre, "orden");
   });
+
+  it("la captura rápida de 3 toques (Hoy) se sigue aparte de la de oficina, con la misma RPC", () => {
+    // Mismo op que el formulario completo — es la misma escritura — pero
+    // nombre propio para que el Pulso no mezcle celular con oficina.
+    assert.equal(FORM_OP_PRINCIPAL["labor-rapida"], "rpc:fn_registrar_labor");
+    assert.equal(FORM_OP_PRINCIPAL["orden-rapida"], "rpc:fn_registrar_labor");
+
+    const rapidaAbierta = alAbrirForm(null, "labor-rapida").estado;
+    const guardo = alGuardar(rapidaAbierta, "rpc:fn_registrar_labor");
+    assert.equal(guardo.disparaGuardado, true);
+    assert.equal(guardo.estado.nombre, "labor-rapida");
+
+    const abandonada = alAbrirForm(null, "orden-rapida").estado;
+    assert.equal(alCerrarForm(abandonada).abandono, "orden-rapida");
+  });
+
+  it("pasar del form completo a la captura rápida cierra el primero (una sola llave, nunca dos abiertos)", () => {
+    const completo = alAbrirForm(null, "labor").estado;
+    const { estado: rapida, abandonoPrevio } = alAbrirForm(completo, "labor-rapida");
+    assert.equal(abandonoPrevio, "labor", "el completo sin guardar cuenta como abandonado");
+    assert.equal(rapida.nombre, "labor-rapida");
+  });
+});
+
+/* La dedup vive en la cola de lib/telemetria.ts (que no se puede importar
+   aquí porque arrastra el server function). Se prueba la regla a pelo: dos
+   eventos idénticos pegados se colapsan, uno distinto en medio no. */
+function colaConDedup(eventos) {
+  const salida = [];
+  let ultimo = null;
+  for (const e of eventos) {
+    if (ultimo && ultimo.tipo === e.tipo && ultimo.nombre === e.nombre) continue;
+    salida.push(e);
+    ultimo = e;
+  }
+  return salida;
+}
+
+describe("telemetría · dedup en la cola", () => {
+  it("dos pantallas iguales pegadas se colapsan en una", () => {
+    const r = colaConDedup([
+      { tipo: "pantalla", nombre: "panel" },
+      { tipo: "pantalla", nombre: "panel" },
+    ]);
+    assert.equal(r.length, 1);
+  });
+
+  it("la misma pantalla con otra en medio sí cuenta dos veces (es una visita nueva)", () => {
+    const r = colaConDedup([
+      { tipo: "pantalla", nombre: "panel" },
+      { tipo: "pantalla", nombre: "parcelas" },
+      { tipo: "pantalla", nombre: "panel" },
+    ]);
+    assert.equal(r.length, 3);
+  });
+
+  it("no colapsa eventos de distinto tipo con el mismo nombre", () => {
+    const r = colaConDedup([
+      { tipo: "form_abierto", nombre: "boleta" },
+      { tipo: "form_abandonado", nombre: "boleta" },
+    ]);
+    assert.equal(r.length, 2);
+  });
 });

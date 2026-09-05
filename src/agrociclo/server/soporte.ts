@@ -119,6 +119,8 @@ const ETIQUETAS_FORM: Record<string, string> = {
   boleta: "Boleta",
   labor: "Anotar lo hecho",
   orden: "Anotar pendiente",
+  "labor-rapida": "Labor de hoy (3 toques)",
+  "orden-rapida": "Cerrar pendiente (3 toques)",
   parcela: "Parcela",
   gasto: "Gasto",
   credito: "Línea de crédito",

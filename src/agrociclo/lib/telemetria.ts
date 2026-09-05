@@ -21,10 +21,16 @@ const MAX_COLA = 200;
 const INTERVALO_MS = 30_000;
 
 let activa = true; // se apaga durante el ciclo de ejemplo: no es captura real
-let cola: { tipo: string; nombre: string }[] = [];
+let cola: { tipo: string; nombre: string; ts: number }[] = [];
 let timer: ReturnType<typeof setInterval> | null = null;
 let listenersListos = false;
 let formActivo: EstadoFormActivo = null;
+/* Último evento encolado, VIVE ENTRE VACIADOS: si se guardara solo el final
+   de `cola`, dos pantallas iguales separadas por un vaciado se colarían las
+   dos. Un mismo `vista` no puede repetirse legítimamente seguido (el efecto
+   no vuelve a correr si el valor no cambió), así que un duplicado pegado es
+   siempre ruido. */
+let ultimoEncolado: { tipo: string; nombre: string } | null = null;
 
 /** Apaga/prende el envío — se usa al entrar/salir del ciclo de ejemplo, que
  *  nunca debe contarse como uso real de un predio. */
@@ -36,7 +42,17 @@ function vaciar(): void {
   if (cola.length === 0) return;
   const lote = cola;
   cola = [];
-  registrarEventosUso({ data: { eventos: lote } }).catch(() => {
+  const ahora = Date.now();
+  registrarEventosUso({
+    data: {
+      // `ms` = hace cuánto pasó, no la hora del reloj del cliente: el
+      // servidor lo resta de su propio now(). Así la hora sigue anclada al
+      // servidor (un celular con la hora mal no ensucia nada) y las
+      // diferencias entre eventos —lo que de verdad importa, el tiempo
+      // dentro del formulario— quedan exactas.
+      eventos: lote.map((e) => ({ tipo: e.tipo, nombre: e.nombre, ms: Math.max(0, ahora - e.ts) })),
+    },
+  }).catch(() => {
     /* sin señal, se pierde — ver nota de arriba */
   });
 }
@@ -55,10 +71,17 @@ function arrancar(): void {
 
 function encolar(tipo: string, nombre: string): void {
   if (!activa) return;
+  // Dos eventos idénticos pegados se colapsan en uno. Va aquí y no en el
+  // efecto de React porque el efecto no es el único que puede repetir
+  // (StrictMode en dev, un render doble): la cola es el punto por donde
+  // pasa todo. Los eventos de formulario no pueden repetirse pegados —
+  // la máquina de estados mete el cierre en medio.
+  if (ultimoEncolado && ultimoEncolado.tipo === tipo && ultimoEncolado.nombre === nombre) return;
   // Tope por ventana: si algo se pone a re-disparar como loco, se descarta el
   // excedente en vez de inundar la tabla — nunca truena, nunca avisa.
   if (cola.length >= MAX_COLA) return;
-  cola.push({ tipo, nombre });
+  cola.push({ tipo, nombre, ts: Date.now() });
+  ultimoEncolado = { tipo, nombre };
   arrancar();
 }
 

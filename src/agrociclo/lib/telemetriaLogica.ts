@@ -13,6 +13,10 @@ export const FORM_OP_PRINCIPAL: Record<string, string> = {
   boleta: "rpc:fn_guardar_boleta",
   labor: "rpc:fn_registrar_labor",
   orden: "rpc:fn_registrar_labor",
+  // Captura rápida de 3 toques (Hoy): misma RPC, nombre aparte para no
+  // confundir la ruta del celular con la de oficina en el Pulso.
+  "labor-rapida": "rpc:fn_registrar_labor",
+  "orden-rapida": "rpc:fn_registrar_labor",
   parcela: "rpc:fn_guardar_parcela",
   gasto: "rpc:fn_guardar_gasto",
   credito: "rpc:fn_guardar_linea_credito",

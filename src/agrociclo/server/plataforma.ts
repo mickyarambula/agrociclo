@@ -807,7 +807,7 @@ const TIPOS_EVENTO_USO = new Set(["pantalla", "form_abierto", "form_guardado", "
 
 export const registrarEventosUso = createServerFn({ method: "POST" })
   .middleware([authMiddleware])
-  .validator((p: { eventos: { tipo: string; nombre: string }[] }) => p)
+  .validator((p: { eventos: { tipo: string; nombre: string; ms?: number }[] }) => p)
   .handler(async ({ context, data }) => {
     if (!Array.isArray(data.eventos) || data.eventos.length === 0) return { ok: true };
     const org = await orgDeUsuario(context.userId);
@@ -816,10 +816,17 @@ export const registrarEventosUso = createServerFn({ method: "POST" })
       if (!TIPOS_EVENTO_USO.has(ev?.tipo)) continue;
       const nombre = typeof ev.nombre === "string" ? ev.nombre.slice(0, 60) : "";
       if (!nombre) continue;
+      /* `ms` es "hace cuánto pasó" según el cliente, no su reloj de pared:
+         se resta del now() del servidor, así la hora queda anclada aquí
+         (un celular con la hora mal no mueve nada) y el tiempo DENTRO de un
+         formulario —abierto vs. abandonado— queda con su duración real, no
+         los 50 ms del vaciado de la cola. Se acota a 24 h para que un valor
+         disparatado no escriba una fecha absurda. */
+      const ms = Math.min(Math.max(Number(ev.ms) || 0, 0), 86_400_000);
       await sql.query(
-        `insert into plataforma_evento (id, tipo, organizacion_id, user_id, detalle)
-         values ($1, $2, $3, $4, $5::jsonb)`,
-        [crypto.randomUUID(), ev.tipo, org?.organizacion_id ?? null, context.userId, JSON.stringify({ nombre })],
+        `insert into plataforma_evento (id, tipo, organizacion_id, user_id, detalle, creado_en)
+         values ($1, $2, $3, $4, $5::jsonb, now() - ($6::numeric * interval '1 millisecond'))`,
+        [crypto.randomUUID(), ev.tipo, org?.organizacion_id ?? null, context.userId, JSON.stringify({ nombre }), ms],
       );
     }
     return { ok: true };
