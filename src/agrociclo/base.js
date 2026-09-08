@@ -128,6 +128,41 @@ export function partirLineasLabor(lineas, categoriaDe) {
   };
 }
 
+/* --- Semilla sembrada por parcela --- */
+/** Qué semilla se sembró en una parcela y de qué lote — lo que el productor
+ *  busca cuando llega el técnico por un reclamo de mala nacencia. Pura:
+ *  recibe las labores YA filtradas a esa parcela (con `insumosUsados` de
+ *  `partirLineasLabor`) más el mapa de lotes comprados de cada insumo (los
+ *  mismos HECHOS que arma `lotesPorInsumo` en App.jsx), y agrega por insumo
+ *  de categoría Semilla.
+ *
+ *  No inventa: un renglón con lote elegido es un HECHO (`lotes`); uno sin
+ *  lote se marca `sinAnotar` y trae `candidatos` — los lotes que SÍ se
+ *  compraron de ese insumo en el ciclo, para no dejar el hueco callado ni
+ *  fingir certeza sobre cuál fue.
+ *  @param {{fecha: string, insumosUsados?: {insumoId: string, lote?: string|null}[]}[]} laboresDeParcela
+ *  @param {(insumoId: string) => string | undefined} categoriaDe
+ *  @param {Record<string, {numero: string}[]>} lotesPorInsumo */
+export function semillaSembradaParcela(laboresDeParcela, categoriaDe, lotesPorInsumo) {
+  const porInsumo = new Map();
+  const ordenadas = [...(laboresDeParcela ?? [])].sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  for (const l of ordenadas) {
+    for (const u of l.insumosUsados ?? []) {
+      if (!u.insumoId || categoriaDe(u.insumoId) !== "Semilla") continue;
+      const entry = porInsumo.get(u.insumoId) ?? { insumoId: u.insumoId, lotes: [], sinAnotar: false };
+      if (u.lote && !entry.lotes.includes(u.lote)) entry.lotes.push(u.lote);
+      if (!u.lote) entry.sinAnotar = true;
+      porInsumo.set(u.insumoId, entry);
+    }
+  }
+  return [...porInsumo.values()].map((e) => ({
+    insumoId: e.insumoId,
+    lotes: e.lotes,
+    sinAnotar: e.sinAnotar,
+    candidatos: e.sinAnotar ? (lotesPorInsumo[e.insumoId] ?? []).map((l) => l.numero).filter((n) => !e.lotes.includes(n)) : [],
+  }));
+}
+
 /* --- L/ha de referencia --- */
 /** Decide si conviene ofrecer guardar (o actualizar) el L/ha de referencia de
  *  un tipo de labor, a partir de lo que se acaba de capturar. Pura: no toca

@@ -1,10 +1,41 @@
 // @ts-nocheck
-import { C, money, num, rentaInteres } from "../base";
+import { useState } from "react";
+import { C, money, num, rentaInteres, semillaSembradaParcela } from "../base";
 import { fuente, Tarjeta, Boton, Acciones, Seccion, Fila, Vacio } from "../ui";
 import { FormParcela } from "../forms/campo";
 import { CheckCircle2 } from "lucide-react";
 
-export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores }) {
+/* Qué semilla se sembró y de qué lote — donde el productor lo busca cuando
+   llega el técnico por un reclamo de mala nacencia. Los dos lotes más
+   recientes se ven de entrada; con más, "+N más" los despliega. Sin lote
+   elegido en ninguna siembra, se dice tal cual ("sin anotar") con los
+   candidatos que sí se compraron — nunca se inventa cuál fue. */
+function LineaSemilla({ item, nombre }) {
+  const [abierto, setAbierto] = useState(false);
+  const shown = abierto ? item.lotes : item.lotes.slice(0, 2);
+  const resto = item.lotes.length - shown.length;
+  if (item.lotes.length === 0) {
+    return (
+      <div style={{ fontSize: 12, color: C.barrial }}>
+        {nombre} · lote sin anotar{item.candidatos.length > 0 ? ` · pudo ser ${item.candidatos.join(" o ")}` : ""}
+      </div>
+    );
+  }
+  return (
+    <div style={{ fontSize: 12, color: C.gris }}>
+      {nombre} · {shown.map((l) => `lote ${l}`).join(" · ")}
+      {resto > 0 && (
+        <button type="button" onClick={() => setAbierto(true)}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontSize: 12, padding: 0, marginLeft: 4 }}>
+          +{resto} más
+        </button>
+      )}
+      {item.sinAnotar && <span> · alguna vez sin anotar</span>}
+    </div>
+  );
+}
+
+export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores, insumos = [], lotesPorInsumo = {} }) {
   return (
     <>
           {vista === "parcelas" && (
@@ -16,6 +47,8 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
               <div className="grid md:grid-cols-2 gap-3">
                 {parcelasT.map(p => {
                   const c = costosParcela[p.id];
+                  const laboresDeP = laboresHechas.filter(l => l.parcelaId === p.id);
+                  const semillas = semillaSembradaParcela(laboresDeP, (id) => insumos.find(i => i.id === id)?.categoria, lotesPorInsumo);
                   return (
                     <Tarjeta key={p.id} style={{ padding: 18 }}>
                       <div className="flex justify-between items-start gap-2">
@@ -24,6 +57,9 @@ export function VistaParcelas({ vista, puedeEditar, form, setForm, cerrar, produ
                           <div style={{ fontSize: 13, color: C.gris }}>
                             {p.nombre} · {p.ha} ha · <span style={{ fontWeight: 600, color: p.tenencia === "Rentada" ? C.barrial : C.hoja }}>{p.tenencia}{p.tenencia === "Rentada" ? ` ${money(p.rentaPorHa)}/ha` : ""}</span>
                           </div>
+                          {semillas.map((s) => (
+                            <LineaSemilla key={s.insumoId} item={s} nombre={insumos.find(i => i.id === s.insumoId)?.nombre || "Semilla"} />
+                          ))}
                         </div>
                         <div className="flex items-center gap-1">
                           {veFinanzas && c.tieneProy && (
