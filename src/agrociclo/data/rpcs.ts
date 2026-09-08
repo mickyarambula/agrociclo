@@ -168,6 +168,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       insumo_id: string;
       cantidad: number;
       costo_unitario: number;
+      lote?: string;
     }[];
     const laborId = String(p.p_labor_id ?? "") || uid();
     const isEdit = !!p.p_labor_id;
@@ -277,6 +278,10 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
         cantidad: cant,
         costo_unitario: cu,
         costo_total: cant * cu,
+        // Número de lote de semilla, si se eligió al capturar. Informativo:
+        // no hay inventario por lote, así que esto nunca decide de dónde
+        // se descuenta la bodega.
+        lote: li.lote ? String(li.lote).trim() || null : null,
         organizacion_id: orgActual(),
         eliminado_en: null,
       });

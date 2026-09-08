@@ -321,7 +321,7 @@ export function AvisoDuplicado({ mensaje, onConfirmar, onDescartar, labelConfirm
    Un insumo ya elegido no se ofrece en los demás renglones: dos renglones del
    mismo insumo pasarían cada uno contra el stock completo y se sobregiraría
    la bodega sin que nadie avise. */
-export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6 }) {
+export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6, lotesPorInsumo = {} }) {
   const lista = Array.isArray(filas) ? filas : [];
   const agregar = () => onCambiar([...lista, { insumoId: "", cantidad: "" }]);
   const quitar = (i) => onCambiar(lista.filter((_, x) => x !== i));
@@ -360,12 +360,16 @@ export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6
         const falta = !!ins && cant > disp;
         // Los ya elegidos en OTROS renglones no se vuelven a ofrecer.
         const tomados = new Set(lista.filter((_, x) => x !== i).map((x) => x.insumoId).filter(Boolean));
+        // ¿De qué lote? Solo semilla, y solo si hay lotes registrados de ese
+        // insumo — informativo (ver lotesPorInsumo), no decide de dónde se
+        // descuenta. Opcional de verdad: sin elegir, la labor se guarda igual.
+        const lotesDisp = ins?.categoria === "Semilla" ? (lotesPorInsumo[r.insumoId] || []) : [];
         return (
           <div key={i} className="flex flex-col gap-1">
             <div className="flex items-end gap-2">
               <div style={{ flex: 1, minWidth: 0 }}>
                 <select aria-label="Insumo" style={{ ...estiloInput, borderColor: falta ? C.rojo : C.linea }}
-                  value={r.insumoId} onChange={(e) => editar(i, { insumoId: e.target.value })}>
+                  value={r.insumoId} onChange={(e) => editar(i, { insumoId: e.target.value, lote: "" })}>
                   <option value="">— Elige el insumo —</option>
                   {insumos.filter((x) => !tomados.has(x.id)).map((x) => (
                     <option key={x.id} value={x.id}>{x.nombre} · {num(x.stock, 1)} {x.unidad}</option>
@@ -380,6 +384,15 @@ export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6
                 <X size={17} />
               </button>
             </div>
+            {lotesDisp.length > 0 && (
+              <select aria-label="¿De qué lote?" style={{ ...estiloInput, fontSize: 12.5 }}
+                value={r.lote || ""} onChange={(e) => editar(i, { lote: e.target.value })}>
+                <option value="">¿De qué lote? (opcional)</option>
+                {lotesDisp.map((l, li) => (
+                  <option key={li} value={l.numero}>Lote {l.numero} · {num(l.cantidad, 1)} {ins.unidad} · comprado {l.fecha}</option>
+                ))}
+              </select>
+            )}
             {ins && !falta && (
               <span style={{ fontSize: 11, color: C.gris }}>Hay {num(disp, 1)} {ins.unidad} en bodega.</span>
             )}

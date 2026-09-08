@@ -98,7 +98,7 @@ function AvisoOrdenPendiente({ orden, cerrando, onEsEsta, onEsOtra }) {
   );
 }
 
-export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true, litrosHaPorTipo = {}, conceptosGasto = GASTOS_LABOR, onAgregarConceptoGasto, ordenes = [], notas }) {
+export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, onGuardar, onGuardarRepetir, veFinanzas = true, litrosHaPorTipo = {}, conceptosGasto = GASTOS_LABOR, onAgregarConceptoGasto, ordenes = [], notas, lotesPorInsumo = {} }) {
   const [f, set, setF] = useForm({
     fecha: inicial?.fecha || hoyStr,
     parcelaId: inicial?.parcelaId || parcelas[0]?.id || "",
@@ -113,7 +113,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
     // Renglones de insumo. Una labor vieja de un solo insumo llega con su
     // renglón ya armado desde laboresT y se edita igual que siempre, sin
     // migración: el formulario no distingue "vieja" de "nueva".
-    insumosUsados: (inicial?.insumosUsados ?? []).map(u => ({ insumoId: u.insumoId, cantidad: u.cantidad })),
+    insumosUsados: (inicial?.insumosUsados ?? []).map(u => ({ insumoId: u.insumoId, cantidad: u.cantidad, lote: u.lote || "" })),
     litrosDiesel: inicial?.litrosDiesel ?? "",
     haTrabajadas: inicial?.haTrabajadas ?? "",
   });
@@ -206,7 +206,7 @@ export function FormLabor({ inicial, parcelas, insumos, tipos, onAgregarTipo, on
           <input type="number" inputMode="decimal" style={{ ...estiloInput, borderColor: faltaDiesel ? C.rojo : C.linea }} placeholder="0" value={f.litrosDiesel} onChange={set("litrosDiesel")} />
         </Campo>
       )}
-      <InsumosUsados filas={f.insumosUsados} insumos={noDiesel} previos={previos}
+      <InsumosUsados filas={f.insumosUsados} insumos={noDiesel} previos={previos} lotesPorInsumo={lotesPorInsumo}
         onCambiar={(filas) => setF(prev => ({ ...prev, insumosUsados: filas }))} />
       {veFinanzas && (costoPrev > 0 || bajaBodega) && (
         <div className="md:col-span-3" style={{ background: "#EEF4EB", borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.bosque }}>

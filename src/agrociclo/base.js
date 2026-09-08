@@ -114,6 +114,9 @@ export function partirLineasLabor(lineas, categoriaDe) {
     cantidad: Number(li.cantidad) || 0,
     costoUnitario: Number(li.costo_unitario) || 0,
     costoTotal: Number(li.costo_total) || 0,
+    // De qué lote de semilla salió, si se eligió al capturar. Una labor
+    // vieja, o una donde no se eligió, no trae dato: null, no "".
+    lote: li.lote || null,
   }));
   return {
     insumos,

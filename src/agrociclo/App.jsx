@@ -626,6 +626,20 @@ function AgroCicloApp() {
     }),
     [comprasQ.data, temporadaId]
   );
+  /* Lotes de semilla disponibles para elegir al sembrar, por insumo. Informativo
+     de verdad: no hay inventario por lote (eso obligaría a hacerlo obligatorio,
+     y dejaría de ser opcional), así que solo trae los HECHOS de la compra —
+     número, cuánto trajo esa compra y cuándo — sin decir "cuánto queda". Más
+     reciente primero. */
+  const lotesPorInsumo = useMemo(() => {
+    const map = {};
+    comprasT.forEach((c) => {
+      if (!c.insumoId || !Array.isArray(c.lotes) || c.lotes.length === 0) return;
+      (map[c.insumoId] ??= []).push(...c.lotes.map((l) => ({ numero: l.numero, cantidad: l.cantidad, fecha: c.fecha })));
+    });
+    Object.values(map).forEach((arr) => arr.sort((a, b) => b.fecha.localeCompare(a.fecha)));
+    return map;
+  }, [comprasT]);
   // Gastos: TODOS desde la base (los 4 reales + el de caja chica con origen_caja=true).
   // Sidecar eliminado → el $1,850 de caja se cuenta UNA sola vez en el costo/ha.
   const gastos = gastosDb;
@@ -997,7 +1011,7 @@ function AgroCicloApp() {
         if (!u.insumoId || cant <= 0) continue;
         const ins = insumos.find(i => i.id === u.insumoId);
         if (!ins) throw new Error("Selecciona un insumo válido.");
-        lineas.push({ insumo_id: ins._uuid, cantidad: cant, costo_unitario: ins.costoUnitario || 0 });
+        lineas.push({ insumo_id: ins._uuid, cantidad: cant, costo_unitario: ins.costoUnitario || 0, lote: u.lote || null });
       }
       const { error } = await supabase.rpc("fn_registrar_labor", {
         // Sin `original` (alta nueva) puede venir una orden pendiente que el
@@ -2438,7 +2452,7 @@ function AgroCicloApp() {
           <VistaParcelas {...{ vista, puedeEditar, form, setForm, cerrar, productores, creditosT, guardarParcela, parcelasT, costosParcela, veFinanzas, eliminarParcela, laboresHechas, pagarRenta, dispSinLiquidar, cultivos, agregarCultivo, renteros, agregarRentero, nombreRenteroDe, mostrarProductores }} />
 
           {/* ===== LABORES ===== */}
-          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo, conceptosGastoLabor, agregarConceptoGasto, ordenesLabor }} />
+          <VistaLabores {...{ vista, puedeEditar, form, setForm, cerrar, parcelasT, insumos, veFinanzas, guardarLabor, laboresT, parcelas, tarjetaRapida, tarjetaOrden, tarjetaPorHacer, laboresHechas, eliminarLabor, tiposLabor, agregarTipoLabor, guardarLaborRepetir, litrosHaPorTipo, conceptosGastoLabor, agregarConceptoGasto, ordenesLabor, lotesPorInsumo }} />
 
           {/* ===== INVENTARIO / COMPRAS / PEDIDOS DEL CAMPO ===== */}
           <VistaInsumos {...{ vista, puedeEditar, veFinanzas, form, setForm, cerrar, insumos, productores, creditosT, guardarCompra, stockQ, insumosAlmacen, movInvQ, comprasT, marcarPagada, eliminarCompra, finModoCiclo, finValorCiclo, puedeEditarPedidos, equipoTamano: profile.equipoTamano, solicitudesT, guardarSolicitud, solicitanteDefault: user?.displayName || "", vePrecios, eliminarSolicitud, agregarCotizacion, eliminarCotizacion, autorizarSolicitud, recibirSolicitud, parcelasT, mostrarProductores }} />

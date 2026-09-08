@@ -12,12 +12,13 @@ const catDe = (li) => {
   const ins = Array.isArray(li.insumo) ? li.insumo[0] : li.insumo;
   return ins?.categoria;
 };
-const linea = (id, cantidad, cu, categoria) => ({
+const linea = (id, cantidad, cu, categoria, lote) => ({
   insumo_id: id,
   cantidad,
   costo_unitario: cu,
   costo_total: cantidad * cu,
   insumo: { categoria },
+  ...(lote ? { lote } : {}),
 });
 
 describe("Labor con varios insumos: el costo suma TODOS los renglones", () => {
@@ -212,5 +213,58 @@ describe("Guardar una labor con dos insumos (siembra: semilla + arrancador)", ()
     assert.notEqual(r.result.error, null, "30 sacos con 25 en bodega tiene que avisar");
     assert.match(r.result.error.message, /hay 25, pides 30/);
     assert.equal(stockDe(r.ledger, IDS.semilla, ciclo), 25, "no se sobregiró la bodega en silencio");
+  });
+});
+
+describe("Lote de semilla en el renglón de la labor", () => {
+  it("un renglón con lote elegido lo trae en el desglose", () => {
+    const r = partirLineasLabor(
+      [linea("semilla", 20, 900, "Semilla", "8B2K91"), linea("map", 5, 1200, "Fertilizante")],
+      catDe,
+    );
+    assert.equal(r.insumos.find((x) => x.insumoId === "semilla").lote, "8B2K91");
+    assert.equal(r.insumos.find((x) => x.insumoId === "map").lote, null, "un insumo que no es semilla no trae lote inventado");
+  });
+
+  it("un renglón sin lote elegido (o una labor vieja) trae null, no cadena vacía", () => {
+    const r = partirLineasLabor([linea("semilla", 20, 900, "Semilla")], catDe);
+    assert.equal(r.insumos[0].lote, null);
+  });
+});
+
+describe("Guardar una labor eligiendo lote de semilla", () => {
+  it("el renglón de labor_insumo guarda el lote elegido", async () => {
+    const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await predioConBodega();
+    const r = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA, p_parcela_id: parcelaId, p_ciclo_id: ciclo,
+      p_fecha: "2026-10-10", p_tipo: "Siembra",
+      p_lineas: [{ insumo_id: IDS.semilla, cantidad: 20, costo_unitario: 900, lote: "8B2K91" }],
+    });
+    assert.equal(r.result.error, null);
+    const linea = r.ledger.labor_insumo.find((li) => li.labor_id === r.result.data);
+    assert.equal(linea.lote, "8B2K91");
+  });
+
+  it("sin elegir lote, la labor se guarda igual — es opcional de verdad", async () => {
+    const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await predioConBodega();
+    const r = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA, p_parcela_id: parcelaId, p_ciclo_id: ciclo,
+      p_fecha: "2026-10-10", p_tipo: "Siembra",
+      p_lineas: [{ insumo_id: IDS.semilla, cantidad: 20, costo_unitario: 900 }],
+    });
+    assert.equal(r.result.error, null);
+    const linea = r.ledger.labor_insumo.find((li) => li.labor_id === r.result.data);
+    assert.equal(linea.lote, null);
+  });
+
+  it("un espacio en blanco como lote no se guarda como si fuera un lote real", async () => {
+    const { applyRpcToLedger, IDS, ciclo, ledger, parcelaId } = await predioConBodega();
+    const r = await applyRpcToLedger(ledger, "fn_registrar_labor", {
+      p_org: ORG_PRUEBA, p_parcela_id: parcelaId, p_ciclo_id: ciclo,
+      p_fecha: "2026-10-10", p_tipo: "Siembra",
+      p_lineas: [{ insumo_id: IDS.semilla, cantidad: 20, costo_unitario: 900, lote: "   " }],
+    });
+    const linea = r.ledger.labor_insumo.find((li) => li.labor_id === r.result.data);
+    assert.equal(linea.lote, null);
   });
 });
