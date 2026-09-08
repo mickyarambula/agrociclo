@@ -42,10 +42,15 @@ export function CatalogoInsumos({ insumos, onGuardar, onEliminar }) {
 }
 
 export function FormInsumo({ inicial, onGuardar, onCancel }) {
+  // Sin preseleccionar: un default silencioso aquí (antes "Fertilizante" fijo)
+  // deja semilla mal clasificada sin que nadie lo note, y entonces cosas como
+  // el número de lote nunca le aparecen. Mismo criterio que el ORG_ID de
+  // fábrica — si algo importa, que lo elija quien captura, no un valor de
+  // fábrica.
   const [f, set] = useForm({
     nombre: inicial?.nombre || "",
     unidad: inicial?.unidad || "L",
-    categoria: inicial?.categoria || "Fertilizante",
+    categoria: inicial?.categoria || "",
     costoUnitario: inicial?.costoUnitario || inicial?.costo_unitario_ref || "",
   });
   return (
@@ -54,6 +59,7 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
       <Campo label="Unidad"><input style={estiloInput} placeholder="L, kg, ton, bolsa" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="Categoría">
         <select style={estiloInput} value={f.categoria} onChange={set("categoria")}>
+          <option value="">— Elige —</option>
           <option>Diésel</option>
           <option>Fertilizante</option>
           <option>Agroquímico</option>
@@ -64,7 +70,7 @@ export function FormInsumo({ inicial, onGuardar, onCancel }) {
       </Campo>
       <Campo label="Costo de referencia (opcional)"><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
       <div className="flex gap-2 items-end">
-        <Boton deshabilitado={!f.nombre.trim()} onClick={() => f.nombre.trim() && onGuardar(f)}>Guardar</Boton>
+        <Boton deshabilitado={!f.nombre.trim() || !f.categoria} onClick={() => f.nombre.trim() && f.categoria && onGuardar(f)}>Guardar</Boton>
         {onCancel && <Boton secundario onClick={onCancel}>Cancelar</Boton>}
       </div>
     </div>
@@ -79,7 +85,9 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
     fecha: inicial?.fecha || hoyStr,
     insumoId: inicial?.insumoId || "",
     insumoNuevo: "",
-    categoria: "Fertilizante",
+    // Sin preseleccionar (ver FormInsumo): que quien da de alta el insumo
+    // nuevo elija, no que herede un valor de fábrica sin notarlo.
+    categoria: "",
     unidad: inicial?.unidad || "",
     cantidad: inicial?.cantidad ?? "",
     costoUnitario: inicial?.costoUnitario ?? "",
@@ -109,7 +117,7 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
     ? pedidosAutorizados.find((p) => p.insumoId === f.insumoId)
     : null;
   const avisoPedido = pedidoCoincide && pedidoCoincide.id !== pedidoIgnoradoId ? pedidoCoincide : null;
-  const bloqueado = !f.insumoId || (esNuevo && !f.insumoNuevo) || (f.origen === "linea" && !f.creditoId) || !!avisoPedido;
+  const bloqueado = !f.insumoId || (esNuevo && (!f.insumoNuevo || !f.categoria)) || (f.origen === "linea" && !f.creditoId) || !!avisoPedido;
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha de compra"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
@@ -122,7 +130,10 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       </Campo>
       {esNuevo && <Campo label="Nombre del insumo nuevo"><input style={estiloInput} placeholder="Ej. Sulfato de amonio" value={f.insumoNuevo} onChange={set("insumoNuevo")} /></Campo>}
       {esNuevo && (
-        <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}</select></Campo>
+        <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>
+          <option value="">— Elige —</option>
+          {["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}
+        </select></Campo>
       )}
       {avisoPedido && (
         <AvisoDuplicado
@@ -169,14 +180,15 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitan
     solicitante: inicial?.solicitante || solicitanteDefault,
     insumoId: inicial?.insumoId || "",
     insumoNuevo: "",
-    categoria: inicial?.categoria || "Fertilizante",
+    // Sin preseleccionar (ver FormInsumo): que quien levanta el pedido elija.
+    categoria: inicial?.categoria || "",
     unidad: inicial?.unidad || "",
     cantidad: inicial?.cantidad ?? "",
     motivo: inicial?.motivo || "",
     parcelaId: inicial?.parcelaId || "",
   });
   const esNuevo = f.insumoId === "nuevo";
-  const bloqueado = (!f.insumoId && !f.insumoNuevo) || (esNuevo && !f.insumoNuevo) || !f.cantidad || !f.solicitante.trim();
+  const bloqueado = (!f.insumoId && !f.insumoNuevo) || (esNuevo && (!f.insumoNuevo || !f.categoria)) || !f.cantidad || !f.solicitante.trim();
   return (
     <div className="grid md:grid-cols-3 gap-3">
       <Campo label="Fecha"><input type="date" style={estiloInput} value={f.fecha} onChange={set("fecha")} /></Campo>
@@ -190,7 +202,10 @@ export function FormSolicitud({ inicial, insumos, parcelas, onGuardar, solicitan
       </Campo>
       {esNuevo && <Campo label="Nombre del insumo nuevo"><input style={estiloInput} placeholder="Ej. Costales para grano" value={f.insumoNuevo} onChange={set("insumoNuevo")} /></Campo>}
       {esNuevo && (
-        <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>{["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}</select></Campo>
+        <Campo label="Categoría"><select style={estiloInput} value={f.categoria} onChange={set("categoria")}>
+          <option value="">— Elige —</option>
+          {["Semilla", "Fertilizante", "Agroquímico", "Diésel", "Otro"].map(c => <option key={c}>{c}</option>)}
+        </select></Campo>
       )}
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
       <Campo label="Unidad"><input style={estiloInput} placeholder="ton, L, bolsa, pieza…" value={f.unidad} onChange={set("unidad")} /></Campo>
