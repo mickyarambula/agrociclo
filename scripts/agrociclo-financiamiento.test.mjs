@@ -318,3 +318,90 @@ describe("Autorizar un pedido sin cotizar antes (Tanda B · Pedidos)", () => {
     assert.equal(aut.ledger.solicitud_compra.find((s) => s.id === sol.result.data).estado, "solicitado");
   });
 });
+
+describe("Recibir un pedido de insumo NUEVO le pone categoría — findOrCreate no la trae", () => {
+  it("el insumo creado al recibir el pedido queda con la categoría que se eligió al levantarlo", async () => {
+    const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const ledger = ranchoVacioLedger();
+
+    const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitante: "Encargado", p_insumo_id: null,
+      p_insumo_nombre: "DK-4050", p_categoria: "Semilla", p_unidad: "bolsa", p_cantidad: 40,
+    });
+    assert.equal(sol.result.error, null);
+    const solId = sol.result.data;
+
+    const cot = await applyRpcToLedger(sol.ledger, "fn_agregar_cotizacion", {
+      p_org: ORG_PRUEBA, p_solicitud_id: solId, p_proveedor_texto: "Semillas del Valle", p_costo_unitario: 900,
+    });
+    const cotId = cot.ledger.solicitud_cotizacion.find((c) => c.solicitud_id === solId).id;
+
+    const aut = await applyRpcToLedger(cot.ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: solId, p_cotizacion_id: cotId, p_origen: "propio", p_fecha: "2026-10-05",
+    });
+    assert.equal(aut.result.error, null);
+
+    const recibido = await applyRpcToLedger(aut.ledger, "fn_recibir_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: solId, p_fecha: "2026-10-06",
+    });
+    assert.equal(recibido.result.error, null);
+
+    const compraId = recibido.ledger.solicitud_compra.find((s) => s.id === solId).compra_id;
+    const insumoId = recibido.ledger.compra.find((c) => c.id === compraId).insumo_id;
+    const insumo = recibido.ledger.insumo.find((i) => i.id === insumoId);
+    assert.equal(insumo.nombre, "DK-4050");
+    assert.equal(insumo.categoria, "Semilla", "findOrCreate no trae categoría — la RPC tiene que ponérsela");
+  });
+
+  it("sin categoría en la solicitud (dato viejo, de antes de este candado), cae a Otro — nunca queda vacía", async () => {
+    const { ranchoVacioLedger } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const ledger = ranchoVacioLedger();
+
+    // p_categoria ausente a propósito, simulando una solicitud vieja.
+    const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitante: "Encargado", p_insumo_id: null,
+      p_insumo_nombre: "Producto sin categoria", p_unidad: "pieza", p_cantidad: 5,
+    });
+    const cot = await applyRpcToLedger(sol.ledger, "fn_agregar_cotizacion", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_proveedor_texto: "Prov", p_costo_unitario: 50,
+    });
+    const cotId = cot.ledger.solicitud_cotizacion.find((c) => c.solicitud_id === sol.result.data).id;
+    const aut = await applyRpcToLedger(cot.ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_cotizacion_id: cotId, p_origen: "propio", p_fecha: "2026-10-05",
+    });
+    const recibido = await applyRpcToLedger(aut.ledger, "fn_recibir_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_fecha: "2026-10-06",
+    });
+    const compraId = recibido.ledger.solicitud_compra.find((s) => s.id === sol.result.data).compra_id;
+    const insumoId = recibido.ledger.compra.find((c) => c.id === compraId).insumo_id;
+    const insumo = recibido.ledger.insumo.find((i) => i.id === insumoId);
+    assert.equal(insumo.categoria, "Otro", "nunca queda sin categoría, ni siquiera con datos viejos");
+  });
+
+  it("un insumo YA existente al recibir el pedido no se le pisa su categoría real", async () => {
+    const { ranchoVacioLedger, IDS } = await jiti.import("../src/agrociclo/data/seed.ts");
+    const { applyRpcToLedger } = await jiti.import("../src/agrociclo/server/apply.ts");
+    const ledger = ranchoVacioLedger();
+    const antes = ledger.insumo.find((i) => i.id === IDS.diesel);
+    assert.equal(antes.categoria, "Diésel");
+
+    const sol = await applyRpcToLedger(ledger, "fn_guardar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitante: "Encargado", p_insumo_id: IDS.diesel,
+      p_insumo_nombre: "Diésel", p_unidad: "L", p_cantidad: 100,
+    });
+    const cot = await applyRpcToLedger(sol.ledger, "fn_agregar_cotizacion", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_proveedor_texto: "Gasolinera", p_costo_unitario: 24,
+    });
+    const cotId = cot.ledger.solicitud_cotizacion.find((c) => c.solicitud_id === sol.result.data).id;
+    const aut = await applyRpcToLedger(cot.ledger, "fn_autorizar_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_cotizacion_id: cotId, p_origen: "propio", p_fecha: "2026-10-05",
+    });
+    const recibido = await applyRpcToLedger(aut.ledger, "fn_recibir_solicitud", {
+      p_org: ORG_PRUEBA, p_solicitud_id: sol.result.data, p_fecha: "2026-10-06",
+    });
+    const insumo = recibido.ledger.insumo.find((i) => i.id === IDS.diesel);
+    assert.equal(insumo.categoria, "Diésel", "el insumo ya existía — su categoría real no se toca");
+  });
+});

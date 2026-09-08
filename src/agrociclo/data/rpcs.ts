@@ -965,6 +965,12 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
     let insumoId = (sol.insumo_id as string) || null;
     if (!insumoId && sol.insumo_nombre) {
       insumoId = findOrCreate("insumo", String(sol.insumo_nombre));
+      /* findOrCreate solo pone nombre — un insumo nacido de un pedido se
+         quedaba SIN categoría (ni siquiera "Otro"): peor que mal clasificado,
+         porque ni la línea del lote le aparece ni sale en ningún renglón de
+         Reportes por categoría. FormSolicitud ya exige elegir categoría
+         cuando el insumo es nuevo; aquí se aplica al insumo real. */
+      patchWhere("insumo", (r) => r.id === insumoId, { categoria: String(sol.categoria || "Otro") });
     }
     const proveedorId = cot.proveedor_texto
       ? findOrCreate("proveedor", String(cot.proveedor_texto))
