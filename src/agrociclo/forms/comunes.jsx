@@ -403,3 +403,68 @@ export function InsumosUsados({ filas, onCambiar, insumos, previos = [], max = 6
     </div>
   );
 }
+
+/* Números de lote de una compra de semilla: la bolsa siempre trae uno
+   impreso, y el técnico de la marca lo pide SIEMPRE que hay un reclamo por
+   mala nacencia. Va en la COMPRA, no en el catálogo del insumo: dos compras
+   del mismo insumo pueden traer lotes distintos. Mismo patrón de renglones
+   que GastosAdicionales y los insumos de una labor, para no enseñar una
+   tercera forma de agregarlos. Opcional de verdad: sin lote, la compra se
+   guarda igual. */
+export function LotesSemilla({ filas, onCambiar, unidad, cantidadCompra, max = 6, nota }) {
+  const lista = Array.isArray(filas) ? filas : [];
+  const agregar = () => onCambiar([...lista, { numero: "", cantidad: "" }]);
+  const quitar = (i) => onCambiar(lista.filter((_, x) => x !== i));
+  const editar = (i, patch) => onCambiar(lista.map((r, x) => (x === i ? { ...r, ...patch } : r)));
+  const suma = lista.reduce((s, r) => s + (Number(r.cantidad) || 0), 0);
+  // Aviso, no bloqueo: si alguien anota lotes que no cuadran con la compra,
+  // se lo dice — no le impide guardar.
+  const noCuadra = lista.length > 0 && suma > 0 && Number(cantidadCompra) > 0 && suma !== Number(cantidadCompra);
+
+  if (lista.length === 0) {
+    return (
+      <div className="md:col-span-3">
+        <button type="button" onClick={agregar}
+          style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+          + Anotar número de lote
+        </button>
+      </div>
+    );
+  }
+  return (
+    <div className="md:col-span-3 flex flex-col gap-2">
+      <p style={{ margin: 0, fontSize: 12, color: C.gris }}>
+        El lote es el que trae impreso la bolsa. Si vinieron varios en la misma compra, agrégalos aquí — no la partas en dos compras.
+      </p>
+      {lista.map((r, i) => (
+        <div key={i} className="flex items-end gap-2">
+          <input style={{ ...estiloInput, flex: 1, minWidth: 0 }} placeholder="Ej. 8B2K91" aria-label="Número de lote"
+            value={r.numero} onChange={(e) => editar(i, { numero: e.target.value })} />
+          <input type="number" inputMode="decimal" placeholder="0" aria-label={`Cantidad en ${unidad || "unidad"}`}
+            style={{ ...estiloInput, width: 110 }} value={r.cantidad} onChange={(e) => editar(i, { cantidad: e.target.value })} />
+          <button type="button" onClick={() => quitar(i)} aria-label="Quitar lote"
+            style={{ border: "none", background: "transparent", cursor: "pointer", color: C.gris, minWidth: 44, minHeight: 44 }}>
+            <X size={17} />
+          </button>
+        </div>
+      ))}
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        {lista.length < max ? (
+          <button type="button" onClick={agregar}
+            style={{ background: "transparent", border: "none", cursor: "pointer", color: C.hoja, textDecoration: "underline", fontWeight: 600, fontSize: 12, padding: 0, minHeight: 44, fontFamily: fuente.cuerpo }}>
+            + Agregar otro lote
+          </button>
+        ) : (
+          <span style={{ fontSize: 11, color: C.gris }}>Hasta {max} lotes por compra.</span>
+        )}
+        {suma > 0 && <span style={{ fontSize: 12, color: C.bosque, fontWeight: 700 }}>{num(suma, 1)} {unidad || ""}</span>}
+      </div>
+      {noCuadra && (
+        <span style={{ fontSize: 11, color: C.barrial, lineHeight: 1.4 }}>
+          Los lotes suman {num(suma, 1)} {unidad || ""} y la compra son {num(Number(cantidadCompra) || 0, 1)} {unidad || ""}.
+        </span>
+      )}
+      {nota && <span style={{ fontSize: 11, color: C.barrial, lineHeight: 1.4 }}>{nota}</span>}
+    </div>
+  );
+}

@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Plus, Pencil, Trash2, CheckCircle2, PackageCheck } from "lucide-react";
 import { C, money, num, hoyStr, ESTADOS_SOLICITUD, moneyU } from "../base";
 import { fuente, estiloInput, Tarjeta, Boton, Campo, PickerParcela, Acciones, Vacio, useForm } from "../ui";
-import { CampoProductor, CampoFinanciamiento, AvisoDuplicado } from "./comunes";
+import { CampoProductor, CampoFinanciamiento, AvisoDuplicado, LotesSemilla } from "./comunes";
 
 export function CatalogoInsumos({ insumos, onGuardar, onEliminar }) {
   const [edit, setEdit] = useState(null);
@@ -90,8 +90,15 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
     tasa: inicial?.tasa ?? (!inicial && finModoCiclo === "tasa" ? String(finValorCiclo ?? "") : ""),
     pct: inicial?.pct ?? (!inicial && finModoCiclo === "sobreprecio" ? String(finValorCiclo ?? "") : ""),
     productorId: inicial?.productorId || "",
+    // Renglones de lote, solo relevantes si el insumo es Semilla (ver esSemilla).
+    lotes: (inicial?.lotes ?? []).map(l => ({ numero: l.numero, cantidad: l.cantidad })),
   });
   const esNuevo = f.insumoId === "nuevo";
+  // Categoría del insumo elegido: del catálogo si ya existe, de lo que se
+  // está escribiendo si es de alta. El lote solo tiene sentido en Semilla —
+  // pedirlo en una compra de diésel o urea es ruido.
+  const categoriaInsumo = esNuevo ? f.categoria : (insumos.find(i => i.id === f.insumoId)?.categoria ?? null);
+  const esSemilla = categoriaInsumo === "Semilla";
   const monto = (Number(f.cantidad) || 0) * (Number(f.costoUnitario) || 0);
   // Si ya hay un pedido autorizado de este insumo y alguien registra la
   // compra a mano, se duplicaba: doble entrada a bodega y doble disposición
@@ -129,6 +136,10 @@ export function FormCompra({ inicial, insumos, productores, creditos, onGuardar,
       <Campo label="Unidad · la misma con la que se gasta en la labor" nota={notas?.unidad}><input style={estiloInput} placeholder="ton, L, bolsa…" value={f.unidad} onChange={set("unidad")} /></Campo>
       <Campo label="Cantidad"><input type="number" style={estiloInput} placeholder="0" value={f.cantidad} onChange={set("cantidad")} /></Campo>
       <Campo label={`Costo por ${f.unidad || "unidad"} (MXN)`} nota={notas?.costoUnitario}><input type="number" style={estiloInput} placeholder="0" value={f.costoUnitario} onChange={set("costoUnitario")} /></Campo>
+      {esSemilla && (
+        <LotesSemilla filas={f.lotes} unidad={f.unidad} cantidadCompra={f.cantidad} nota={notas?.lote}
+          onCambiar={(filas) => setF(prev => ({ ...prev, lotes: filas }))} />
+      )}
       <Campo label="Proveedor"><input style={estiloInput} placeholder="Ej. Agroinsumos del Fuerte" value={f.proveedor} onChange={set("proveedor")} /></Campo>
       <CampoProductor value={f.productorId} onChange={set("productorId")} productores={productores} mostrar={mostrarProductores} />
       <CampoFinanciamiento

@@ -620,6 +620,8 @@ function AgroCicloApp() {
         proveedor: prov?.nombre ?? "",
         productorId: r.productor_id ?? null,   // uuid
         solicitudId: r.solicitud_id ?? null,
+        // Lotes de semilla de ESTA compra. Una compra vieja no trae el campo.
+        lotes: Array.isArray(r.lotes) ? r.lotes.map(l => ({ numero: l.numero, cantidad: Number(l.cantidad) || 0 })) : [],
       };
     }),
     [comprasQ.data, temporadaId]
@@ -1363,6 +1365,7 @@ function AgroCicloApp() {
         p_fecha_pago_externo: origen === "externo" ? (original?.fechaPago || null) : null,
         p_solicitud_id: null,
         p_categoria: esNuevo ? (f.categoria || "Otro") : null,
+        p_lotes: Array.isArray(f.lotes) ? f.lotes.map(l => ({ numero: l.numero, cantidad: Number(l.cantidad) || 0 })) : null,
       });
       if (error) throw new Error(error.message);
     },

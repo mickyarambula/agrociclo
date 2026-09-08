@@ -505,6 +505,20 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       : null;
     const origen = String(p.p_origen || "propio");
     const monto = (Number(p.p_cantidad) || 0) * (Number(p.p_costo_unitario) || 0);
+    /* Número de lote de semilla: de la BOLSA que se compró, no del insumo del
+       catálogo — dos compras del mismo insumo pueden traer lotes distintos.
+       Mismo criterio que gastos_adicionales: si no llega el campo (edición
+       que no toca lotes), se conserva lo que ya había; si llega un arreglo
+       (aunque quede vacío tras filtrar), reemplaza. Opcional de verdad: sin
+       ningún renglón, la compra se guarda igual con `lotes: []`. */
+    const lotesInput = (Array.isArray(p.p_lotes) ? p.p_lotes : null) as
+      | { numero?: string; cantidad?: number }[]
+      | null;
+    const lotes = lotesInput
+      ? lotesInput
+          .map((l) => ({ numero: String(l.numero ?? "").trim(), cantidad: Number(l.cantidad) || 0 }))
+          .filter((l) => l.numero !== "" || l.cantidad !== 0)
+      : ((getById("compra", id)?.lotes as { numero: string; cantidad: number }[] | undefined) ?? null);
     let dispId: string | null = (getById("compra", id)?.disposicion_id as string) ?? null;
     if (origen === "linea" && p.p_linea_id) {
       dispId = upsertDisposicion({
@@ -541,6 +555,7 @@ const rpcs: Record<string, (p: Record<string, unknown>) => RpcResult> = {
       costo_fin_real: getById("compra", id)?.costo_fin_real ?? null,
       solicitud_id: p.p_solicitud_id ?? null,
       proveedor_id: proveedorId,
+      lotes,
       eliminado_en: null,
       creado_en: getById("compra", id)?.creado_en ?? new Date().toISOString(),
     });

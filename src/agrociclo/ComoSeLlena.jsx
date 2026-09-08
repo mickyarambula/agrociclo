@@ -57,19 +57,24 @@ export function ComoSeLlenaCompra({ onCerrar }) {
       porque="Cada compra es lo que entra a tu bodega. De aquí sale el costo de cada labor que use este insumo — sin compra registrada, la labor no tiene de dónde tomar el insumo ni el diésel."
     >
       {datos && (
-        <FormCompra
-          inicial={datos.inicial}
-          insumos={datos.insumos}
-          creditos={datos.creditos}
-          productores={[]}
-          mostrarProductores={false}
-          onGuardar={() => {}}
-          notas={{
-            unidad: "La misma con la que la vas a gastar en la labor. Aquí: tonelada, porque la urea se aplica por tonelada. Si compras en bultos y luego la gastas en toneladas, la bodega no te va a cuadrar.",
-            costoUnitario: "Lo que costó UNA unidad, no el total de la compra. Aquí: el precio de UNA tonelada de urea.",
-            origen: "Si lo cargaste a tu línea de avío, elige tu línea — así el interés se cuenta desde la fecha de esta compra. Si lo pagaste de tu bolsa, elige \"Recurso propio\", aunque tengas crédito disponible.",
-          }}
-        />
+        <>
+          <div style={{ fontSize: 12.5, color: C.barrial, background: "#FBF3E2", borderRadius: 10, padding: "10px 12px", lineHeight: 1.4 }}>
+            <strong>Número de lote</strong> — solo aparece si el insumo está guardado como "Semilla" en Insumos (si no la ves en tu compra, corrige la categoría ahí). Viene impreso en la bolsa, junto al nombre de la variedad (DK-4050, AS-...). Anótalo aquí, en la COMPRA, no en el insumo: cada bolsa que compras puede traer un lote distinto. Sirve para cuando la semilla no nace bien — el técnico de la marca SIEMPRE lo pide para atender el reclamo, y así lo traes en el teléfono en vez de ir a buscar la bolsa a la troca.
+          </div>
+          <FormCompra
+            inicial={datos.inicial}
+            insumos={datos.insumos}
+            creditos={datos.creditos}
+            productores={[]}
+            mostrarProductores={false}
+            onGuardar={() => {}}
+            notas={{
+              unidad: "La misma con la que la vas a gastar en la labor. Aquí: tonelada, porque la urea se aplica por tonelada. Si compras en bultos y luego la gastas en toneladas, la bodega no te va a cuadrar.",
+              costoUnitario: "Lo que costó UNA unidad, no el total de la compra. Aquí: el precio de UNA tonelada de urea.",
+              origen: "Si lo cargaste a tu línea de avío, elige tu línea — así el interés se cuenta desde la fecha de esta compra. Si lo pagaste de tu bolsa, elige \"Recurso propio\", aunque tengas crédito disponible.",
+            }}
+          />
+        </>
       )}
     </HojaComoSeLlena>
   );
